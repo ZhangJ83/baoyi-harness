@@ -92,7 +92,6 @@ def snapshot_harness(harness) -> dict:
         "unresolved_checks": sorted(getattr(state, "unresolved_checks", set())),
         "repair_attempts": getattr(state, "repair_attempts", 0),
         "last_verification_failed": getattr(state, "last_verification_failed", False),
-        "reference_edit_manifest": getattr(state, "reference_edit_manifest", None),
         "verification_contract_terms": getattr(state, "verification_contract_terms", None),
     }
 
@@ -180,8 +179,6 @@ def restore_harness(harness, payload: dict) -> str:
     state.unresolved_checks = set(payload.get("unresolved_checks", []))
     state.repair_attempts = int(payload.get("repair_attempts", 0))
     state.last_verification_failed = bool(payload.get("last_verification_failed", False))
-    if isinstance(payload.get("reference_edit_manifest"), dict):
-        state.reference_edit_manifest = payload["reference_edit_manifest"]
     if isinstance(payload.get("verification_contract_terms"), dict):
         state.verification_contract_terms = payload["verification_contract_terms"]
     # Reload the persisted working deck so a resumed turn never starts from the

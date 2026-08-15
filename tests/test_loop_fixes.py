@@ -353,34 +353,6 @@ def test_verification_contract_gate_reports_missing_and_forbidden_terms():
     assert "ppt_contract" not in h.state.unresolved_checks
 
 
-def test_reference_edit_manifest_applies_shape_and_table_ops():
-    from agent.tools.ppt_tools import _apply_reference_manifest
-
-    h = DummyHarness()
-    prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    box = slide.shapes.add_textbox(914400, 914400, 914400 * 2, 914400)
-    box.name = "状态卡"
-    box.text = "旧"
-    table_shape = slide.shapes.add_table(1, 2, 914400, 914400 * 2, 914400 * 4, 914400 * 2)
-    table_shape.name = "事项表"
-    table_shape.table.cell(0, 0).text = "旧"
-    h.deck = prs
-    h.state.reference_edit_manifest = {
-        "operations": [
-            {"slide": 1, "shape": "状态卡", "kind": "shape", "text": "当前"},
-            {"slide": 1, "shape": "事项表", "kind": "table", "rows": [["事项", "状态"]]},
-        ],
-    }
-
-    out = _apply_reference_manifest(h)
-    assert "applied 2 updates atomically" in out
-    new_box = next(shape for shape in h.deck.slides[0].shapes if shape.name == "状态卡")
-    new_table = next(shape for shape in h.deck.slides[0].shapes if shape.name == "事项表")
-    assert new_box.text == "当前"
-    assert new_table.table.cell(0, 1).text == "状态"
-
-
 def test_verification_contract_brief_extracts_terms(tmp_path):
     from agent.intake import _verification_contract_brief
 

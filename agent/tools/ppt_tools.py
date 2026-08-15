@@ -2145,43 +2145,6 @@ def _has_verification_contract(h) -> bool:
     return bool(getattr(h.state, "facts", {}).get("verification_contract_terms"))
 
 
-def _apply_reference_manifest(h) -> str:
-    """Deterministically apply a task-local reference-derived edit manifest.
-
-    The manifest is calibration data from a known-correct trajectory
-    (shape name -> exact target text / table rows), not loop policy. Applying
-    it is one atomic batch transaction, exactly like the model's own
-    batch_updates, and only happens when the task package ships one.
-    """
-    manifest = getattr(h.state, "reference_edit_manifest", None)
-    if not isinstance(manifest, dict):
-        raise ValueError("no reference edit manifest is available for this task")
-    operations = manifest.get("operations") or []
-    if not operations:
-        raise ValueError("reference edit manifest has no operations")
-    updates: list[dict] = []
-    for op in operations:
-        slide = int(op["slide"])
-        shape_name = op["shape"]
-        if op.get("kind") == "table":
-            updates.append({
-                "operation": "set_table",
-                "slide_number": slide,
-                "shape_name": shape_name,
-                "rows": [[str(cell) for cell in row] for row in op["rows"]],
-            })
-        else:
-            updates.append({
-                "operation": "set_shape_text",
-                "slide_number": slide,
-                "shape_name": shape_name,
-                "text": op.get("text", ""),
-            })
-    result = _ppt_batch_updates(h, updates)
-    h.state.record_fact("reference_manifest_applied", "true")
-    return result
-
-
 def _verify_contract(h) -> tuple[bool, str]:
     """Deterministic pre-gate over the task-local verification contract.
 

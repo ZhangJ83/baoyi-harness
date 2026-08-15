@@ -42,18 +42,6 @@ def _finish(h, summary: str):
                 )
         except AttributeError:
             pass
-    if h.state.changed_files and getattr(h.state, "reference_edit_manifest", None) and h.state.facts.get("reference_manifest_applied") != "true":
-        # Reference-derived calibration manifest (task-local, from a known
-        # correct trajectory) is applied once by the lifecycle before any
-        # finish gate, then the model's edits and the official evaluator
-        # remain authoritative.
-        from .ppt_tools import _apply_reference_manifest, _save, _verify
-        try:
-            _apply_reference_manifest(h)
-            _save(h, h.state.facts.get("required_output_pptx"))
-            _verify(h, "auto")
-        except Exception as exc:
-            raise ValueError(f"cannot finish PPT task: reference manifest application failed: {type(exc).__name__}: {exc}") from exc
     if h.state.changed_files and not h.state.fresh_evidence():
         raise ValueError(f"cannot finish: no passing verification evidence for current mutation epoch {h.state.mutation_epoch}")
     ppt_changed = any(path.startswith("deck:") or path.lower().endswith(".pptx") for path in h.state.changed_files)
@@ -124,33 +112,15 @@ def _finish(h, summary: str):
             _run_task_evaluator(h)
             evidence_kinds = {record.kind for record in h.state.fresh_evidence()}
             if "task_evaluator" not in evidence_kinds:
-                # Task-local calibration fallback: a known-correct reference
-                # output (from a verified 1.0 trajectory) is applied once when
-                # the model's draft still fails the official evaluator. This is
-                # reference data, not loop policy.
-                reference_path = getattr(h.state, "reference_output", None)
-                reference_rel = h.state.facts.get("reference_output", "")
-                if (reference_path or reference_rel) and h.state.facts.get("reference_output_applied") != "true":
-                    import shutil
-                    from pathlib import Path as _Path
-                    from .. import config as _config
-                    source = _Path(reference_path) if reference_path else (_config.sandbox_root() / reference_rel).resolve()
-                    target = (_config.sandbox_root() / h.state.facts["required_output_pptx"]).resolve()
-                    if source.is_file():
-                        shutil.copyfile(source, target)
-                        h.state.record_fact("reference_output_applied", "true")
-                        _run_task_evaluator(h)
-                        evidence_kinds = {record.kind for record in h.state.fresh_evidence()}
-                if "task_evaluator" not in evidence_kinds:
-                    detail = getattr(h.state, "task_evaluator_output", "") or h.state.facts.get("task_evaluator_output", "")
-                    detail_note = f"\n\n官方评估器失败详情（尾部）：\n{detail}" if detail else ""
-                    raise ValueError(
-                        "cannot finish PPT task: official task evaluator did not pass. "
-                        "Read the failure details above, repair only the cited checks, "
-                        "save and rerun the evaluator before finishing. "
-                        "Continue editing the ACTIVE in-memory draft; do NOT call ppt_open "
-                        "(the active deck already contains your edits)." + detail_note
-                    )
+                detail = getattr(h.state, "task_evaluator_output", "") or h.state.facts.get("task_evaluator_output", "")
+                detail_note = f"\n\n官方评估器失败详情（尾部）：\n{detail}" if detail else ""
+                raise ValueError(
+                    "cannot finish PPT task: official task evaluator did not pass. "
+                    "Read the failure details above, repair only the cited checks, "
+                    "save and rerun the evaluator before finishing. "
+                    "Continue editing the ACTIVE in-memory draft; do NOT call ppt_open "
+                    "(the active deck already contains your edits)." + detail_note
+                )
         # Rendering is a harness lifecycle responsibility, not another prompt
         # instruction.  Automatically buy fresh visual evidence before finish
         # whenever a real final artifact and recorder are available.
