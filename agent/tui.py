@@ -33,6 +33,13 @@ from .wordmark import wordmark
 
 console = Console()
 
+
+def _price(name: str) -> float:
+    try:
+        return max(0.0, float(os.getenv(name, "0") or "0"))
+    except ValueError:
+        return 0.0
+
 XIAOPU_HELP = """\
 小朴 commands:
 
@@ -564,11 +571,20 @@ class XiaopuTerminalUI:
         limit = config.max_total_tokens()
         used = min(state.total_tokens, limit)
         bar = ProgressBar(total=limit, completed=used, width=50)
+        input_tokens = max(0, state.total_tokens - state.generated_output_tokens)
+        price_in = _price("XIAOPU_PRICE_INPUT_PER_M")
+        price_out = _price("XIAOPU_PRICE_OUTPUT_PER_M")
+        cost_line = (
+            f"费用估算：${input_tokens / 1_000_000 * price_in + state.generated_output_tokens / 1_000_000 * price_out:.6f}"
+            if price_in > 0 or price_out > 0
+            else "费用估算：未配置单价（设置 XIAOPU_PRICE_INPUT_PER_M / XIAOPU_PRICE_OUTPUT_PER_M，单位 USD/1M tokens）"
+        )
         console.print(
             f"上下文预算：{used:,} / {limit:,} tokens（模型输入累计；达到上限前自动压缩）\n"
             f"[dim]{bar}[/]\n"
             f"生成输出：{state.generated_output_tokens:,} tokens · 工具调用 {state.tool_calls} 次\n"
             f"思考信号：累计 {state.reasoning_chars:,} 字符（原始思维链永不显示）\n"
+            f"{cost_line}\n"
         )
 
     def _show_model(self) -> None:
