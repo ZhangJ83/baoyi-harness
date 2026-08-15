@@ -65,6 +65,16 @@ def _retry(call, cancelled=None):
             last = exc
             status = getattr(exc, "status_code", None)
             retryable = status in {408, 409, 429, 500, 502, 503, 504} or isinstance(exc, (TimeoutError, ConnectionError))
+            # OpenAI SDK transport errors are their own exception classes and
+            # are not ConnectionError subclasses. Observed in real runs as
+            # APIConnectionError after a long tool turn; retry them like the
+            # transport errors they are.
+            try:
+                import openai
+                if isinstance(exc, openai.APIConnectionError):
+                    retryable = True
+            except Exception:
+                pass
             if not retryable or attempt >= config.api_retries():
                 raise
             time.sleep(min(8.0, (2 ** attempt) + random.random() * 0.25))

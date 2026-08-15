@@ -71,6 +71,33 @@ def _finish(h, summary: str):
                 "cannot finish PPT task: this run has no saved final-pptx artifact; "
                 "call save_deck for the required output path, then verify and finish"
             )
+        # Generic non-loop immutability gate derived from trajectory evidence:
+        # for localized edits, the saved deck may only change declared slides.
+        # Global-edit tasks have no declared slide scope and skip this check.
+        allowed = set(getattr(h.state, "ppt_allowed_slides", set()) or set())
+        if allowed and final_rows:
+            input_rel = h.state.facts.get("ppt_input_deck", "")
+            if input_rel:
+                from pathlib import Path as _Path
+                from ... import config as _config
+                from domains.ppt.transaction import diff_decks
+
+                input_path = _Path(_config.sandbox_root()) / input_rel
+                final_path = _Path(final_rows[-1]["path"])
+                if input_path.is_file() and final_path.is_file():
+                    try:
+                        delta = diff_decks(input_path, final_path)
+                    except Exception:
+                        delta = None
+                    if delta is not None:
+                        violations = [c.summarize() for c in delta.attribute_changes if c.slide not in allowed]
+                        violations += [f"slide {s} added/removed outside allowed slides" for s in (*delta.added_slides, *delta.removed_slides) if s not in allowed]
+                        if violations:
+                            preview = "; ".join(violations[:6])
+                            raise ValueError(
+                                "cannot finish PPT task: the saved deck modified objects outside the declared "
+                                f"mutation scope (allowed slides {sorted(allowed)}): {preview}"
+                            )
         if h.state.facts.get("official_evaluator_present") == "true" and "task_evaluator" not in evidence_kinds:
             from .lifecycle_tools import _run_task_evaluator
             _run_task_evaluator(h)

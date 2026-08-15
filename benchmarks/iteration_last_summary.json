@@ -1,0 +1,34 @@
+{
+  "round": 6,
+  "ppt_cells": [
+    "Accounting Equation-004",
+    "xmind-screenshot-template-ppt"
+  ],
+  "stable": true,
+  "no_improve_streak": 2,
+  "ppt_best": {
+    "3-002": 1.0,
+    "3-003": 1.0,
+    "4._Pre-Colonial_Filipino_Culture-001": 1.0,
+    "HSC Careers and Expo FINAL COM MOD-008": 1.0,
+    "Accounting Equation-004": 0.5,
+    "Aircraft_surface-004": 1.0,
+    "HSC Careers and Expo FINAL COM MOD-038": 1.0,
+    "Accounting Equation-045": 0.9,
+    "4._Pre-Colonial_Filipino_Culture-005": 1.0,
+    "board-material-update-timeline-excel": 0.686,
+    "html-report-quadrant-ppt": 0.7564,
+    "xmind-screenshot-template-ppt": 0.531
+  },
+  "ppt_unscorable": [
+    "3-006"
+  ],
+  "code": {
+    "task": "HumanEval_7",
+    "passed": true,
+    "has_solution": true
+  },
+  "notes": [
+    "代码任务先读 problem.md 定位需求，写出最小正确实现并保存到指定文件，再用本地测试快速自检后 finish。"
+  ]
+}

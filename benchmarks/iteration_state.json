@@ -1,0 +1,98 @@
+{
+  "round": 6,
+  "ppt_scores": {
+    "3-002": 1.0,
+    "3-003": 1.0,
+    "board-material-update-timeline-excel": 0.686,
+    "html-report-quadrant-ppt": 0.7564,
+    "xmind-screenshot-template-ppt": 0.4248,
+    "4._Pre-Colonial_Filipino_Culture-001": 1.0,
+    "HSC Careers and Expo FINAL COM MOD-008": 1.0,
+    "Accounting Equation-004": 0.5,
+    "Aircraft_surface-004": 1.0,
+    "HSC Careers and Expo FINAL COM MOD-038": 1.0,
+    "Accounting Equation-045": 0.9,
+    "4._Pre-Colonial_Filipino_Culture-005": 1.0
+  },
+  "ppt_best": {
+    "3-002": 1.0,
+    "3-003": 1.0,
+    "board-material-update-timeline-excel": 0.686,
+    "html-report-quadrant-ppt": 0.7564,
+    "xmind-screenshot-template-ppt": 0.531,
+    "4._Pre-Colonial_Filipino_Culture-001": 1.0,
+    "HSC Careers and Expo FINAL COM MOD-008": 1.0,
+    "Accounting Equation-004": 0.5,
+    "Aircraft_surface-004": 1.0,
+    "HSC Careers and Expo FINAL COM MOD-038": 1.0,
+    "Accounting Equation-045": 0.9,
+    "4._Pre-Colonial_Filipino_Culture-005": 1.0
+  },
+  "ppt_failures": {
+    "4._Pre-Colonial_Filipino_Culture-001": [],
+    "3-006": [],
+    "HSC Careers and Expo FINAL COM MOD-008": [],
+    "Accounting Equation-004": [
+      {
+        "name": "No extraneous text changes were made",
+        "status": "scored",
+        "score": 0.0,
+        "reason": "Extraneous text changes found (beyond 'Liability/Liabilities' -> 'Debt/Debts'):\nSlide 1: expected 'Similarly the business had obtained the money from Mr. A and this money will have to be returned in form of either cash or benefits. Any thing for which the business has to repay in ay form is called ...' but got 'Similarly the business had obtained the money from Mr. A and this money will have to be returned in form of either cash or benefits. Any thing for which the business has to repay in ay form is called ...'\nSlide 6: expected 'ASSETS\nAssets are the properties and possessions of the business.\nProperties and possessions can be of two types, one that have physical existence (called tangible) and the others that have no physica...' but got 'ASSETS\nAssets are the properties and possessions of the business.\nProperties and possessions can be of two types, one that have physical existence (called tangible) and the others that have no physica...'"
+      }
+    ],
+    "Aircraft_surface-004": [],
+    "HSC Careers and Expo FINAL COM MOD-038": [],
+    "Accounting Equation-045": [
+      {
+        "name": "Appropriate flowchart shapes used",
+        "status": "scored",
+        "score": 0.6,
+        "reason": "Found 4 step shapes but only 0 connectors. Missing arrows."
+      }
+    ],
+    "4._Pre-Colonial_Filipino_Culture-005": [],
+    "xmind-screenshot-template-ppt": []
+  },
+  "code_scores": {
+    "HumanEval_0": {
+      "passed": true,
+      "detail": ""
+    },
+    "HumanEval_1": {
+      "passed": true,
+      "detail": ""
+    },
+    "HumanEval_2": {
+      "passed": true,
+      "detail": ""
+    },
+    "HumanEval_3": {
+      "passed": true,
+      "detail": ""
+    },
+    "HumanEval_4": {
+      "passed": true,
+      "detail": ""
+    },
+    "HumanEval_5": {
+      "passed": true,
+      "detail": ""
+    },
+    "HumanEval_6": {
+      "passed": false,
+      "detail": "Traceback (most recent call last):\n  File \"<string>\", line 15, in <module>\n    check(parse_nested_parens)\n          ^^^^^^^^^^^^^^^^^^^\nNameError: name 'parse_nested_parens' is not defined\n"
+    },
+    "HumanEval_7": {
+      "passed": true,
+      "detail": ""
+    }
+  },
+  "code_next": 8,
+  "no_improve_streak": 2,
+  "notes": [
+    "代码任务先读 problem.md 定位需求，写出最小正确实现并保存到指定文件，再用本地测试快速自检后 finish。"
+  ],
+  "ppt_unscorable": {
+    "3-006": true
+  }
+}
