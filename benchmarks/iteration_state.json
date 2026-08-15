@@ -1,11 +1,11 @@
 {
-  "round": 6,
+  "round": 4,
   "ppt_scores": {
     "3-002": 1.0,
     "3-003": 1.0,
-    "board-material-update-timeline-excel": 0.686,
+    "board-material-update-timeline-excel": 0.6728,
     "html-report-quadrant-ppt": 0.7564,
-    "xmind-screenshot-template-ppt": 0.4248,
+    "xmind-screenshot-template-ppt": 0.6814,
     "4._Pre-Colonial_Filipino_Culture-001": 1.0,
     "HSC Careers and Expo FINAL COM MOD-008": 1.0,
     "Accounting Equation-004": 0.5,
@@ -19,7 +19,7 @@
     "3-003": 1.0,
     "board-material-update-timeline-excel": 0.686,
     "html-report-quadrant-ppt": 0.7564,
-    "xmind-screenshot-template-ppt": 0.531,
+    "xmind-screenshot-template-ppt": 0.6814,
     "4._Pre-Colonial_Filipino_Culture-001": 1.0,
     "HSC Careers and Expo FINAL COM MOD-008": 1.0,
     "Accounting Equation-004": 0.5,
@@ -47,11 +47,13 @@
         "name": "Appropriate flowchart shapes used",
         "status": "scored",
         "score": 0.6,
-        "reason": "Found 4 step shapes but only 0 connectors. Missing arrows."
+        "reason": "Found 3 step shapes but only 0 connectors. Missing arrows."
       }
     ],
     "4._Pre-Colonial_Filipino_Culture-005": [],
-    "xmind-screenshot-template-ppt": []
+    "xmind-screenshot-template-ppt": [],
+    "board-material-update-timeline-excel": [],
+    "html-report-quadrant-ppt": []
   },
   "code_scores": {
     "HumanEval_0": {
@@ -85,14 +87,476 @@
     "HumanEval_7": {
       "passed": true,
       "detail": ""
+    },
+    "HumanEval_8": {
+      "passed": false,
+      "detail": "Traceback (most recent call last):\n  File \"<string>\", line 17, in <module>\n    check(sum_product)\n          ^^^^^^^^^^^\nNameError: name 'sum_product' is not defined\n"
+    },
+    "HumanEval_9": {
+      "passed": false,
+      "detail": "Traceback (most recent call last):\n  File \"<string>\", line 16, in <module>\n    check(rolling_max)\n          ^^^^^^^^^^^\nNameError: name 'rolling_max' is not defined\n"
+    },
+    "HumanEval_10": {
+      "passed": false,
+      "detail": "Traceback (most recent call last):\n  File \"<string>\", line 17, in <module>\n    check(make_palindrome)\n          ^^^^^^^^^^^^^^^\nNameError: name 'make_palindrome' is not defined\n"
+    },
+    "HumanEval_11": {
+      "passed": true,
+      "detail": ""
+    },
+    "HumanEval_12": {
+      "passed": true,
+      "detail": ""
+    },
+    "HumanEval_13": {
+      "passed": true,
+      "detail": ""
     }
   },
-  "code_next": 8,
-  "no_improve_streak": 2,
+  "code_next": 14,
+  "no_improve_streak": 1,
   "notes": [
-    "代码任务先读 problem.md 定位需求，写出最小正确实现并保存到指定文件，再用本地测试快速自检后 finish。"
+    "代码任务先读 problem.md 定位需求，写出最小正确实现并保存到指定文件，再用本地测试快速自检后 finish。",
+    "图示/流程图必须同时创建节点形状和箭头连接线，连接线连接相邻节点。",
+    "在 finish 之前必须先保存产物到任务要求的 output 路径，然后运行任务自带的验证器。",
+    "局部编辑任务只允许修改目标页；保存后系统会对照输入 deck 检查非目标页并阻止 finish。",
+    "连接类错误会自动重试；仍失败时先保存再继续，不要空转。"
   ],
   "ppt_unscorable": {
     "3-006": true
-  }
+  },
+  "ppt_attempts": {
+    "board-material-update-timeline-excel": 5,
+    "html-report-quadrant-ppt": 4,
+    "xmind-screenshot-template-ppt": 5,
+    "Accounting Equation-004": 5,
+    "Accounting Equation-045": 4
+  },
+  "trajectory_analyses": {
+    "r1_board-material-update-timeline-excel": {
+      "score": null,
+      "error": "output missing",
+      "failed_checks": [],
+      "trajectory": {
+        "tool_calls": [
+          [
+            "ppt_inspect",
+            "{\"detail\": \"summary\"})"
+          ],
+          [
+            "ppt_edit_text",
+            "{\"operation\": \"replace\", \"slide_number\": 1, \"old\": \"v1.7 草稿\", \"new\": \"v1.8 当前\"})"
+          ],
+          [
+            "ppt_edit_text",
+            "{\"operation\": \"replace\", \"slide_number\": 1, \"old\": \"2026-06-12\", \"new\": \"2026-07-01\"})"
+          ],
+          [
+            "ppt_edit_text",
+            "{\"operation\": \"batch_updates\", \"updates\": [{\"operation\": \"replace\", \"slide_number\": 3, \"old\": \"6 月治理包工作状态\", \"new\": \"7 月治"
+          ],
+          [
+            "ppt_edit_text",
+            "{\"operation\": \"batch_updates\", \"updates\": [{\"operation\": \"replace\", \"slide_number\": 4, \"old\": \"6/20 待确认\", \"new\": \"6/30 已"
+          ]
+        ],
+        "failures": [
+          [
+            "ValueError",
+            "text not found: '6/20'."
+          ]
+        ],
+        "saved": false,
+        "verified": false,
+        "finished": true,
+        "connection_error": false
+      }
+    },
+    "r1_html-report-quadrant-ppt": {
+      "score": null,
+      "error": "output missing",
+      "failed_checks": [],
+      "trajectory": {
+        "tool_calls": [
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 1})"
+          ],
+          [
+            "ppt_edit_text",
+            "{\"operation\": \"batch_updates\", \"updates\": [{\"operation\": \"replace\", \"slide_number\": 1, \"old\": \"青穗街区协同项目｜季度四象限看板（标题占位）\", "
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 1})"
+          ],
+          [
+            "ppt_edit_text",
+            "{\"operation\": \"batch_updates\", \"updates\": [{\"operation\": \"replace\", \"slide_number\": 1, \"text_contains\": \"26\", \"old\": \"季度"
+          ],
+          [
+            "ppt_inspect",
+            "{\"slide_number\": 1, \"detail\": \"shapes\"})"
+          ]
+        ],
+        "failures": [
+          [
+            "ValueError",
+            "text not found: 'Q1 服务覆盖与触达 | [metric/chart/source chip placeholder]'."
+          ],
+          [
+            "ValueError",
+            "updates[1] replace requires non-empty old text."
+          ]
+        ],
+        "saved": false,
+        "verified": false,
+        "finished": false,
+        "connection_error": false
+      }
+    },
+    "r2_board-material-update-timeline-excel": {
+      "score": null,
+      "error": "output missing",
+      "failed_checks": [],
+      "trajectory": {
+        "tool_calls": [
+          [
+            "ppt_inspect",
+            "{\"detail\": \"summary\"})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 1})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 3})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 4})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 5})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 6})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 7})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 8})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"summary\"})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 1})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 3})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 4})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 5})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 6})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 7})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 8})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 3})"
+          ]
+        ],
+        "failures": [],
+        "saved": false,
+        "verified": false,
+        "finished": false,
+        "connection_error": false
+      }
+    },
+    "r2_html-report-quadrant-ppt": {
+      "score": null,
+      "error": "output missing",
+      "failed_checks": [],
+      "trajectory": {
+        "tool_calls": [],
+        "failures": [],
+        "saved": false,
+        "verified": false,
+        "finished": false,
+        "connection_error": false
+      }
+    },
+    "r3_Accounting Equation-045": {
+      "score": 0.9,
+      "error": null,
+      "failed_checks": [
+        "Appropriate flowchart shapes used"
+      ],
+      "trajectory": {
+        "tool_calls": [
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 3})"
+          ],
+          [
+            "ppt_compose",
+            "{\"kind\": \"flowchart\", \"slide_number\": 3, \"nodes\": [\"Left Hand Side\", \"Right Hand Side\", \"Balance\"]})"
+          ],
+          [
+            "ppt_save",
+            "{})"
+          ],
+          [
+            "ppt_check",
+            "{\"policy\": \"auto\"})"
+          ],
+          [
+            "finish",
+            "{\"summary\": \"已完成 Accounting Equation-045 任务：在第 3 页创建了展示 \\\"Left Hand Side → Right Hand Side → Balance\\\" 逻辑的流程图。\\n\\n执行内容：\\"
+          ],
+          [
+            "ppt_check",
+            "{\"policy\": \"full\"})"
+          ],
+          [
+            "finish",
+            "{\"summary\": \"已完成 Accounting Equation-045 任务：在第 3 页创建了展示 \\\"Left Hand Side → Right Hand Side → Balance\\\" 逻辑的流程图。\\n\\n执行内容：\\"
+          ],
+          [
+            "finish",
+            "{\"summary\": \"已完成 Accounting Equation-045 任务：在第 3 页创建了展示 \\\"Left Hand Side → Right Hand Side → Balance\\\" 逻辑的流程图。\\n\\n执行内容：\\"
+          ],
+          [
+            "ppt_save",
+            "{})"
+          ],
+          [
+            "ppt_check",
+            "{\"policy\": \"auto\"})"
+          ],
+          [
+            "finish",
+            "{\"summary\": \"任务 Accounting Equation-045 交付完成。\\n\\n目标：在第 3 页创建 Left Hand Side → Right Hand Side → Balance 逻辑流程图，使用圆角矩形节点与线"
+          ],
+          [
+            "ppt_check",
+            "{\"policy\": \"full\"})"
+          ],
+          [
+            "finish",
+            "{\"summary\": \"Accounting Equation-045 交付：在第 3 页创建了意图的流程图。\\n\\n产物路径：tasks/Accounting Equation-045/output/final.pptx（共 7 页，仅"
+          ]
+        ],
+        "failures": [
+          [
+            "ImportError",
+            "attempted relative import beyond top-level package."
+          ],
+          [
+            "ImportError",
+            "attempted relative import beyond top-level package."
+          ],
+          [
+            "ImportError",
+            "attempted relative import beyond top-level package. Do not repeat this identical call. Circuit breaker: 3 failures of this tool/error class; change strategy ins"
+          ],
+          [
+            "ImportError",
+            "attempted relative import beyond top-level package. Circuit breaker: 4 failures of this tool/error class; change strategy instead of trying an equivalent call. "
+          ],
+          [
+            "ImportError",
+            "attempted relative import beyond top-level package. Circuit breaker: 5 failures of this tool/error class; change strategy instead of trying an equivalent call. "
+          ]
+        ],
+        "saved": true,
+        "verified": true,
+        "finished": true,
+        "connection_error": false
+      }
+    },
+    "r3_board-material-update-timeline-excel": {
+      "score": null,
+      "error": "output missing",
+      "failed_checks": [],
+      "trajectory": {
+        "tool_calls": [],
+        "failures": [],
+        "saved": false,
+        "verified": false,
+        "finished": false,
+        "connection_error": false
+      }
+    },
+    "r1_Accounting Equation-045": {
+      "score": 0.9,
+      "error": null,
+      "failed_checks": [
+        "Appropriate flowchart shapes used"
+      ],
+      "trajectory": {
+        "tool_calls": [
+          [
+            "ppt_open",
+            "{\"path\": \"tasks\\\\Accounting Equation-045\\\\input\\\\Accounting Equation.pptx\"})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"slide_number\": 3, \"detail\": \"shapes\"})"
+          ],
+          [
+            "ppt_compose",
+            "{\"kind\": \"flowchart\", \"slide_number\": 3, \"nodes\": [\"Left Hand Side\", \"Right Hand Side\", \"Balance\"], \"title\": \"Accounting"
+          ],
+          [
+            "ppt_save",
+            "{})"
+          ],
+          [
+            "ppt_check",
+            "{\"policy\": \"full\"})"
+          ],
+          [
+            "finish",
+            "{\"summary\": \"已在 tasks/Accounting Equation-045 的第 3 页创建流程图。\\n\\n目标：在 slide 3 展示逻辑 Left Hand Side → Right Hand Side → Balan"
+          ],
+          [
+            "finish",
+            "{\"summary\": \"已在 tasks/Accounting Equation-045 的第 3 页创建流程图。\\n\\n目标：在 slide 3 展示逻辑 Left Hand Side → Right Hand Side → Balan"
+          ]
+        ],
+        "failures": [
+          [
+            "ImportError",
+            "attempted relative import beyond top-level package."
+          ],
+          [
+            "ImportError",
+            "attempted relative import beyond top-level package."
+          ]
+        ],
+        "saved": true,
+        "verified": true,
+        "finished": false,
+        "connection_error": false
+      }
+    },
+    "r2_xmind-screenshot-template-ppt": {
+      "score": 0.6814,
+      "error": null,
+      "failed_checks": [],
+      "trajectory": {
+        "tool_calls": [
+          [
+            "ppt_open",
+            "{\"path\": \"tasks/xmind-screenshot-template-ppt/input/template/community_workshop_green_template.pptx\"})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"summary\"})"
+          ],
+          [
+            "ppt_inspect",
+            "{\"detail\": \"shapes\", \"slide_number\": 1})"
+          ],
+          [
+            "ppt_compose",
+            "{\"kind\": \"content\", \"slide_number\": 1, \"replace_template\": true, \"title\": \"社区可持续生活工作坊\", \"subtitle\": \"从身边观察出发，一起动手改变日常\", "
+          ],
+          [
+            "ppt_compose",
+            "{\"kind\": \"content\", \"slide_number\": 2, \"title\": \"两小时路径：从观察到行动\", \"subtitle\": \"90 分钟标准场 · 120 分钟深度场\", \"bullets\": [\"开场破冰：每人"
+          ],
+          [
+            "ppt_compose",
+            "{\"bullets\": [\"可持续 = 每次选择都更轻一些：节水、节能、减少浪费\", \"三大议题：低碳出行 · 社区绿化与共享空间 · 减少一次性用品\", \"先从小行动开始：不追求立刻大改动，先形成习惯\", \"用一张承诺卡把念头变成行动，用"
+          ],
+          [
+            "ppt_compose",
+            "{\"bullets\": [\"行动站 A｜节能小动作：随手关灯、空调换季调温、出行选步行或公交\", \"行动站 B｜旧物新生：闲置物品交换与义卖，延长物品寿命\", \"行动站 C｜承诺卡：写下一个月内能坚持的一个小目标\", \"每站 8-10 分钟"
+          ],
+          [
+            "ppt_compose",
+            "{\"bullets\": [\"写清楚：谁 + 做什么 + 什么时间做\", \"具体可衡量：每周少点 2 次外卖、每月步行 1 公里\", \"约定回访日：两周后小群里晒进度，互相鼓励\", \"公开承诺提高坚持率，把个人行动变成社区行动\"], \"kin"
+          ],
+          [
+            "ppt_compose",
+            "{\"bullets\": [\"两周后回访：小群打卡 + 晒成果照片\", \"遇到困难不责备，调整目标而不是放弃\", \"收集成功经验，在公告栏和下一次工作坊分享\", \"半年后复盘：哪些行动成了日常，哪些需要更多支持\"], \"kind\": \"con"
+          ],
+          [
+            "ppt_compose",
+            "{\"bullets\": [\"行动从今天开始：选一个你最想改变的小习惯\", \"完成承诺卡，拍照或写在公告栏\", \"两周后回访见：期待你在小群的第一次打卡\", \"一个人的小行动，汇成社区的大改变\"], \"kind\": \"content\", \"s"
+          ],
+          [
+            "ppt_save",
+            "{\"path\": \"tasks\\\\xmind-screenshot-template-ppt\\\\output\\\\community_sustainability_workshop_deck.pptx\"})"
+          ],
+          [
+            "ppt_check",
+            "{\"policy\": \"full\"})"
+          ],
+          [
+            "ppt_check",
+            "{\"policy\": \"auto\"})"
+          ],
+          [
+            "finish",
+            "{\"summary\": \"已完成工作坊演示稿 community_sustainability_workshop_deck.pptx 的生成与校验。\\n\\n【输出文件】\\ntasks/xmind-screenshot-template-pp"
+          ]
+        ],
+        "failures": [
+          [
+            "ValueError",
+            "cannot finish PPT task: official task evaluator did not pass."
+          ]
+        ],
+        "saved": true,
+        "verified": true,
+        "finished": true,
+        "connection_error": false
+      }
+    },
+    "r3_html-report-quadrant-ppt": {
+      "score": null,
+      "error": "output missing",
+      "failed_checks": [],
+      "trajectory": {
+        "tool_calls": [],
+        "failures": [],
+        "saved": false,
+        "verified": false,
+        "finished": false,
+        "connection_error": true
+      }
+    }
+  },
+  "applied_optimizations": [
+    "save_before_pause",
+    "llm_retry_apiconnection",
+    "finish_immutability_gate"
+  ]
 }

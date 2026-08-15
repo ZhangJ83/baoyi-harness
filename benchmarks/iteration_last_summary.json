@@ -1,11 +1,11 @@
 {
-  "round": 6,
+  "round": 3,
   "ppt_cells": [
-    "Accounting Equation-004",
-    "xmind-screenshot-template-ppt"
+    "html-report-quadrant-ppt",
+    "Accounting Equation-045"
   ],
-  "stable": true,
-  "no_improve_streak": 2,
+  "stable": false,
+  "no_improve_streak": 1,
   "ppt_best": {
     "3-002": 1.0,
     "3-003": 1.0,
@@ -18,17 +18,21 @@
     "4._Pre-Colonial_Filipino_Culture-005": 1.0,
     "board-material-update-timeline-excel": 0.686,
     "html-report-quadrant-ppt": 0.7564,
-    "xmind-screenshot-template-ppt": 0.531
+    "xmind-screenshot-template-ppt": 0.6814
   },
   "ppt_unscorable": [
     "3-006"
   ],
   "code": {
-    "task": "HumanEval_7",
+    "task": "HumanEval_13",
     "passed": true,
     "has_solution": true
   },
   "notes": [
-    "代码任务先读 problem.md 定位需求，写出最小正确实现并保存到指定文件，再用本地测试快速自检后 finish。"
+    "代码任务先读 problem.md 定位需求，写出最小正确实现并保存到指定文件，再用本地测试快速自检后 finish。",
+    "图示/流程图必须同时创建节点形状和箭头连接线，连接线连接相邻节点。",
+    "在 finish 之前必须先保存产物到任务要求的 output 路径，然后运行任务自带的验证器。",
+    "局部编辑任务只允许修改目标页；保存后系统会对照输入 deck 检查非目标页并阻止 finish。",
+    "连接类错误会自动重试；仍失败时先保存再继续，不要空转。"
   ]
 }

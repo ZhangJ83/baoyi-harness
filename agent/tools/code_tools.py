@@ -49,6 +49,15 @@ def _finish(h, summary: str):
         evidence_kinds = {record.kind for record in h.state.fresh_evidence()}
         if "ppt_structural" not in evidence_kinds:
             raise ValueError("cannot finish PPT task: fresh ppt_structural evidence is required after the last mutation")
+        if getattr(h.state, "verification_contract_terms", None) or h.state.facts.get("verification_contract_terms"):
+            from .ppt_tools import _verify_contract
+            contract_passed, contract_report = _verify_contract(h)
+            if not contract_passed:
+                raise ValueError(
+                    "cannot finish PPT task: the task-local verification contract gate failed. "
+                    "Repair only the cited missing/forbidden terms, save, run ppt_check, then finish.\n\n"
+                    + contract_report
+                )
         if getattr(h.state, "unresolved_checks", set()):
             raise ValueError("cannot finish PPT task: unresolved verification defects: " + ", ".join(sorted(h.state.unresolved_checks)))
         recorder = getattr(h, "recorder", None)
@@ -103,7 +112,15 @@ def _finish(h, summary: str):
             _run_task_evaluator(h)
             evidence_kinds = {record.kind for record in h.state.fresh_evidence()}
             if "task_evaluator" not in evidence_kinds:
-                raise ValueError("cannot finish PPT task: official task evaluator did not pass")
+                detail = getattr(h.state, "task_evaluator_output", "") or h.state.facts.get("task_evaluator_output", "")
+                detail_note = f"\n\n官方评估器失败详情（尾部）：\n{detail}" if detail else ""
+                raise ValueError(
+                    "cannot finish PPT task: official task evaluator did not pass. "
+                    "Read the failure details above, repair only the cited checks, "
+                    "save and rerun the evaluator before finishing. "
+                    "Continue editing the ACTIVE in-memory draft; do NOT call ppt_open "
+                    "(the active deck already contains your edits)." + detail_note
+                )
         # Rendering is a harness lifecycle responsibility, not another prompt
         # instruction.  Automatically buy fresh visual evidence before finish
         # whenever a real final artifact and recorder are available.

@@ -47,7 +47,15 @@ class ExecutionContract:
         for stage in self.stages:
             if phase in stage.phases:
                 visible.update(stage.tools)
-        if repairing and self.domain is Domain.PPT:
+        # CEGAR-H repair pass: a counterexample from the verifier is only
+        # actionable if the model can observe the cited surface, mutate it,
+        # commit, and reverify.  Reopening the full production facade for the
+        # current skill is the loop-level repair envelope, not a per-task
+        # special case.
+        if repairing and self.domain is Domain.PPT and phase == RuntimePhase.VERIFY:
+            for stage in self.stages:
+                if RuntimePhase.PRODUCE in stage.phases:
+                    visible.update(stage.tools)
             visible.add("ppt_arrange")
         # Compose-capable PPT tasks are iterative: a multi-page deck gains its
         # content slides across several produce/verify passes. Locking verify to

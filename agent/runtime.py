@@ -245,9 +245,12 @@ class RuntimeController:
         contract = getattr(state, "execution_contract", None)
         if contract is not None:
             facade = contract.tools_for(state.phase, repairing=bool(state.unresolved_checks))
-            if ppt_task and contract.capability in {"ppt.atomic_edit", "ppt.atomic_style"}:
-                if int(state.facts.get("ppt_inspect_count", "0")) >= 2:
-                    facade.discard("ppt_inspect")
+            # Observation is a bounded evidence channel for every PPT skill:
+            # after one full-deck summary + one targeted shapes view, close
+            # inspection and force mutate/save/check. Source-sync tasks use the
+            # summary's stable shape names for set_shape_text/set_table.
+            if ppt_task and int(state.facts.get("ppt_inspect_count", "0")) >= 2:
+                facade.discard("ppt_inspect")
             if ppt_task and state.phase == RuntimePhase.VERIFY and state.facts.get("official_evaluator_present") == "true":
                 facade.add("run_task_evaluator")
             return facade
@@ -259,12 +262,11 @@ class RuntimeController:
             facade = visible_tools_for(skill, state.phase.value, repairing=bool(state.unresolved_checks))
             if not facade:
                 facade = visible_ppt_tools(task, state.phase.value, repairing=bool(state.unresolved_checks))
-            # Trajectory-derived atomic skills converge after at most two
-            # novel inspections (overview + targeted shapes). Once that
-            # evidence exists, close observation and force mutate/save/check.
-            if skill in {"ppt.atomic_edit", "ppt.atomic_style"}:
-                if int(state.facts.get("ppt_inspect_count", "0")) >= 2:
-                    facade.discard("ppt_inspect")
+            # Observation is bounded for every PPT skill. After one overview +
+            # one targeted shapes view, close inspection and force
+            # mutate/save/check; the overview carries stable shape names.
+            if int(state.facts.get("ppt_inspect_count", "0")) >= 2:
+                facade.discard("ppt_inspect")
             # Workspace observation remains available only until ContentIR
             # closes discovery; legacy PPT primitives stay registered/hidden.
             if state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND} and not state.content_brief:

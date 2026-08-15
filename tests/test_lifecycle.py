@@ -187,8 +187,12 @@ def test_repair_budget_is_enforced():
     harness.state.unresolved_checks.add("ppt_structural")
     harness.state.max_repairs = 1
     dispatch("set_shape_geometry", json.dumps({"slide_number": 1, "shape_id": shape.shape_id, "x": 1.0, "y": 2.0, "w": 8.0, "height": 1.0}), harness)
+    # The same verifier-feedback cycle may make further mutations before reverify.
+    dispatch("set_shape_geometry", json.dumps({"slide_number": 1, "shape_id": shape.shape_id, "x": 1.1, "y": 2.0, "w": 8.0, "height": 1.0}), harness)
+    # A fresh verifier failure reopens a second cycle; the budget now blocks.
+    harness.state.last_verification_failed = True
     with pytest.raises(RuntimeError, match="repair budget exhausted"):
-        dispatch("set_shape_geometry", json.dumps({"slide_number": 1, "shape_id": shape.shape_id, "x": 1.1, "y": 2.0, "w": 8.0, "height": 1.0}), harness)
+        dispatch("set_shape_geometry", json.dumps({"slide_number": 1, "shape_id": shape.shape_id, "x": 1.2, "y": 2.0, "w": 8.0, "height": 1.0}), harness)
 
 
 def test_trajectory_redacts_provider_secret():

@@ -1,8 +1,11 @@
 """Workspace discovery and explicit source-to-output provenance tools."""
 from __future__ import annotations
 
+from collections import Counter
+import json
 from pathlib import Path
 import os
+import re
 import subprocess
 import sys
 
@@ -36,6 +39,135 @@ def _bind(h, source_path: str, output_path: str, usage: str):
     return f"bound source {source_path} -> {output_path} ({usage})"
 
 
+def _decode_output(raw: bytes) -> str:
+    for encoding in ("utf-8", "gbk"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def _evaluator_env(task_root: Path, tests_root: Path, grading: Path, output: Path, logs: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    # The task-local evaluator receives artifact paths, never provider secrets.
+    for name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"):
+        env.pop(name, None)
+    env.update({
+        "WB_BENCH_CASE_DIR": str(task_root),
+        "WB_BENCH_FIXTURES_DIR": str(tests_root / "gold" / "fixtures"),
+        "WB_BENCH_GOLD_PATH": str(tests_root / "gold" / "gold_answer.json"),
+        "WB_BENCH_OUTPUT_PATH": str(output),
+        "WB_BENCH_VERIFIER_LOGS": str(logs),
+        "WB_BENCH_WORKSPACE": str(task_root),
+        "PYTHONPATH": os.pathsep.join([str(task_root), str(grading), env.get("PYTHONPATH", "")]),
+    })
+    return env
+
+
+_TEXT_CHECK_RE = re.compile(r"^slide_(\d+)_(required|forbidden)_text_\d+(?:_absent)?$")
+
+
+def _clean_detail(value, max_detail: int = 200) -> str:
+    detail = str(value or "").strip().replace("\n", " / ")
+    if len(detail) > max_detail:
+        detail = detail[:max_detail] + "…"
+    return detail
+
+
+def _format_failed_checks(checks: list[dict], max_other_checks: int = 24, max_detail: int = 200) -> str:
+    """Turn verifier failures into a scoped, actionable repair manifest.
+
+    Plain ``slide_N_required_text_*``/``forbidden_text_*`` checks are grouped
+    per slide so the next action can be one atomic per-slide repair batch.
+    Whole-slide consistency and co-location checks carry long page dumps and
+    stay as individually cited counterexamples with capped detail.
+    """
+    failed = [check for check in checks if check.get("passed") is not True]
+    groups = Counter(str(check.get("group", "?")) for check in failed)
+    lines = [f"failed checks: {len(failed)}", f"groups: {json.dumps(dict(groups), ensure_ascii=False)}"]
+
+    from collections import defaultdict
+    required_by_slide: dict[str, list[str]] = defaultdict(list)
+    forbidden_by_slide: dict[str, list[str]] = defaultdict(list)
+    others: list[dict] = []
+    for check in failed:
+        name = str(check.get("name", ""))
+        match = _TEXT_CHECK_RE.match(name)
+        if match:
+            slide = match.group(1)
+            detail = _clean_detail(check.get("detail"), 120)
+            target = required_by_slide if match.group(2) == "required" else forbidden_by_slide
+            if detail and detail not in target[slide]:
+                target[slide].append(detail)
+        else:
+            others.append(check)
+
+    def slide_key(pair):
+        slide, _ = pair
+        try:
+            return (0, int(slide))
+        except ValueError:
+            return (1, slide)
+
+    for slide, required in sorted(required_by_slide.items(), key=slide_key):
+        forbidden = forbidden_by_slide.pop(slide, [])
+        parts = [f"slide {int(slide):>2}: required=[{'; '.join(required)}]"]
+        if forbidden:
+            parts.append(f"forbidden=[{'; '.join(forbidden)}]")
+        lines.append(" | ".join(parts))
+    for slide, forbidden in sorted(forbidden_by_slide.items(), key=slide_key):
+        lines.append(f"slide {int(slide):>2}: forbidden=[{'; '.join(forbidden)}]")
+
+    priority = {
+        "workbook_to_slide_mapping": 0,
+        "distractor_non_updates": 1,
+        "timeline_version_consistency": 2,
+    }
+    others.sort(key=lambda check: (priority.get(str(check.get("group", "")), 3), str(check.get("name", ""))))
+    for index, check in enumerate(others[:max_other_checks], 1):
+        lines.append(
+            f"{index}. [{check.get('group', '?')}] {check.get('name', '?')}: "
+            f"{_clean_detail(check.get('detail'), max_detail) or 'no detail'}"
+        )
+    if len(others) > max_other_checks:
+        lines.append(f"... and {len(others) - max_other_checks} more structural/co-location checks (rerun run_task_evaluator for the full list)")
+    return "\n".join(lines)
+
+
+def _run_structured_evaluator(h, task_root: Path, grading: Path, output: Path, logs: Path, env: dict[str, str], timeout_seconds: int):
+    """Run a WorkBuddy-style deterministic scorer and extract concrete counterexamples.
+
+    The pytest shim usually reports only test ids in its final tail, which is
+    not enough to repair cited checks. ``grading/eval_core.py`` emits one JSON
+    check per obligation with name/group/detail, so when it exists we use that
+    structured evidence channel instead of parsing a pytest summary.
+    """
+    candidate = grading / "eval_core.py"
+    if not candidate.is_file():
+        return None
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(candidate), str(output), "--case-dir", str(task_root), "--verifier-logs", str(logs)],
+            cwd=task_root, env=env, capture_output=True,
+            timeout=max(10, min(timeout_seconds, 300)), check=False,
+        )
+    except Exception:
+        return None
+    raw = completed.stdout or b""
+    try:
+        data = json.loads(_decode_output(raw))
+    except json.JSONDecodeError:
+        return None
+    checks = data.get("checks") if isinstance(data, dict) else None
+    if not isinstance(checks, list) or not checks:
+        return None
+    total_count = int(data.get("total_count") or len(checks))
+    passed_count = int(data.get("passed_count") or sum(1 for check in checks if check.get("passed") is True))
+    pass_rate = float(data.get("pass_rate") or (passed_count / total_count if total_count else 0.0))
+    return {"data": data, "checks": checks, "total_count": total_count, "passed_count": passed_count, "pass_rate": pass_rate}
+
+
 def _run_task_evaluator(h, timeout_seconds: int = 120):
     root = config.sandbox_root().resolve()
     evaluator_rel = h.state.facts.get("official_evaluator")
@@ -55,19 +187,39 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
         raise FileNotFoundError(f"save the required output before evaluation: {output_rel}")
     logs = getattr(getattr(h, "recorder", None), "evidence", task_root / "trajectory") / "task_evaluator"
     logs.mkdir(parents=True, exist_ok=True)
-    env = os.environ.copy()
-    # The task-local evaluator receives artifact paths, never provider secrets.
-    for name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"):
-        env.pop(name, None)
-    env.update({
-        "WB_BENCH_CASE_DIR": str(task_root),
-        "WB_BENCH_FIXTURES_DIR": str(tests_root / "gold" / "fixtures"),
-        "WB_BENCH_GOLD_PATH": str(tests_root / "gold" / "gold_answer.json"),
-        "WB_BENCH_OUTPUT_PATH": str(output),
-        "WB_BENCH_VERIFIER_LOGS": str(logs),
-        "WB_BENCH_WORKSPACE": str(task_root),
-        "PYTHONPATH": os.pathsep.join([str(task_root), str(grading), env.get("PYTHONPATH", "")]),
-    })
+    env = _evaluator_env(task_root, tests_root, grading, output, logs)
+    structured = _run_structured_evaluator(h, task_root, grading, output, logs, env, timeout_seconds)
+    if structured is not None:
+        checks = structured["checks"]
+        total_count = structured["total_count"]
+        passed_count = structured["passed_count"]
+        pass_rate = structured["pass_rate"]
+        passed = pass_rate >= 1.0 and passed_count >= total_count
+        if passed:
+            text = f"official evaluator passed: {passed_count}/{total_count} checks (pass_rate=1.0)"
+            h.state.record_evidence("task_evaluator", text)
+            h.state.unresolved_checks.discard("task_evaluator")
+            h.state.last_verification_failed = False
+            h.state.record_fact("task_evaluator_output", "passed")
+            (logs / "test_output.txt").write_text(text, encoding="utf-8")
+            if getattr(h, "recorder", None):
+                h.recorder.check("task_evaluator", True, text)
+            return text
+        # CEGAR-H: a blocker must carry its concrete counterexample so the next
+        # action can be scoped repair instead of blind retry. Store the full
+        # manifest as state (facts truncate long values).
+        detail = _format_failed_checks(checks)
+        summary = f"official evaluator failed: {passed_count}/{total_count} checks passed (pass_rate={pass_rate:.4f})"
+        h.state.unresolved_checks.add("task_evaluator")
+        h.state.last_verification_failed = True
+        h.state.last_verification_epoch = h.state.mutation_epoch
+        h.state.task_evaluator_output = f"{summary}\n{detail}"
+        h.state.record_fact("task_evaluator_output", f"{summary}\n{detail}")
+        (logs / "test_output.txt").write_text(f"{summary}\n{detail}", encoding="utf-8")
+        if getattr(h, "recorder", None):
+            h.recorder.check("task_evaluator", False, f"{summary}\n{detail}")
+        return f"{summary}\n{detail}"
+
     completed = subprocess.run(
         [sys.executable, "-m", "pytest", str(evaluator), "-p", "no:cacheprovider", "-q", "--tb=short"],
         cwd=task_root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -79,10 +231,16 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
     if passed:
         h.state.record_evidence("task_evaluator", "official task evaluator passed")
         h.state.unresolved_checks.discard("task_evaluator")
+        h.state.last_verification_failed = False
+        h.state.record_fact("task_evaluator_output", "passed")
     else:
         h.state.unresolved_checks.add("task_evaluator")
         h.state.last_verification_failed = True
         h.state.last_verification_epoch = h.state.mutation_epoch
+        # CEGAR-H: a blocker must carry its concrete counterexample so the next
+        # action can be scoped repair instead of blind retry.
+        h.state.task_evaluator_output = transcript[-1500:]
+        h.state.record_fact("task_evaluator_output", transcript[-1500:])
     if getattr(h, "recorder", None):
         h.recorder.check("task_evaluator", passed, transcript[-12000:])
     return f"official evaluator {'passed' if passed else 'failed'} (exit={completed.returncode})\n{transcript[-5000:]}"

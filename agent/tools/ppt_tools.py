@@ -65,6 +65,25 @@ def _open_deck(h, path: str) -> str:
         raise FileNotFoundError(
             f"{path} (no such presentation; if this is a create-from-scratch task, call new_deck instead of ppt_open)"
         )
+    # Progress preservation: after the first mutation, replacing the active
+    # deck from any file other than the saved contract output can silently
+    # discard edits (stale working copies, the frozen input, unrelated decks).
+    if getattr(h, "state", None) is not None and getattr(h.state, "mutation_epoch", 0):
+        required = h.state.facts.get("required_output_pptx", "")
+        allowed = {(root / required).resolve()} if required else set()
+        if source not in allowed:
+            hint = f" Continue with the active draft, or open the saved deliverable '{required}'." if required else ""
+            raise RuntimeError(
+                "ppt_open rejected: the run already has mutations and reopening another file would discard them."
+                + hint
+            )
+        reopen_count = int(h.state.facts.get("ppt_open_after_mutation", "0"))
+        if reopen_count >= 1:
+            raise RuntimeError(
+                "ppt_open rejected: the persisted deliverable was already reloaded once this run. "
+                "The active deck is current; continue editing it directly instead of reopening files."
+            )
+        h.state.facts["ppt_open_after_mutation"] = str(reopen_count + 1)
     opened = source
     if getattr(h, "recorder", None):
         opened = h.recorder.working_copy(source)
@@ -413,14 +432,24 @@ def _shape_inventory(h, slide_number: int | None = None) -> str:
         if index < 0 or index >= len(h.deck.slides):
             raise IndexError(f"slide number out of range: {slide_number}")
         for shape, path in _walk_shapes(h.deck.slides[index].shapes):
-            text = shape.text.strip().replace("\n", " | ")[:100] if getattr(shape, "has_text_frame", False) else ""
+            if getattr(shape, "has_table", False):
+                rows = [
+                    " | ".join(cell.text.strip().replace("\n", " ") for cell in row.cells)
+                    for row in shape.table.rows
+                ]
+                text = " ;; ".join(rows)[:220]
+                kind = "table"
+                dimensions = f" {len(shape.table.rows)}x{len(shape.table.columns)}"
+            else:
+                text = shape.text.strip().replace("\n", " | ")[:100] if getattr(shape, "has_text_frame", False) else ""
+                kind = "group" if shape.shape_type == MSO_SHAPE_TYPE.GROUP else "shape"
+                dimensions = ""
             path_label = "/".join(str(shape_id) for shape_id in path)
             geometry_label = "box_slide" if len(path) == 1 else "box_group_local"
-            kind = "group" if shape.shape_type == MSO_SHAPE_TYPE.GROUP else "shape"
             lines.append(
                 f"slide={index + 1} path={path_label} id={shape.shape_id} kind={kind} name={shape.name!r} "
                 f"{geometry_label}=({shape.left/914400:.2f},{shape.top/914400:.2f},"
-                f"{shape.width/914400:.2f},{shape.height/914400:.2f}) text={text!r}"
+                f"{shape.width/914400:.2f},{shape.height/914400:.2f}){dimensions} text={text!r}"
             )
     return "\n".join(lines)
 
@@ -458,107 +487,123 @@ def _replace_text_semantic(h, old: str, new: str, slide_number: int | None = Non
 
     The first run keeps the paragraph's dominant style. This is more faithful
     than rebuilding the whole text frame and is deterministic for benchmark
-    edits such as a title split into ``Lecture `` and ``3`` runs.
+    edits such as a title split into ``Lecture `` and ``3`` runs. Table cells
+    are textual slide surfaces too, so a scoped semantic replace also walks
+    every cell of every table on the selected slides.
     """
     if not old:
         raise ValueError("old text cannot be empty")
     if getattr(h, "deck", None) is None:
         raise ValueError("no deck loaded")
-    indices = range(len(h.deck.slides)) if slide_number is None else [slide_number - 1]
-    replacements = 0
-    touched: list[str] = []
-    for index in indices:
-        if index < 0 or index >= len(h.deck.slides):
-            raise IndexError("slide number out of range")
-        for shape, _ in _walk_shapes(h.deck.slides[index].shapes):
-            if not getattr(shape, "has_text_frame", False):
-                continue
-            for paragraph in shape.text_frame.paragraphs:
-                runs = list(paragraph.runs)
-                if not runs:
-                    continue
 
-                # Build the searchable paragraph text in XML order.  A soft
-                # line break is represented by ``a:br`` (``\v`` in the public
-                # paragraph text), not by a run, so keep it as an immutable
-                # separator instead of flattening the runs.
-                parts: list[str] = []
+    def replace_in_frame(frame, match_case: bool) -> int:
+        replacements = 0
+        for paragraph in frame.paragraphs:
+            runs = list(paragraph.runs)
+            if not runs:
+                continue
+
+            # Build the searchable paragraph text in XML order.  A soft
+            # line break is represented by ``a:br`` (``\v`` in the public
+            # paragraph text), not by a run, so keep it as an immutable
+            # separator instead of flattening the runs.
+            parts: list[str] = []
+            run_index = 0
+            for child in paragraph._p.content_children:
+                kind = child.tag.rsplit("}", 1)[-1]
+                if kind == "r":
+                    parts.append(runs[run_index].text)
+                    run_index += 1
+                elif kind == "br":
+                    parts.append("\v")
+                else:
+                    # Do not let a semantic match cross an unsupported
+                    # field or other non-run paragraph child.
+                    parts.append("\ufffc")
+            combined = "".join(parts)
+
+            import re
+            flags = 0 if match_case else re.IGNORECASE
+            matches = [
+                match.span()
+                for match in re.finditer(re.escape(old), combined, flags=flags)
+                if "\v" not in match.group(0) and "\ufffc" not in match.group(0)
+            ]
+            if not matches:
+                continue
+
+            # Work from right to left.  Later replacements cannot shift
+            # the coordinates of an earlier match, while rebuilding the
+            # run map after each edit preserves all existing run elements,
+            # their formatting, and every a:br node.
+            for start, end in reversed(matches):
+                cursor = 0
+                segments = []
                 run_index = 0
                 for child in paragraph._p.content_children:
                     kind = child.tag.rsplit("}", 1)[-1]
                     if kind == "r":
-                        parts.append(runs[run_index].text)
+                        run = list(paragraph.runs)[run_index]
                         run_index += 1
+                        segment_end = cursor + len(run.text)
+                        segments.append((run, cursor, segment_end))
+                        cursor = segment_end
                     elif kind == "br":
-                        parts.append("\v")
+                        cursor += 1
                     else:
-                        # Do not let a semantic match cross an unsupported
-                        # field or other non-run paragraph child.
-                        parts.append("\ufffc")
-                combined = "".join(parts)
+                        cursor += 1
 
-                import re
-                flags = 0 if match_case else re.IGNORECASE
-                matches = [
-                    match.span()
-                    for match in re.finditer(re.escape(old), combined, flags=flags)
-                    if "\v" not in match.group(0) and "\ufffc" not in match.group(0)
+                affected = [
+                    (run, segment_start, segment_end)
+                    for run, segment_start, segment_end in segments
+                    if segment_start < end and segment_end > start
                 ]
-                if not matches:
+                if not affected:
                     continue
 
-                # Work from right to left.  Later replacements cannot shift
-                # the coordinates of an earlier match, while rebuilding the
-                # run map after each edit preserves all existing run elements,
-                # their formatting, and every a:br node.
-                for start, end in reversed(matches):
-                    cursor = 0
-                    segments = []
-                    run_index = 0
-                    for child in paragraph._p.content_children:
-                        kind = child.tag.rsplit("}", 1)[-1]
-                        if kind == "r":
-                            run = list(paragraph.runs)[run_index]
-                            run_index += 1
-                            segment_end = cursor + len(run.text)
-                            segments.append((run, cursor, segment_end))
-                            cursor = segment_end
-                        elif kind == "br":
-                            cursor += 1
-                        else:
-                            cursor += 1
+                replacement_offset = 0
+                for affected_index, (run, segment_start, segment_end) in enumerate(affected):
+                    overlap_start = max(start, segment_start)
+                    overlap_end = min(end, segment_end)
+                    quota = overlap_end - overlap_start
+                    is_first = affected_index == 0
+                    is_last = affected_index == len(affected) - 1
+                    if is_last:
+                        chunk = new[replacement_offset:]
+                    else:
+                        chunk = new[replacement_offset:replacement_offset + quota]
+                    replacement_offset += len(chunk)
+                    prefix = run.text[:overlap_start - segment_start] if is_first else ""
+                    suffix = run.text[overlap_end - segment_start:] if is_last else ""
+                    run.text = prefix + chunk + suffix
 
-                    affected = [
-                        (run, segment_start, segment_end)
-                        for run, segment_start, segment_end in segments
-                        if segment_start < end and segment_end > start
-                    ]
-                    if not affected:
-                        continue
+            replacements += len(matches)
+        return replacements
 
-                    replacement_offset = 0
-                    for affected_index, (run, segment_start, segment_end) in enumerate(affected):
-                        overlap_start = max(start, segment_start)
-                        overlap_end = min(end, segment_end)
-                        quota = overlap_end - overlap_start
-                        is_first = affected_index == 0
-                        is_last = affected_index == len(affected) - 1
-                        if is_last:
-                            chunk = new[replacement_offset:]
-                        else:
-                            chunk = new[replacement_offset:replacement_offset + quota]
-                        replacement_offset += len(chunk)
-                        prefix = run.text[:overlap_start - segment_start] if is_first else ""
-                        suffix = run.text[overlap_end - segment_start:] if is_last else ""
-                        run.text = prefix + chunk + suffix
-
-                replacements += len(matches)
-                touched.append(f"{index + 1}:{shape.shape_id}")
+    indices = range(len(h.deck.slides)) if slide_number is None else [slide_number - 1]
+    replacements = 0
+    touched: set[str] = set()
+    for index in indices:
+        if index < 0 or index >= len(h.deck.slides):
+            raise IndexError("slide number out of range")
+        for shape, _ in _walk_shapes(h.deck.slides[index].shapes):
+            if getattr(shape, "has_text_frame", False):
+                count = replace_in_frame(shape.text_frame, match_case)
+                if count:
+                    replacements += count
+                    touched.add(f"{index + 1}:{shape.shape_id}")
+            elif getattr(shape, "has_table", False):
+                for row in shape.table.rows:
+                    for cell in row.cells:
+                        count = replace_in_frame(cell.text_frame, match_case)
+                        if count:
+                            replacements += count
+                            touched.add(f"{index + 1}:{shape.shape_id}")
     if not replacements:
         raise ValueError(f"text not found: {old!r}")
     h.state.ppt_affected_slides.update(int(item.split(":", 1)[0]) for item in touched)
-    h.state.record_change("deck:semantic_text_replace:" + ",".join(touched))
-    return f"replaced {replacements} occurrence(s) in {len(set(touched))} shape(s): {', '.join(touched)}"
+    h.state.record_change("deck:semantic_text_replace:" + ",".join(sorted(touched, key=lambda item: int(item.split(":", 1)[0]))))
+    return f"replaced {replacements} occurrence(s) in {len(touched)} shape(s): {', '.join(sorted(touched, key=lambda item: int(item.split(':', 1)[0])))}"
 
 
 def _target_text_shape(h, slide_number: int, shape_id: int | None = None, text_contains: str = ""):
@@ -705,7 +750,7 @@ def _ppt_inspect(h, detail: str = "summary", slide_number: int | None = None) ->
         suffix = f" The discovered input is '{known}'." if known else ""
         raise RuntimeError(f"no active deck; open a real task-local PPTX before inspection.{suffix}")
     if detail == "summary":
-        return _deck_info(h)
+        return _deck_info(h, slide_number)
     return _shape_inventory(h, slide_number)
 
 
@@ -717,6 +762,18 @@ def _validate_batch_update(update: dict, index: int) -> None:
             raise ValueError(f"updates[{index}] replace requires non-empty old text")
         if "new" not in update:
             raise ValueError(f"updates[{index}] replace requires new text")
+        return
+    if operation == "set_shape_text":
+        if update.get("slide_number") is None or not update.get("text"):
+            raise ValueError(f"updates[{index}] set_shape_text requires slide_number and non-empty text")
+        if update.get("shape_id") is None and not update.get("shape_name") and not update.get("text_contains"):
+            raise ValueError(f"updates[{index}] set_shape_text requires shape_id, shape_name, or text_contains")
+        return
+    if operation == "set_table":
+        if update.get("slide_number") is None or not update.get("rows"):
+            raise ValueError(f"updates[{index}] set_table requires slide_number and rows")
+        if update.get("shape_id") is None and not update.get("shape_name"):
+            raise ValueError(f"updates[{index}] set_table requires shape_id or shape_name")
         return
     if operation != "style":
         raise ValueError(f"updates[{index}] has unsupported operation: {operation!r}")
@@ -766,6 +823,25 @@ def _ppt_batch_updates(h, updates: list[dict]) -> str:
                 update.get("match_case", True),
             ))
             continue
+        if update["operation"] == "set_shape_text":
+            results.append(_set_shape_text(
+                tx,
+                update["slide_number"],
+                update["text"],
+                update.get("shape_id"),
+                update.get("shape_name", ""),
+                update.get("text_contains", ""),
+            ))
+            continue
+        if update["operation"] == "set_table":
+            results.append(_set_table_rows(
+                tx,
+                update["slide_number"],
+                update["rows"],
+                update.get("shape_id"),
+                update.get("shape_name", ""),
+            ))
+            continue
         results.append(_ppt_style(
             tx,
             slide_number=update["slide_number"],
@@ -788,9 +864,18 @@ def _ppt_batch_updates(h, updates: list[dict]) -> str:
 
 def _ppt_edit_text(h, operation: str, slide_number: int | None = None, shape_id: int | None = None,
                    text_contains: str = "", old: str = "", new: str = "", text: str = "",
-                   match_case: bool = True, all_matches: bool = False, updates: list[dict] | None = None) -> str:
+                   match_case: bool = True, all_matches: bool = False, updates: list[dict] | None = None,
+                   shape_name: str = "", rows: list[list[str]] | None = None) -> str:
     if operation == "batch_updates":
         return _ppt_batch_updates(h, updates or [])
+    if operation == "set_shape_text":
+        if slide_number is None or not text:
+            raise ValueError("set_shape_text requires slide_number and non-empty text")
+        return _set_shape_text(h, slide_number, text, shape_id, shape_name, text_contains)
+    if operation == "set_table":
+        if slide_number is None or not rows:
+            raise ValueError("set_table requires slide_number and rows")
+        return _set_table_rows(h, slide_number, rows, shape_id, shape_name)
     if operation == "replace":
         if not old:
             raise ValueError("replace requires non-empty old text")
@@ -1034,10 +1119,20 @@ def _replace_named_table(slide, shape_name: str, rows: list[list[str]]) -> None:
     shape = matches[0]
     if not getattr(shape, "has_table", False):
         raise TypeError(f"template shape {shape_name!r} is not a table")
-    table = shape.table
+    _rewrite_table_preserving_style(shape.table, rows)
+
+
+def _rewrite_table_preserving_style(table, rows: list[list[str]]) -> None:
+    """Rewrite every cell while keeping each cell's original run formatting."""
     if len(rows) != len(table.rows) or any(len(row) != len(table.columns) for row in rows):
+        current = " ;; ".join(
+            " | ".join(cell.text.strip().replace("\n", " ") for cell in row.cells)
+            for row in table.rows
+        )
         raise ValueError(
-            f"table {shape_name!r} requires {len(table.rows)}x{len(table.columns)} values"
+            f"table requires {len(table.rows)}x{len(table.columns)} values "
+            f"(you provided {len(rows)}x{len(rows[0]) if rows and isinstance(rows[0], list) else '?'}). "
+            f"Current table contents: {current}"
         )
     for row_index, row in enumerate(rows):
         for column_index, value in enumerate(row):
@@ -1050,6 +1145,107 @@ def _replace_named_table(slide, shape_name: str, rows: list[list[str]]) -> None:
                 if run._r.rPr is not None:
                     run._r.remove(run._r.rPr)
                 run._r.insert(0, deepcopy(rpr))
+
+
+def _select_shape_on_slide(h, slide_number: int, shape_id: int | None = None,
+                           shape_name: str = "", text_contains: str = ""):
+    """Resolve one shape by its stable selector (id > name > contained text)."""
+    if getattr(h, "deck", None) is None:
+        raise ValueError("no deck loaded")
+    if slide_number < 1 or slide_number > len(h.deck.slides):
+        raise IndexError("slide number out of range")
+    slide = h.deck.slides[slide_number - 1]
+    if shape_id is not None:
+        for shape, _ in _walk_shapes(slide.shapes):
+            if shape.shape_id == shape_id:
+                return slide, shape
+        raise KeyError(f"shape id not found on slide {slide_number}: {shape_id}")
+    if shape_name:
+        matches = [shape for shape, _ in _walk_shapes(slide.shapes) if shape.name == shape_name]
+        if len(matches) != 1:
+            available = sorted({shape.name for shape, _ in _walk_shapes(slide.shapes) if shape.name})
+            preview = ", ".join(available[:12])
+            raise ValueError(
+                f"shape name {shape_name!r} matched {len(matches)} shapes on slide {slide_number}. "
+                f"Available names: {preview or '(none)'}"
+            )
+        return slide, matches[0]
+    if text_contains:
+        matches = [
+            shape for shape, _ in _walk_shapes(slide.shapes)
+            if getattr(shape, "has_text_frame", False) and text_contains in shape.text
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"text_contains {text_contains!r} matched {len(matches)} shapes on slide {slide_number}")
+        return slide, matches[0]
+    raise ValueError("set_shape_text requires shape_id, shape_name, or unique text_contains")
+
+
+def _set_shape_text(h, slide_number: int, text: str, shape_id: int | None = None,
+                    shape_name: str = "", text_contains: str = "") -> str:
+    """Replace an existing text surface wholesale, preserving first-run style.
+
+    Whole-surface rewrite is the source-sync primitive: consistency edits
+    replace a card/cell with a complete current-scope statement instead of
+    hoping a substring replacement covers every stale fragment.
+    """
+    _, shape = _select_shape_on_slide(h, slide_number, shape_id, shape_name, text_contains)
+    if not getattr(shape, "has_text_frame", False):
+        if getattr(shape, "has_table", False):
+            raise TypeError(
+                f"target shape {shape.name!r} is a table; use operation='set_table' with rows "
+                "(or batch_updates with a set_table entry) instead of set_shape_text"
+            )
+        raise TypeError("target shape has no text frame")
+    text_frame = shape.text_frame
+    first_rpr = None
+    first_ppr = None
+    for paragraph in text_frame.paragraphs:
+        if paragraph._p.pPr is not None and first_ppr is None:
+            first_ppr = deepcopy(paragraph._p.pPr)
+        for run in paragraph.runs:
+            if run._r.rPr is not None and first_rpr is None:
+                first_rpr = deepcopy(run._r.rPr)
+        if first_ppr is not None and first_rpr is not None:
+            break
+    lines = text.split("\n")
+    text_frame.clear()
+    for index, line in enumerate(lines):
+        paragraph = text_frame.paragraphs[0] if index == 0 else text_frame.add_paragraph()
+        if first_ppr is not None:
+            if paragraph._p.pPr is not None:
+                paragraph._p.remove(paragraph._p.pPr)
+            paragraph._p.insert(0, deepcopy(first_ppr))
+        run = paragraph.add_run()
+        run.text = line
+        if first_rpr is not None:
+            if run._r.rPr is not None:
+                run._r.remove(run._r.rPr)
+            run._r.insert(0, deepcopy(first_rpr))
+    h.state.ppt_affected_slides.add(slide_number)
+    h.state.record_change(f"deck:slide:{slide_number}:shape:{shape.shape_id}:set_text")
+    return f"rewrote slide {slide_number} shape {shape.shape_id} ({shape.name!r}) with {len(lines)} line(s)"
+
+
+def _set_table_rows(h, slide_number: int, rows: list[list[str]], shape_id: int | None = None,
+                    shape_name: str = "") -> str:
+    """Replace a whole existing table with current-scope rows, preserving cells.
+
+    This is the table counterpart of :func:`_set_shape_text`: consistency
+    editing must be able to rewrite an entire table atomically (one mutation
+    epoch), like the correct reference trajectory's per-table data rewrite.
+    """
+    if not rows or not all(isinstance(row, list) and row for row in rows):
+        raise ValueError("set_table requires non-empty rows of non-empty cell lists")
+    if shape_id is None and not shape_name:
+        raise ValueError("set_table requires shape_id or shape_name")
+    _, shape = _select_shape_on_slide(h, slide_number, shape_id, shape_name)
+    if not getattr(shape, "has_table", False):
+        raise TypeError("target shape is not a table")
+    _rewrite_table_preserving_style(shape.table, [[str(cell) for cell in row] for row in rows])
+    h.state.ppt_affected_slides.add(slide_number)
+    h.state.record_change(f"deck:slide:{slide_number}:shape:{shape.shape_id}:table")
+    return f"rewrote table slide {slide_number} shape {shape.shape_id} ({shape.name!r}) {len(shape.table.rows)}x{len(shape.table.columns)}"
 
 
 def _set_slide_notes_text(slide, text: str) -> None:
@@ -1429,16 +1625,21 @@ def _ppt_check(h, policy: str = "auto") -> str:
     if (
         policy == "full"
         and getattr(h.state, "ppt_existing_deck", False)
-        and bool(getattr(h.state, "ppt_affected_slides", set()))
+        and getattr(h.state, "ppt_baseline_captured", False)
     ):
         # A local edit is accountable for its delta, not unrelated historical
-        # defects elsewhere in the source deck.  Full lint remains appropriate
-        # for newly generated decks; scoped existing-deck tasks use auto.
+        # defects elsewhere in the source deck. Full lint remains appropriate
+        # for newly generated decks; any deck with a captured baseline uses
+        # baseline-delta verification, even after the model re-opens the saved
+        # deliverable in a fresh in-memory session.
         policy = "auto"
-        h.state.record_fact("ppt_full_check_downgraded", "existing deck local edit uses baseline-delta verification")
+        h.state.record_fact("ppt_full_check_downgraded", "existing deck uses baseline-delta verification")
     reports = {"structural": _verify(h, policy)}
     if policy == "full":
         reports["quality"] = _quality_check(h)
+    if _has_verification_contract(h):
+        contract_passed, contract_report = _verify_contract(h)
+        reports["contract"] = contract_report
     # Task evaluators are intentionally run by finish after the required path
     # is saved; render/visual checks are also finish-lifecycle services.
     return json.dumps(reports, ensure_ascii=False, indent=2)
@@ -1625,7 +1826,11 @@ def _render(h, path: str, output_dir: str = "rendered") -> str:
             slide_image.close()
     h.state.record_evidence("ppt_render", f"ppt rendered: {len(images)} PNG slides from {path}")
     h.state.unresolved_checks.discard("ppt_render")
-    h.state.last_verification_failed = bool(h.state.unresolved_checks)
+    # This verification action passed. Unrelated unresolved obligations (for
+    # example a still-failing official evaluator) must not be re-labelled as a
+    # fresh local verification failure: that would reopen a second repair cycle
+    # on every auto save/check and exhaust the bounded budget prematurely.
+    h.state.last_verification_failed = False
     h.state.last_verification_epoch = h.state.mutation_epoch
     if getattr(h, "recorder", None):
         h.recorder.check("ppt_render", True, f"{len(images)} PNG slides; pdf={pdf}")
@@ -1690,7 +1895,11 @@ def _inspect_rendered(h, output_dir: str = "rendered") -> str:
         return "Rendered visual audit findings:\n" + "\n".join(findings) + "\nMetrics:\n" + "\n".join(rows)
     h.state.record_evidence("ppt_visual", f"rendered visual audit passed: {len(images)} slides")
     h.state.unresolved_checks.discard("ppt_visual")
-    h.state.last_verification_failed = bool(h.state.unresolved_checks)
+    # This verification action passed. Unrelated unresolved obligations (for
+    # example a still-failing official evaluator) must not be re-labelled as a
+    # fresh local verification failure: that would reopen a second repair cycle
+    # on every auto save/check and exhaust the bounded budget prematurely.
+    h.state.last_verification_failed = False
     h.state.last_verification_epoch = h.state.mutation_epoch
     if getattr(h, "recorder", None):
         h.recorder.check("ppt_visual", True, "\n".join(rows + warnings))
@@ -1793,20 +2002,32 @@ def _save(h, path: str | None) -> str:
     return f"saved {len(prs.slides)} slides -> {target.name}"
 
 
-def _deck_info(h) -> str:
+def _deck_info(h, slide_number: int | None = None) -> str:
     from pptx.enum.shapes import MSO_SHAPE_TYPE
     if getattr(h, "deck", None) is None:
         return "no deck yet."
+    if slide_number is not None and (slide_number < 1 or slide_number > len(h.deck.slides)):
+        raise IndexError(f"slide number out of range: {slide_number}")
+    selected = range(len(h.deck.slides)) if slide_number is None else [slide_number - 1]
     lines = []
-    for i, slide in enumerate(h.deck.slides, 1):
+    for i in selected:
         texts = []
-        for sh in slide.shapes:
+        for sh in h.deck.slides[i].shapes:
             if sh.has_text_frame and sh.shape_type == MSO_SHAPE_TYPE.TEXT_BOX:
                 t = (sh.text_frame.text or "").strip()
                 if t:
-                    texts.append(t.replace("\n", " | ")[:70])
-        lines.append(f"  slide {i}: " + ("; ".join(texts) if texts else "(empty)"))
-    return f"{len(h.deck.slides)} slides:\n" + "\n".join(lines)
+                    texts.append(f"[{sh.name}] {t.replace(chr(10), ' | ')[:70]}")
+            elif getattr(sh, "has_table", False):
+                rows = [
+                    " | ".join(cell.text.strip().replace("\n", " ") for cell in row.cells)
+                    for row in sh.table.rows
+                ]
+                joined = " ;; ".join(rows)
+                if joined.strip():
+                    texts.append(f"表[{sh.name}]: {joined[:160]}")
+        lines.append(f"  slide {i + 1}: " + ("; ".join(texts) if texts else "(empty)"))
+    header = f"slide {slide_number}:\n" if slide_number is not None else f"{len(h.deck.slides)} slides:\n"
+    return header + "\n".join(lines)
 
 
 def _collect_structural_findings(h) -> list[dict[str, Any]]:
@@ -1881,6 +2102,125 @@ def _collect_structural_findings(h) -> list[dict[str, Any]]:
     return findings
 
 
+def _compact_text(value: str) -> str:
+    import re
+    return re.sub(r"\s+", "", value or "")
+
+
+def _slide_text_material(slide) -> str:
+    """All textual material on a slide: text frames and every table cell."""
+    parts: list[str] = []
+    for shape, _ in _walk_shapes(slide.shapes):
+        if getattr(shape, "has_text_frame", False):
+            parts.append(shape.text or "")
+        if getattr(shape, "has_table", False):
+            for row in shape.table.rows:
+                for cell in row.cells:
+                    parts.append(cell.text or "")
+    return "".join(parts)
+
+
+def _has_verification_contract(h) -> bool:
+    terms = getattr(h.state, "verification_contract_terms", None)
+    if isinstance(terms, dict):
+        return True
+    return bool(getattr(h.state, "facts", {}).get("verification_contract_terms"))
+
+
+def _verify_contract(h) -> tuple[bool, str]:
+    """Deterministic pre-gate over the task-local verification contract.
+
+    C_static's V is checked before the official evaluator so the model gets
+    concrete missing/forbidden terms while the repair loop is still open,
+    instead of discovering them only through a finish rejection.
+    """
+    terms = getattr(h.state, "verification_contract_terms", None)
+    terms_text = getattr(h.state, "facts", {}).get("verification_contract_terms", "")
+    if not isinstance(terms, dict) and terms_text:
+        try:
+            terms = json.loads(terms_text)
+        except json.JSONDecodeError:
+            terms = None
+    if not isinstance(terms, dict):
+        return True, "no task-local verification contract terms; skipping contract gate"
+
+    missing_by_slide: dict[str, list[str]] = {}
+    forbidden_by_slide: dict[str, list[str]] = {}
+    co_findings: list[str] = []
+    required_slides = terms.get("required_slide_expectations") or {}
+    for slide_number, spec in required_slides.items():
+        if not isinstance(spec, dict):
+            continue
+        try:
+            index = int(slide_number) - 1
+            slide = h.deck.slides[index]
+        except (ValueError, IndexError):
+            co_findings.append(f"slide {slide_number}: slide does not exist")
+            continue
+        compact = _compact_text(_slide_text_material(slide))
+        missing = missing_by_slide.setdefault(str(slide_number), [])
+        forbidden = forbidden_by_slide.setdefault(str(slide_number), [])
+        for term in spec.get("all") or []:
+            if _compact_text(term) not in compact:
+                missing.append(str(term))
+        for term in spec.get("none") or []:
+            if _compact_text(term) in compact:
+                forbidden.append(str(term))
+
+    for item in terms.get("co_location_expectations") or []:
+        if not isinstance(item, dict):
+            continue
+        slide_number = item.get("slide")
+        try:
+            slide = h.deck.slides[int(slide_number) - 1]
+        except (ValueError, IndexError, TypeError):
+            continue
+        matches = [shape for shape, _ in _walk_shapes(slide.shapes) if shape.name == item.get("object_name")]
+        if len(matches) != 1:
+            co_findings.append(f"slide {slide_number}: co-location object {item.get('object_name')!r} matched {len(matches)}")
+            continue
+        compact = _compact_text(_slide_text_material_for_shape(matches[0]))
+        required_missing = [str(term) for term in item.get("required_terms") or [] if _compact_text(term) not in compact]
+        forbidden_present = [str(term) for term in item.get("forbidden_terms") or [] if _compact_text(term) in compact]
+        if required_missing:
+            co_findings.append(f"slide {slide_number}/{item.get('object_name')}: missing=[{'; '.join(required_missing)}]")
+        if forbidden_present:
+            co_findings.append(f"slide {slide_number}/{item.get('object_name')}: forbidden=[{'; '.join(forbidden_present)}]")
+
+    total_findings = sum(len(value) for value in missing_by_slide.values()) + sum(len(value) for value in forbidden_by_slide.values()) + len(co_findings)
+    if total_findings:
+        lines = [f"Verification contract gate FAILED ({total_findings} findings). Repair each slide with batch_updates: set_shape_text for named boxes, set_table for whole tables (names are in the full-deck summary)."]
+        def slide_key(pair):
+            slide, _ = pair
+            return (0, int(slide)) if str(slide).isdigit() else (1, str(slide))
+        for slide, missing in sorted(missing_by_slide.items(), key=slide_key):
+            forbidden = forbidden_by_slide.pop(slide, [])
+            parts = [f"slide {int(slide) if str(slide).isdigit() else slide}: required=[{'; '.join(missing)}]"]
+            if forbidden:
+                parts.append(f"forbidden=[{'; '.join(forbidden)}]")
+            lines.append(" | ".join(parts))
+        for slide, forbidden in sorted(forbidden_by_slide.items(), key=slide_key):
+            lines.append(f"slide {int(slide) if str(slide).isdigit() else slide}: forbidden=[{'; '.join(forbidden)}]")
+        lines.extend(co_findings[:20])
+        h.state.unresolved_checks.add("ppt_contract")
+        h.state.record_evidence("ppt_contract", f"contract gate failed: {total_findings} finding(s)", passed=False)
+        return False, "\n".join(lines)
+    h.state.unresolved_checks.discard("ppt_contract")
+    h.state.record_evidence("ppt_contract", "verification contract gate passed")
+    return True, "Verification contract gate passed."
+
+
+def _slide_text_material_for_shape(shape) -> str:
+    parts: list[str] = []
+    if getattr(shape, "has_text_frame", False):
+        parts.append(shape.text or "")
+    if getattr(shape, "has_table", False):
+        for row in shape.table.rows:
+            for cell in row.cells:
+                parts.append(cell.text or "")
+    return "".join(parts)
+
+
 def _verify(h, policy: str = "auto") -> str:
     if getattr(h, "deck", None) is None:
         return "no deck yet to verify."
@@ -1914,7 +2254,11 @@ def _verify(h, policy: str = "auto") -> str:
         summary = f"ppt structural verification passed: {len(h.deck.slides)} slides; {scope_summary}"
         state.record_evidence("ppt_structural", summary)
         h.state.unresolved_checks.discard("ppt_structural")
-        h.state.last_verification_failed = bool(h.state.unresolved_checks)
+        # This verification action passed. Unrelated unresolved obligations (for
+        # example a still-failing official evaluator) must not be re-labelled as
+        # a fresh local verification failure: that would reopen a second repair
+        # cycle on every auto save/check and exhaust the bounded budget.
+        h.state.last_verification_failed = False
         h.state.last_verification_epoch = h.state.mutation_epoch
         if getattr(h, "recorder", None):
             detail = summary + (f"\nHistorical warnings:\n{warning_summary}" if warnings else "")
@@ -2016,6 +2360,7 @@ def _quality_check(h) -> str:
     if passed:
         h.state.record_evidence("ppt_quality", f"ppt quality lint passed: {len(h.deck.slides)} slides")
         h.state.unresolved_checks.discard("ppt_quality")
+        h.state.last_verification_failed = False
         if getattr(h, "recorder", None):
             h.recorder.check("ppt_quality", True, summary)
         return summary
@@ -2047,24 +2392,26 @@ ppt_tools = [
     ),
     _make(
         "ppt_edit_text",
-        "Edit presentation text: one exact replacement, one inherited bullet, or an atomic multi-slide batch. For a single change use operation='replace' with slide_number, old, and new and omit the `updates` field; use `updates` (batch) only for 2+ independent edits. A `replace` replaces every matching occurrence; omit slide_number (and shape_id) to replace across the whole deck (all_matches is optional and redundant for replace).",
+        "Edit presentation text. operation='replace' does one exact substring replacement (all occurrences in scope). operation='set_shape_text' rewrites a whole existing text shape: select it by shape_id or unique shape_name or text_contains and provide multi-line `text`. operation='set_table' rewrites a whole existing table atomically: select the table by shape_id or shape_name and provide `rows` as a list of cell-value lists matching the current table dimensions exactly. operation='batch_updates' applies 2+ independent replace/style/set_shape_text/set_table edits in one transaction. For consistency/source-sync work prefer set_shape_text/set_table (single or inside batch_updates) to avoid stale-fragment leftovers.",
         {
-            "operation": {"type": "string", "enum": ["replace", "append_bullet", "batch_updates"]},
-            "slide_number": {"type": "integer"}, "shape_id": {"type": "integer"},
+            "operation": {"type": "string", "enum": ["replace", "append_bullet", "batch_updates", "set_shape_text", "set_table"]},
+            "slide_number": {"type": "integer"}, "shape_id": {"type": "integer"}, "shape_name": {"type": "string"},
             "text_contains": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"},
             "text": {"type": "string"}, "match_case": {"type": "boolean"}, "all_matches": {"type": "boolean"},
+            "rows": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "string"}}},
             "updates": {
                 "type": "array", "minItems": 1, "maxItems": 100,
                 "items": {
                     "type": "object",
                     "properties": {
-                        "operation": {"type": "string", "enum": ["replace", "style"]},
-                        "slide_number": {"type": "integer"}, "shape_id": {"type": "integer"},
+                        "operation": {"type": "string", "enum": ["replace", "style", "set_shape_text", "set_table"]},
+                        "slide_number": {"type": "integer"}, "shape_id": {"type": "integer"}, "shape_name": {"type": "string"},
                         "text_contains": {"type": "string"}, "old": {"type": "string"},
-                        "new": {"type": "string"}, "match_case": {"type": "boolean"},
+                        "new": {"type": "string"}, "text": {"type": "string"}, "match_case": {"type": "boolean"},
                         "target": {"type": "string", "enum": ["text", "fill"]},
                         "size": {"type": "integer"}, "color": {"type": "string"},
                         "bold": {"type": "boolean"}, "all_matches": {"type": "boolean"},
+                        "rows": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "string"}}},
                     },
                     "required": ["operation"], "additionalProperties": False,
                 },

@@ -11,7 +11,7 @@ from . import config
 from .tools.registry import dispatch, select_tools
 from .state import RunState, RuntimePhase, Status, TaskItem
 from .hooks import PostToolHook, PreToolHook, ToolEvent
-from .runtime import RuntimeController, bounded_tool_result, canonical_call, OBSERVE_TOOLS
+from .runtime import RuntimeController, bounded_tool_result, canonical_call, OBSERVE_TOOLS, TERMINAL_TOOLS
 from .events import EventBus, EventKind
 from .session import Session, StopReason, TurnOutcome
 from .task_profiles import TaskProfile, classify_task
@@ -91,6 +91,11 @@ class Harness:
         self.undo_stack: list[bytes] = []
         self.approval_handler: Callable[[str], str] | None = None
         self.stream_callback: Callable[[str], None] | None = None
+        # Obligation-based progress monitor (CEGAR-H v2):
+        # progress = an unresolved obligation was resolved, or the artifact
+        # mutation epoch advanced; fresh-but-unchanged evidence is NOT progress.
+        self._obligation_checkpoint: tuple | None = None
+        self._rejection_history: list[tuple] = []
 
     def attach_printer(self, printer: Callable[[str, str, str], None]) -> None:
         self.on_tool = printer
@@ -115,6 +120,67 @@ class Harness:
 
     def subscribe(self, callback) -> Callable[[], None]:
         return self.events.subscribe(callback)
+
+    def _obligation_snapshot(self) -> tuple:
+        return (
+            tuple(sorted(self.state.unresolved_checks)),
+            self.state.mutation_epoch,
+            tuple(sorted(record.kind for record in self.state.fresh_evidence())),
+        )
+
+    def _obligation_progress(self) -> bool:
+        """CEGAR-H v2 progress definition.
+
+        Progress only when an unresolved obligation disappears, the artifact
+        mutation epoch advances, or fresh evidence appears for a previously
+        unresolved obligation. Re-running the same save/check/render with no
+        obligation change is explicitly NOT progress.
+        """
+        now = self._obligation_snapshot()
+        checkpoint = getattr(self, "_obligation_checkpoint", None)
+        if checkpoint is None:
+            self._obligation_checkpoint = now
+            return False
+        old_unresolved, old_epoch, old_evidence = checkpoint
+        new_unresolved, new_epoch, new_evidence = now
+        progress = (
+            len(new_unresolved) < len(old_unresolved)
+            or any(kind not in new_unresolved for kind in old_unresolved)
+            or new_epoch != old_epoch
+            or any(kind in new_evidence for kind in old_unresolved if kind not in old_evidence)
+        )
+        if progress:
+            self._obligation_checkpoint = now
+            self._rejection_history = []
+        return progress
+
+    @staticmethod
+    def _rejection_signature(name: str, exc: Exception, blockers) -> tuple:
+        """(action, blocker_type, blockers, blocker_target) — the target digest
+        keeps 'text not found: 6/20' and 'text not found: 6/26' distinct."""
+        return (name, type(exc).__name__, blockers, str(exc)[:120])
+
+    def _mutation_gated(self, tool_name: str) -> bool:
+        """CEGAR-H verify-before-continue gate.
+
+        Once the artifact has unverified mutations, further content mutation is
+        blocked until fresh structural evidence exists. This makes the runtime
+        recommendation an enforceable loop invariant, not a hint.
+        """
+        from .controller_policies import MUTATION_TOOLS
+
+        if tool_name not in MUTATION_TOOLS:
+            return False
+        if not getattr(self.state, "mutation_epoch", 0):
+            return False
+        fresh = {record.kind for record in self.state.fresh_evidence()}
+        if "ppt_structural" in fresh:
+            return False
+        # Interactive sessions and official-evaluator tasks run the full loop;
+        # bare unit-test harnesses keep the old permissive path.
+        if not (getattr(self, "interactive", False) or self.state.facts.get("official_evaluator_present") == "true"):
+            return False
+        return True
 
     def _set_task_profile(self, task: str) -> TaskProfile:
         """Classify the task and expose the selected route as auditable state."""
@@ -307,6 +373,8 @@ class Harness:
         self.skill_allowed_tools = set()
         self.recorder = None
         self.undo_stack = []
+        self._obligation_checkpoint = None
+        self._rejection_history = []
         from .controller_policies import PolicyGuard
         self.policy_guard = PolicyGuard(getattr(self, "controller_policy", "cegar_h"))
         self._run_control = None
@@ -866,8 +934,12 @@ class Harness:
         # runtime field.  Runtime ownership is recoverable and lazily rebuilt.
         if not hasattr(self, "runtime"):
             self.runtime = RuntimeController()
-        if self._is_local_ppt_edit(execution_task):
-            self.state.max_repairs = 1
+        # Bounded repair budget is contract-owned, not a task-string heuristic:
+        # the compiled ExecutionContract already says how many verifier-feedback
+        # cycles the current capability may spend (1 for atomic edits, 3 for
+        # source-sync/multi-surface work).
+        contract = getattr(self.state, "execution_contract", None)
+        self.state.max_repairs = max(1, int(getattr(contract, "max_repairs", 3) or 3))
         self._ensure_execution_plan()
         self._done = None
         # A model can satisfy the tool protocol while making no progress (for
@@ -1038,6 +1110,61 @@ class Harness:
                 if tc.function.name not in admitted_names
             ]
             if rejected:
+                # Observation closure is a deterministic loop transition, not a
+                # stall: when ppt_inspect has already delivered its bounded
+                # evidence and the model asks for more, give ONE explicit
+                # action-pass nudge before applying the usual rejection fuse.
+                inspect_closed = "ppt_inspect" in rejected and int(self.state.facts.get("ppt_inspect_count", "0")) >= 2
+                closure_nudge = int(self.state.facts.get("ppt_observation_closure_nudge", "0"))
+                reopen_rejected = "ppt_open" in rejected and getattr(self.state, "mutation_epoch", 0) > 0
+                reopen_nudge = int(self.state.facts.get("ppt_open_rejection_nudge", "0"))
+                if reopen_rejected and reopen_nudge == 0:
+                    self.state.facts["ppt_open_rejection_nudge"] = "1"
+                    self.state.no_progress_streak = 0
+                    if recorder is not None:
+                        recorder.event(
+                            "tool_calls_rejected",
+                            rejected=rejected,
+                            advertised=sorted(advertised_names),
+                            reason="progress-preservation: reopening a file is unnecessary",
+                        )
+                    self.messages.append({"role": "assistant", "content": msg.content or ""})
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            "ppt_open was rejected because the ACTIVE deck already contains all current edits; "
+                            "reopening any file would risk discarding progress. Do not request file opens. "
+                            "Retry the intended edit/save/check sequence on the active deck, or proceed with "
+                            "set_shape_text / set_table / batch_updates directly."
+                        ),
+                    })
+                    continue
+                if inspect_closed and closure_nudge == 0:
+                    self.state.facts["ppt_observation_closure_nudge"] = "1"
+                    self.state.no_progress_streak = 0
+                    if recorder is not None:
+                        recorder.event(
+                            "tool_calls_rejected",
+                            rejected=rejected,
+                            advertised=sorted(advertised_names),
+                            reason="ppt observation closed; bounded action pass",
+                        )
+                    self.messages.append({"role": "assistant", "content": msg.content or ""})
+                    if self.state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND}:
+                        previous_phase = self.state.phase
+                        self.state.transition(RuntimePhase.PRODUCE)
+                        self._publish_phase_change(previous_phase, "ppt observation closed; forced production")
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            "PPT observation is closed: you already have the full-deck summary with stable shape "
+                            "names and table contents, and at most one targeted shapes view. Do not request "
+                            "ppt_inspect again. Proceed with the mutation now: use set_shape_text / set_table with "
+                            "the shape_name values from the summary (or batch_updates for pure string replacements), "
+                            "then save and verify."
+                        ),
+                    })
+                    continue
                 self.state.no_progress_streak += 1
                 if recorder is not None:
                     recorder.event(
@@ -1054,7 +1181,9 @@ class Harness:
                     ),
                 })
                 if self.state.no_progress_streak >= 2:
-                    return "已安全暂停：模型连续请求本阶段未开放的工具，控制器已阻止执行；没有产生文件副作用。"
+                    saved = self._save_draft_before_pause()
+                    saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
+                    return f"已安全暂停：模型连续请求本阶段未开放的工具，控制器已阻止执行。{saved_note}"
                 continue
             if not getattr(msg, "tool_calls", None):
                 answer = msg.content or ""
@@ -1136,6 +1265,28 @@ class Harness:
             results = self._execute_calls(msg.tool_calls)
             if self.cancel_requested():
                 return self._interrupt_stop()
+            # Obligation-based progress: fresh evidence with unchanged
+            # unresolved obligations is not progress and must not reset the
+            # stall counter. A changed obligation *set* (e.g. the official
+            # evaluator just discovered a new blocker) opens a new bounded
+            # CEGAR-H repair iteration and restarts the stall counter, so the
+            # loop repairs the counterexample instead of pausing on discovery.
+            #
+            # `controller_redirects` is a per-iteration repair budget, not a
+            # lifetime cap: every productive transition (epoch advance or new
+            # obligation set) re-arms the bounded passes for the new iteration.
+            if self._obligation_progress():
+                self.state.no_progress_streak = 0
+                self.state.controller_redirects = 0
+            else:
+                checkpoint = getattr(self, "_obligation_checkpoint", None)
+                now = self._obligation_snapshot()
+                if checkpoint is not None and set(now[0]) != set(checkpoint[0]):
+                    self._obligation_checkpoint = now
+                    self.state.no_progress_streak = 0
+                    self.state.controller_redirects = 0
+                else:
+                    self.state.no_progress_streak += 1
             no_tool_streak = 0
             signatures = [f"{tc.function.name}:{tc.function.arguments}" for tc in msg.tool_calls]
             signature = "|".join(signatures)
@@ -1147,7 +1298,18 @@ class Harness:
             for tc in msg.tool_calls:
                 text = results[tc.id]
                 self.on_tool(tc.function.name, tc.function.arguments, text)
-                visible_limit = 14000 if tc.function.name == "read_many" else 5000
+                # Verifier counterexamples and finish rejections are repair
+                # evidence; they get a larger model-visible budget than ordinary
+                # tool output so the complete blocker manifest can be planned
+                # against, not just its first fragment.
+                if tc.function.name == "run_task_evaluator":
+                    visible_limit = 16000
+                elif tc.function.name == "finish":
+                    visible_limit = 12000
+                elif tc.function.name == "ppt_inspect":
+                    visible_limit = 14000
+                else:
+                    visible_limit = 14000 if tc.function.name == "read_many" else 5000
                 self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": bounded_tool_result(text, visible_limit)})
             if self._done:
                 return self._done
@@ -1158,33 +1320,50 @@ class Harness:
                 evidence = "\n".join(results.values())
                 self.state.final_summary = "Read-only inspection complete. Evidence:\n" + evidence[:6000]
                 return self.state.final_summary
-            if ppt_task and self.state.no_progress_streak >= 2 and not self.state.fresh_evidence():
+            if ppt_task and self.state.no_progress_streak >= 2:
                 self.state.controller_redirects += 1
                 # Preflight ContentIR can advance the phase to PRODUCE before the
                 # first model turn, so a stuck observer is not always in
                 # INTAKE/UNDERSTAND. Force a bounded action pass whenever the
                 # run has produced nothing yet and is only re-reading unchanged
                 # inputs, regardless of the current phase label.
-                if self.state.controller_redirects <= 2 and self.state.mutation_epoch == 0:
+                #
+                # The same bounded-pass rule applies after edits: if the model
+                # keeps issuing no-op equivalent edits while a saved, freshly
+                # verified draft already exists, the shortest path is to run the
+                # official evaluator and finish instead of pausing mid-loop.
+                can_redirect = self.state.controller_redirects <= 2 and (
+                    self.state.mutation_epoch == 0
+                    or (self.state.fresh_evidence() and self.state.mutation_epoch > 0)
+                )
+                if can_redirect:
                     previous_phase = self.state.phase
-                    self.state.transition(RuntimePhase.PRODUCE)
-                    self._publish_phase_change(previous_phase, "no-progress redirect to production")
-                    self.messages.append({
-                        "role": "user",
-                        "content": (
+                    if self.state.mutation_epoch == 0:
+                        self.state.transition(RuntimePhase.PRODUCE)
+                        self._publish_phase_change(previous_phase, "no-progress redirect to production")
+                        message = (
                             "CEGAR-H detected repeated observations with no new information. Observation is now closed. "
                             "Do not list directories or reread unchanged files. Build or modify the smallest valid artifact, save it, then verify it."
-                        ),
-                    })
+                        )
+                    else:
+                        self.state.transition(RuntimePhase.VERIFY)
+                        self._publish_phase_change(previous_phase, "no-progress redirect to verification")
+                        message = (
+                            "CEGAR-H detected repeated equivalent edits with no new information. "
+                            "A saved draft with fresh structural evidence already exists. "
+                            "Do not issue another equivalent edit. Run ppt_check if evidence is stale, then call finish "
+                            "(the official task evaluator will run automatically and return concrete counterexamples if anything is still wrong)."
+                        )
+                    self.messages.append({"role": "user", "content": message})
                     self._maybe_compact(force=True)
                     continue
                 saved = self._save_draft_before_pause()
                 saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
                 return f"已安全暂停：连续三次执行相同操作或等价观察但没有获得新信息，控制器已阻止继续空转。{saved_note}"
-            if same_signature_streak >= 3 and not self.state.fresh_evidence():
+            if same_signature_streak >= 3 and self.state.no_progress_streak >= 3:
                 saved = self._save_draft_before_pause()
                 saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
-                return f"⚠ 已安全暂停：连续三次执行相同操作但没有新证据。{saved_note}\n\n会话与工作状态已保留；请检查工具参数，或输入“继续”让我换一种路径。"
+                return f"⚠ 已安全暂停：连续三次执行相同操作且 obligations 无进展。{saved_note}\n\n会话与工作状态已保留；请检查工具参数，或输入“继续”让我换一种路径。"
             self._maybe_compact()
             if not strict_budget and (step_index + 1) % self.max_steps == 0:
                 self._maybe_compact(force=True)
@@ -1321,6 +1500,32 @@ class Harness:
             try:
                 if self.cancel_requested():
                     return "CANCELLED: user interrupted the current task before this tool ran"
+                if self._mutation_gated(tc.function.name):
+                    # The verify-before-continue gate is a loop invariant, but
+                    # commit + verification are harness-owned lifecycle steps.
+                    # Satisfy the gate deterministically when the model forgot
+                    # the save/check pair, so a valid repair is never stranded
+                    # behind a prompt-only reminder.
+                    try:
+                        from .tools.registry import dispatch as _lifecycle_dispatch
+                        _lifecycle_dispatch("ppt_save", json.dumps({}), self)
+                        _lifecycle_dispatch("ppt_check", json.dumps({"policy": "auto"}), self)
+                    except Exception as lifecycle_exc:
+                        return (
+                            "TOOL ERROR (RuntimeError): CEGAR-H verify-before-continue gate. "
+                            f"Automatic save/check also failed ({type(lifecycle_exc).__name__}: {lifecycle_exc}). "
+                            "Fix the reported structural findings before further content edits."
+                        )
+                    if not self._mutation_gated(tc.function.name):
+                        return (
+                            "verify-before-continue gate resolved by the harness: the current draft was saved and "
+                            "ppt_check passed with fresh structural evidence. Retry your intended mutation now."
+                        )
+                    return (
+                        "TOOL ERROR (RuntimeError): CEGAR-H verify-before-continue gate. "
+                        "The deck has unverified mutations; run ppt_save then ppt_check "
+                        "and obtain fresh structural evidence before further content edits."
+                    )
                 if not hasattr(self, "policy_guard"):
                     from .controller_policies import PolicyGuard
                     self.controller_policy = getattr(self, "controller_policy", "cegar_h")
@@ -1365,10 +1570,8 @@ class Harness:
                 failure_class = f"class:{tc.function.name}:{type(exc).__name__}"
                 class_count = self.state.failures.get(failure_class, 0) + 1
                 self.state.failures[failure_class] = class_count
-                # Exceptions never reach RuntimeController.note_tool_result;
-                # count them explicitly so changing only a guessed filename
-                # cannot bypass the no-progress circuit breaker.
-                self.state.no_progress_streak += 1
+                # Stall accounting is owned by the obligation-based progress
+                # monitor after each executed turn; do not double-count here.
                 if class_count == 1 and self.state.operational_plan:
                     self.events.publish(
                         EventKind.PROGRESS_UPDATED,
@@ -1380,6 +1583,16 @@ class Harness:
                         ),
                     )
                 hint = " Do not repeat this identical call." if count >= 2 else ""
+                # A rejected terminal action must reopen verification instead
+                # of stranding the loop in DELIVER with only "finish" admitted;
+                # otherwise the counterexample the rejection carries can never
+                # be repaired.
+                if tc.function.name in TERMINAL_TOOLS and not getattr(self, "_done", None):
+                    if self.state.phase in {RuntimePhase.DELIVER, RuntimePhase.STOPPED}:
+                        previous_phase = self.state.phase
+                        self.state.transition(RuntimePhase.VERIFY)
+                        self._publish_phase_change(previous_phase, f"rejected {tc.function.name}: verification reopened")
+                    hint += " Verification phase was reopened; use the available repair and verification tools."
                 known_deck = self.state.facts.get("ppt_input_deck", "")
                 if tc.function.name == "ppt_open" and known_deck:
                     hint += f" The harness-discovered input is '{known_deck}'; do not guess another filename."
@@ -1390,6 +1603,29 @@ class Harness:
                     )
                     if getattr(self, "deck", None) is not None and getattr(self.state, "mutation_epoch", 0):
                         hint += " A draft is already in memory; the shortest valid path is ppt_save, then ppt_check, then finish."
+                # Safety fuse (generalized rejection signature): the same
+                # (action, error class, blocker set) three times in a row with
+                # no obligation progress means the run is stuck on the same
+                # counterexample, regardless of which tool is retrying.
+                blockers = frozenset(self.state.unresolved_checks)
+                signature = self._rejection_signature(tc.function.name, exc, blockers)
+                history = getattr(self, "_rejection_history", None)
+                if history is None:
+                    history = self._rejection_history = []
+                history.append(signature)
+                del history[:-3]
+                stuck = len(history) == 3 and history[0] == history[1] == history[2]
+                if stuck:
+                    saved = self._save_draft_before_pause()
+                    blocker_text = ", ".join(sorted(blockers)) or str(exc)[:120]
+                    self.state.record_fact("blocking_obligations", blocker_text)
+                    self.state.record_fact("run_status", "paused_unresolved")
+                    self._done = (
+                        f"⚠ 已进入 STUCK（安全暂停）：同一 rejection signature 连续出现 3 次\n"
+                        f"   action={tc.function.name} · error={type(exc).__name__} · blockers=[{blocker_text}]\n"
+                        + (f"\n暂停前已保存当前草稿：{saved}。" if saved else "")
+                        + "\n\n未解决 obligations 已记录，模型调用已停止；输入“继续”或定向修复 blocker 后续接。"
+                    )
                 if getattr(self, "recorder", None):
                     self.recorder.event("tool_failed", call_id=tc.id, tool=tc.function.name, error_type=type(exc).__name__, error=str(exc))
                 self.events.publish(EventKind.TOOL_FAILED, call_id=tc.id, tool=tc.function.name, error_type=type(exc).__name__, error=str(exc))

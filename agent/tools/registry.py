@@ -173,9 +173,21 @@ def dispatch(name: str, arguments_json: str, harness) -> str:
     try:
         args = json.loads(arguments_json or "{}")
     except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid JSON arguments at character {exc.pos}") from exc
+        raise ValueError(
+            f"invalid JSON arguments at character {exc.pos}; send ONE valid JSON object. "
+            "If the update list is too long, split it into several smaller tool calls."
+        ) from exc
     if not isinstance(args, dict):
         raise TypeError("tool arguments must be a JSON object")
+    # Argument-contract recovery: some providers emit
+    # {"arguments": "{\"operation\": ...}"} instead of the inner object.
+    if isinstance(args, dict) and set(args) == {"arguments"} and isinstance(args["arguments"], str):
+        try:
+            unwrapped = json.loads(args["arguments"])
+        except json.JSONDecodeError:
+            unwrapped = None
+        if isinstance(unwrapped, dict):
+            args = unwrapped
     requested_name = name
     name, args = _normalize_compat_call(name, args)
     fn = _INDEX.get(name)
@@ -201,16 +213,26 @@ def dispatch(name: str, arguments_json: str, harness) -> str:
 
     def invoke():
         repair_candidate = name in _PPT_REPAIR_MUTATORS and bool(getattr(harness.state, "unresolved_checks", set()))
-        if repair_candidate and harness.state.repair_attempts >= harness.state.max_repairs:
-            raise RuntimeError(f"repair budget exhausted ({harness.state.max_repairs}); stop and report unresolved defects")
-        out = fn(harness, **args)
-        # Only a completed repair consumes budget. A failed attempt must not
-        # count: the model did not actually mutate anything, and penalizing the
-        # failure wastes the bounded repair pass on the exception path.
         if repair_candidate:
-            harness.state.repair_attempts += 1
-            if getattr(harness, "recorder", None):
-                harness.recorder.event("repair_attempt", number=harness.state.repair_attempts, tool=name, defect_epoch=harness.state.last_verification_epoch)
+            # Bounded repair counts verifier-feedback *cycles*, not individual
+            # mutation calls. A source-sync repair cycle legitimately rewrites
+            # several surfaces before reverification; charging every successful
+            # mutator would strand the cycle after its first edit. The first
+            # mutation after a failed verification opens one cycle; later
+            # mutations of the same cycle are free until a verifier fails again.
+            if getattr(harness.state, "last_verification_failed", False):
+                if harness.state.repair_attempts >= harness.state.max_repairs:
+                    raise RuntimeError(f"repair budget exhausted ({harness.state.max_repairs}); stop and report unresolved defects")
+                harness.state.repair_attempts += 1
+                harness.state.last_verification_failed = False
+                if getattr(harness, "recorder", None):
+                    harness.recorder.event(
+                        "repair_attempt",
+                        number=harness.state.repair_attempts,
+                        tool=name,
+                        defect_epoch=harness.state.last_verification_epoch,
+                    )
+        out = fn(harness, **args)
         return out
 
     if name in _PPT_CONTENT_MUTATORS and getattr(harness, "deck", None) is not None:

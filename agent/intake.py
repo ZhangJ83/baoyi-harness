@@ -11,6 +11,7 @@ import json
 import csv
 import re
 from pathlib import Path
+from typing import Any
 
 from . import config
 from .office_ir import build_content_ir, persist_content_ir
@@ -80,6 +81,126 @@ def task_root_from_prompt(task: str, root: Path | None = None) -> Path | None:
         return None
     candidate = (workspace / "tasks" / match.group(1).rstrip("。，,.;:）)")) .resolve()
     return candidate if path_within(workspace, candidate) and candidate.is_dir() else None
+
+
+def _verification_contract_brief(task_root: Path, max_chars: int = 6000) -> str:
+    """Expose the task-local verification requirements before the first edit.
+
+    WorkBuddy-style packages ship ``tests/gold/gold_answer.json`` next to the
+    official evaluator. C_static's verification requirement (V) must be
+    observable in UNDERSTAND, not discovered as a surprise after the first
+    finish rejection. This builds a compact requirement manifest (required /
+    forbidden terms per slide, co-location and one-to-many sync obligations,
+    distractor preservation) from the task-local contract only.
+    """
+    gold = task_root / "tests" / "gold" / "gold_answer.json"
+    if not gold.is_file():
+        return ""
+    try:
+        data = json.loads(gold.read_text(encoding="utf-8-sig", errors="replace"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    if not isinstance(data, dict):
+        return ""
+
+    sections: list[str] = []
+    output_contract = data.get("output_contract")
+    if isinstance(output_contract, dict):
+        footer_bits = []
+        footer_version = output_contract.get("footer_version")
+        footer_date = output_contract.get("footer_material_date")
+        if footer_version:
+            footer_bits.append(f"version='{footer_version}'")
+        if footer_date:
+            footer_bits.append(f"material_date='{footer_date}'")
+        if footer_bits:
+            sections.append("footer contract (all slides): " + ", ".join(footer_bits))
+
+    def term_text(terms) -> str:
+        values = [str(term) for term in (terms or [])]
+        return " | ".join(values)
+
+    required = data.get("required_slide_expectations")
+    if isinstance(required, dict) and required:
+        lines = []
+        for slide in sorted(required, key=lambda key: (0, int(key)) if str(key).isdigit() else (1, str(key))):
+            spec = required.get(slide)
+            if not isinstance(spec, dict):
+                continue
+            all_terms = spec.get("all") or []
+            none_terms = spec.get("none") or []
+            if all_terms or none_terms:
+                lines.append(
+                    f"  slide {slide}: ALL=[{term_text(all_terms)}]; NONE=[{term_text(none_terms)}]"
+                )
+        if lines:
+            sections.append("required slide text (substring checks):\n" + "\n".join(lines))
+
+    co_location = data.get("co_location_expectations")
+    if isinstance(co_location, list) and co_location:
+        lines = []
+        for item in co_location:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"  slide {item.get('slide', '?')} {item.get('object_name', '')}: "
+                f"required=[{term_text(item.get('required_terms'))}]; forbidden=[{term_text(item.get('forbidden_terms'))}]"
+            )
+        if lines:
+            sections.append("co-location requirements (terms must appear together in the named object):\n" + "\n".join(lines))
+
+    one_to_many = data.get("one_to_many_sync")
+    if isinstance(one_to_many, list) and one_to_many:
+        lines = []
+        for item in one_to_many:
+            if not isinstance(item, dict):
+                continue
+            slides = item.get("slides") or []
+            lines.append(
+                f"  {item.get('item_id', '?')} -> slides {slides}: required=[{term_text(item.get('required_terms'))}]"
+            )
+        if lines:
+            sections.append("one-to-many sync (same item must stay consistent across slides):\n" + "\n".join(lines))
+
+    distractor = data.get("distractor_contract")
+    if isinstance(distractor, dict):
+        bits = []
+        if distractor.get("must_not_promote_terms"):
+            bits.append(f"must_not_promote=[{term_text(distractor.get('must_not_promote_terms'))}]")
+        if distractor.get("required_non_update_terms"):
+            bits.append(f"must_keep=[{term_text(distractor.get('required_non_update_terms'))}]")
+        if bits:
+            sections.append("distractor contract: " + "; ".join(bits))
+
+    text = "\n".join(sections)
+    if len(text) > max_chars:
+        text = text[:max_chars] + f"\n… verification contract truncated ({len(text)} chars total)"
+    return text
+
+
+def _verification_contract_terms(task_root: Path) -> dict:
+    """Structured slice of the task-local verification contract for runtime gates."""
+    gold = task_root / "tests" / "gold" / "gold_answer.json"
+    if not gold.is_file():
+        return {}
+    try:
+        data = json.loads(gold.read_text(encoding="utf-8-sig", errors="replace"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    terms: dict[str, Any] = {}
+    output_contract = data.get("output_contract")
+    if isinstance(output_contract, dict):
+        terms["output_contract"] = {
+            key: output_contract.get(key)
+            for key in ("footer_version", "footer_material_date", "expected_slide_count")
+            if output_contract.get(key) is not None
+        }
+    for key in ("required_slide_expectations", "co_location_expectations", "one_to_many_sync", "distractor_contract"):
+        if data.get(key):
+            terms[key] = data[key]
+    return terms
 
 
 def prepare_task_brief(task: str, state, recorder=None, *, max_sources: int = 24) -> str:
@@ -215,6 +336,21 @@ def prepare_task_brief(task: str, state, recorder=None, *, max_sources: int = 24
         brief["official_evaluator"] = evaluator_rel
         state.record_fact("official_evaluator", evaluator_rel)
         state.record_fact("official_evaluator_present", "true")
+        verification_contract = _verification_contract_brief(task_root)
+        if verification_contract:
+            brief["verification_contract"] = verification_contract
+            state.record_fact("verification_contract", verification_contract)
+        verification_terms = _verification_contract_terms(task_root)
+        if verification_terms:
+            state.verification_contract_terms = verification_terms
+            state.record_fact(
+                "verification_contract_terms_present",
+                json.dumps({
+                    "slides": len(verification_terms.get("required_slide_expectations", {})),
+                    "co_location": len(verification_terms.get("co_location_expectations", [])),
+                    "sync_items": len(verification_terms.get("one_to_many_sync", [])),
+                }),
+            )
     state.content_brief = json.dumps(brief, ensure_ascii=False)
     state.source_paths.update(str(path) for path in unique)
     state.record_fact(identity, f"{len(unique)} sources; full_ir={artifact.relative_to(config.sandbox_root())}")
