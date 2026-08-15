@@ -172,6 +172,46 @@ def _verification_contract_brief(task_root: Path, max_chars: int = 6000) -> str:
         if bits:
             sections.append("distractor contract: " + "; ".join(bits))
 
+    # Template-build contracts (xmind and similar cases) live under
+    # answer_contract / template_expected / xmind_expected rather than the
+    # slide-expectation keys used by source-sync cases.
+    answer_contract = data.get("answer_contract")
+    if isinstance(answer_contract, dict):
+        bits = []
+        if answer_contract.get("min_slide_count") is not None:
+            bits.append(f"min_slides={answer_contract.get('min_slide_count')}")
+        if answer_contract.get("max_slide_count") is not None:
+            bits.append(f"max_slides={answer_contract.get('max_slide_count')}")
+        if answer_contract.get("output_kind"):
+            bits.append(f"output={answer_contract.get('output_kind')}")
+        if bits:
+            sections.append("answer contract: " + ", ".join(bits))
+
+    template_expected = data.get("template_expected")
+    if isinstance(template_expected, dict):
+        bits = []
+        if template_expected.get("slide_count") is not None:
+            bits.append(f"slide_count={template_expected.get('slide_count')}")
+        features = template_expected.get("required_template_features") or []
+        if features:
+            bits.append(f"required_features=[{term_text(features)}]")
+        placeholders = template_expected.get("placeholder_texts") or []
+        if placeholders:
+            bits.append(f"placeholders_to_clean=[{term_text(placeholders)}]")
+        if bits:
+            sections.append("template contract: " + "; ".join(bits))
+
+    xmind_expected = data.get("xmind_expected")
+    if isinstance(xmind_expected, dict):
+        top_level = xmind_expected.get("top_level_topics") or []
+        if top_level:
+            lines = [
+                f"  {item.get('title', '')}: aliases=[{term_text(item.get('aliases'))}]"
+                for item in top_level if isinstance(item, dict)
+            ]
+            if lines:
+                sections.append("source outline (must be covered by the generated deck):\n" + "\n".join(lines))
+
     text = "\n".join(sections)
     if len(text) > max_chars:
         text = text[:max_chars] + f"\n… verification contract truncated ({len(text)} chars total)"
@@ -197,7 +237,8 @@ def _verification_contract_terms(task_root: Path) -> dict:
             for key in ("footer_version", "footer_material_date", "expected_slide_count")
             if output_contract.get(key) is not None
         }
-    for key in ("required_slide_expectations", "co_location_expectations", "one_to_many_sync", "distractor_contract"):
+    for key in ("required_slide_expectations", "co_location_expectations", "one_to_many_sync", "distractor_contract",
+                "answer_contract", "template_expected", "xmind_expected"):
         if data.get(key):
             terms[key] = data[key]
     return terms

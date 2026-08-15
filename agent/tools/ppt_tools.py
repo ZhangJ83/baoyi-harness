@@ -1380,9 +1380,17 @@ def _compose_from_outline(h, slides: list[dict], replace_template: bool = True) 
     clones = []
     for template_slide, replacements, table_spec, notes in prepared:
         clone = _clone_template_slide(generated, source_slides[template_slide - 1])
+        existing_names = {shape.name for shape, _ in _walk_shapes(clone.shapes)}
+        applied = 0
         for replacement in replacements:
+            if replacement["shape_name"] not in existing_names:
+                # Tolerant template application: a spec may reference shape
+                # names from another layout. Apply every valid replacement and
+                # skip only the absent ones instead of aborting the batch.
+                continue
             _replace_named_shape_text(clone, replacement["shape_name"], replacement.get("text", ""))
-        if table_spec:
+            applied += 1
+        if table_spec and table_spec.get("shape_name") in existing_names:
             _replace_named_table(clone, table_spec["shape_name"], table_spec["rows"])
         if notes:
             notes_slide = clone.notes_slide
@@ -1390,7 +1398,11 @@ def _compose_from_outline(h, slides: list[dict], replace_template: bool = True) 
                 for element in source_notes[template_slide - 1]:
                     notes_slide.shapes._spTree.insert_element_before(deepcopy(element), "p:extLst")
             _set_slide_notes_text(clone, notes)
-        clones.append(clone)
+        if applied or table_spec or notes:
+            clones.append(clone)
+
+    if not clones:
+        raise ValueError("from_outline: none of the replacement shape names matched any template slide")
 
     if replace_template:
         for _ in range(template_count):
@@ -1429,6 +1441,10 @@ def _compose_from_outline(h, slides: list[dict], replace_template: bool = True) 
 def _ppt_compose(h, kind: str, **kw) -> str:
     if kind == "new_deck":
         return _new_deck(h, kw.get("title", "Untitled"), kw.get("subtitle", ""))
+    if kind == "content" and kw.get("slides"):
+        # Disambiguation: content + slides is the model's spelling of a
+        # template replacement batch. Route to the tolerant template path.
+        return _compose_from_outline(h, kw.get("slides") or [], kw.get("replace_template", True))
     if kind == "content":
         return _content_slide(h, kw.get("title", ""), kw.get("bullets") or [], kw.get("size", 18))
     if kind == "comparison":
@@ -1436,6 +1452,10 @@ def _ppt_compose(h, kind: str, **kw) -> str:
             raise ValueError("comparison requires left_title and right_title")
         return _two_column(h, kw.get("title", ""), kw.get("left_title", ""), kw.get("left_bullets") or [], kw.get("right_title", ""), kw.get("right_bullets") or [])
     if kind == "from_slides":
+        if kw.get("insert_after") is None and kw.get("slides"):
+            # Disambiguation: models often use from_slides while supplying
+            # template-slide replacements. Treat that shape as from_outline.
+            return _compose_from_outline(h, kw.get("slides") or [], kw.get("replace_template", True))
         if kw.get("insert_after") is None:
             raise ValueError("from_slides requires insert_after")
         return _compose_from_slides(

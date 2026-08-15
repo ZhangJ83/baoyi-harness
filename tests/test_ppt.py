@@ -396,7 +396,7 @@ class PowerPointTests(unittest.TestCase):
         h.deck = template
         epoch_before = h.state.mutation_epoch
 
-        with self.assertRaisesRegex(ValueError, "missing_shape"):
+        with self.assertRaisesRegex(ValueError, "none of the replacement"):
             dispatch("ppt_compose", json.dumps({
                 "kind": "from_outline", "slides": [{"template_slide": 1, "replacements": [
                     {"shape_name": "missing_shape", "text": "New"},
