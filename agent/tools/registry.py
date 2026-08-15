@@ -213,6 +213,19 @@ def dispatch(name: str, arguments_json: str, harness) -> str:
                 harness.recorder.event("repair_attempt", number=harness.state.repair_attempts, tool=name, defect_epoch=harness.state.last_verification_epoch)
         return out
 
+    if name in _PPT_CONTENT_MUTATORS and getattr(harness, "deck", None) is not None:
+        undo_stack = getattr(harness, "undo_stack", None)
+        if undo_stack is not None:
+            try:
+                from io import BytesIO
+
+                buffer = BytesIO()
+                harness.deck.save(buffer)
+                undo_stack.append(buffer.getvalue())
+                del undo_stack[:-20]
+            except Exception:
+                pass
+
     transaction_scope = _canonical_local_ppt_scope(name, args, harness)
     if transaction_scope is None:
         out = invoke()

@@ -52,6 +52,9 @@ XIAOPU_HELP = """\
   /status          show current loop state (phase / epoch / evidence / budget)
   /context         show token usage and context-window budget
   /compact         compact the conversation history now
+  /undo            undo the most recent PPT modification
+  /theme [name]    switch theme: dark/light/dracula
+  /keys [name]     switch keymap: default/minimal
   /verify          run structural verifier
   /save [path]     save deck to file (default workspace/deck.pptx)
   /doctor          show provider and dependency readiness (secrets are never shown)
@@ -77,6 +80,9 @@ COMMANDS = {
     "/status": "查看循环状态：相位、证据纪元、修复预算、用量",
     "/context": "查看 token 用量与上下文预算",
     "/compact": "立即压缩对话历史",
+    "/undo": "撤销最近一次 PPT 修改",
+    "/theme": "切换主题（dark/light/dracula）",
+    "/keys": "切换快捷键方案（default/minimal）",
     "/verify": "执行演示文稿结构校验",
     "/save": "保存演示文稿（可附目标路径）",
     "/doctor": "检查模型、凭据和本地依赖",
@@ -133,6 +139,12 @@ class XiaopuTerminalUI:
         self.h = Harness(model=model, interactive=True)
         self.has_key = bool(config.provider_api_key())
         self.h.attach_printer(self._on_tool)
+        # Product extension points installed once and preserved across reset().
+        self.h.approval_handler = self._approve_command
+        self.h.stream_callback = self._on_token
+        self._approval_queue: queue.Queue = queue.Queue()
+        self._streamed_text = ""
+        self._theme = config.theme()
         subscribe = getattr(self.h, "subscribe", None)
         if callable(subscribe):
             subscribe(self._on_event)
@@ -144,6 +156,14 @@ class XiaopuTerminalUI:
         self._stream_counts = {"decisions": 0, "tools": 0, "verifications": 0, "repairs": 0}
         self._mouse_input = False
         self._prompt = self._make_prompt()
+
+    def _theme_styles(self) -> dict:
+        themes = {
+            "dark": {"prompt": "bg:#303030 #f5f5f5 bold", "input": "bg:#303030 #f5f5f5", "": "bg:#303030 #f5f5f5"},
+            "light": {"prompt": "bg:#eeeeee #111111 bold", "input": "bg:#eeeeee #111111", "": "bg:#eeeeee #111111"},
+            "dracula": {"prompt": "bg:#282a36 #f8f8f2 bold", "input": "bg:#282a36 #f8f8f2", "": "bg:#282a36 #f8f8f2"},
+        }
+        return themes.get(getattr(self, "_theme", config.theme()), themes["dark"])
 
     def _make_prompt(self) -> PromptSession:
         # Mouse reporting is terminal-global and blocks native selection in
@@ -186,8 +206,9 @@ class XiaopuTerminalUI:
 
         @bindings.add("c-o")
         def _cycle_reasoning(event) -> None:
-            self._cycle_reasoning_view()
-            event.app.invalidate()
+            if config.keymap() != "minimal":
+                self._cycle_reasoning_view()
+                event.app.invalidate()
 
         @bindings.add("c-l")
         def _clear_screen(event) -> None:
@@ -202,11 +223,7 @@ class XiaopuTerminalUI:
             history=FileHistory(str(config.state_home() / "history.txt")),
             enable_history_search=True,
             prompt_continuation=lambda width, line_number, is_soft_wrap: " " * width,
-            style=Style.from_dict({
-                "prompt": "bg:#303030 #f5f5f5 bold",
-                "input": "bg:#303030 #f5f5f5",
-                "": "bg:#303030 #f5f5f5",
-            }),
+            style=Style.from_dict(self._theme_styles()),
             bottom_toolbar=self._live_input_status,
             # Do not reserve completion-menu rows in the idle composer.  A
             # fixed reservation makes a one-line prompt render as a large
@@ -249,12 +266,44 @@ class XiaopuTerminalUI:
         self._reasoning_view = normalized
         self._set_reasoning_view(None)
 
+    def _on_token(self, piece: str) -> None:
+        """Token-level streaming display for the final text answer only."""
+        self._streamed_text += piece
+        console.print(piece, end="", soft_wrap=True)
+
+    def _approve_command(self, command: str) -> str:
+        """Background-thread approval request; the UI main loop answers it."""
+        decided = threading.Event()
+        holder: dict = {"decision": "deny"}
+        self._approval_queue.put((command, decided, holder))
+        decided.wait(timeout=120)
+        return holder["decision"]
+
+    def _drain_approvals(self) -> None:
+        while True:
+            try:
+                command, decided, holder = self._approval_queue.get_nowait()
+            except queue.Empty:
+                return
+            console.print()
+            console.print(Panel(
+                f"[bold yellow]Shell 命令需要授权[/]\n[dim]{command}[/]",
+                title="权限确认", border_style="yellow", padding=(0, 1),
+            ))
+            try:
+                answer = console.input("[yellow]允许执行？[y/N] [/]").strip().casefold()
+            except (EOFError, KeyboardInterrupt):
+                answer = "n"
+            holder["decision"] = "allow" if answer in {"y", "yes", "是"} else "deny"
+            decided.set()
+
     def _on_event(self, event: RuntimeEvent) -> None:
         """Render auditable summaries, never private chain-of-thought."""
         kind = event.kind
         payload = event.payload
         if kind == EventKind.TURN_STARTED:
             self._stream_counts = {"decisions": 0, "tools": 0, "verifications": 0, "repairs": 0}
+            self._streamed_text = ""
             return
         if kind == EventKind.TASK_PROFILED:
             self._task_profile = payload
@@ -702,6 +751,28 @@ class XiaopuTerminalUI:
             if cmd == "/status":
                 self._status()
                 continue
+            if cmd == "/undo":
+                console.print(f"[dim white]{self.h.undo()}[/]\n")
+                continue
+            if cmd == "/theme":
+                value = (parts[1].strip() if len(parts) > 1 else None) or "dark"
+                if value not in config.THEMES:
+                    console.print(f"[yellow]可用主题：{', '.join(config.THEMES)}[/]\n")
+                    continue
+                config.set_theme(value)
+                self._theme = value
+                self._prompt = self._make_prompt()
+                console.print(f"[dim white]主题已切换：{value}[/]\n")
+                continue
+            if cmd == "/keys":
+                value = (parts[1].strip() if len(parts) > 1 else None) or ("minimal" if config.keymap() == "default" else "default")
+                if value not in {"default", "minimal"}:
+                    console.print("[yellow]用法：/keys default 或 /keys minimal[/]\n")
+                    continue
+                config.set_keymap(value)
+                self._prompt = self._make_prompt()
+                console.print(f"[dim white]快捷键方案：{value}（Ctrl+O {'启用' if value == 'default' else '禁用'}）[/]\n")
+                continue
             if cmd == "/verify":
                 console.print(f"[dim white]{dispatch('ppt_verify', '{}', self.h)}[/]\n")
                 continue
@@ -761,16 +832,22 @@ class XiaopuTerminalUI:
                 reply = self._run_interruptibly(task)
                 elapsed = max(0, round(time.monotonic() - started))
                 console.print()
-                if reply.startswith(("⚠", "⏹")):
-                    console.print(Panel(Markdown(reply), title="小朴 · 可恢复暂停", border_style="yellow"))
+                if self._streamed_text and reply.strip() == self._streamed_text.strip():
+                    reply_rendered = False
                 else:
-                    console.print(Markdown(reply))
+                    reply_rendered = True
+                    if reply.startswith(("⚠", "⏹")):
+                        console.print(Panel(Markdown(reply), title="小朴 · 可恢复暂停", border_style="yellow"))
+                    else:
+                        console.print(Markdown(reply))
                 state = self.h.state
                 signal = f"已收到推理信号 · {state.last_reasoning_chars} 字符" if state.last_reasoning_chars else "未收到推理信号"
                 if reply.startswith(("⚠", "⏹")):
                     console.print(f"[dim]Ⅱ 已暂停于 {elapsed} 秒 · {effort} 推理 · {signal}[/]")
                 else:
                     console.print(f"[dim]✣ 完成于 {elapsed} 秒 · {effort} 推理 · {signal}[/]")
+                if not reply_rendered:
+                    console.print()
                 console.print()
                 if self._activity_expanded:
                     self._show_activity()
@@ -792,12 +869,13 @@ class XiaopuTerminalUI:
         interrupt_announced = False
         while thread.is_alive():
             try:
+                self._drain_approvals()
                 if os.name == "nt":
                     import msvcrt
 
                     while msvcrt.kbhit():
                         key = msvcrt.getwch()
-                        if key == "\x1b":
+                        if key in {"\x1b", "\x03"}:  # Esc and Ctrl+C both interrupt
                             self.h.request_cancel()
                             if not interrupt_announced:
                                 console.print("\n[yellow]⏹ 已收到中止请求，正在停止当前步骤…[/]")
@@ -810,6 +888,7 @@ class XiaopuTerminalUI:
                 if not interrupt_announced:
                     console.print("\n[yellow]⏹ 已收到中止请求，正在停止当前步骤…[/]")
                     interrupt_announced = True
+        self._drain_approvals()
         kind, value = results.get()
         if kind == "error":
             raise value

@@ -200,3 +200,26 @@ def known_models() -> list[str]:
         if candidate and candidate not in seen:
             seen.append(candidate)
     return seen
+
+
+THEMES = ("dark", "light", "dracula")
+
+
+def theme() -> str:
+    value = os.getenv("XIAOPU_THEME", "dark").strip().lower()
+    return value if value in THEMES else "dark"
+
+
+def set_theme(value: str) -> None:
+    if value in THEMES:
+        os.environ["XIAOPU_THEME"] = value
+
+
+def keymap() -> str:
+    value = os.getenv("XIAOPU_KEYMAP", "default").strip().lower()
+    return value if value in {"default", "minimal"} else "default"
+
+
+def set_keymap(value: str) -> None:
+    if value in {"default", "minimal"}:
+        os.environ["XIAOPU_KEYMAP"] = value

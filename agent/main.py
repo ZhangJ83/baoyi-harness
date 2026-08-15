@@ -83,13 +83,14 @@ def main() -> int:
     workspace = None
     json_out = "--json" in args
     list_sessions = "--list-sessions" in args
+    yes_approve = "--yes" in args
     resume_id: str | None = None
     export_spec: str | None = None
     log_path: str | None = None
     plan_arg: str | None = None
     positional = []
     i = 0
-    args = [a for a in args if a not in {"--json", "--list-sessions"}]
+    args = [a for a in args if a not in {"--json", "--list-sessions", "--yes"}]
     while i < len(args):
         a = args[i]
         if a == "--model":
@@ -177,6 +178,8 @@ def main() -> int:
             return 1
 
         h = Harness(model=model)
+        if yes_approve:
+            h.approval_handler = lambda command: "allow"  # noqa: E731 -- explicit --yes
         if log_path:
             log_file = Path(log_path).expanduser().resolve()
             log_file.parent.mkdir(parents=True, exist_ok=True)

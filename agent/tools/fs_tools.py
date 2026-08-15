@@ -444,8 +444,19 @@ def _run(h, command: str, timeout: int = 60):
     import subprocess
     root = _root()
     permission = evaluate_shell(command, config.command_policy(), config.isolated_benchmark())
-    if permission.decision is not Decision.ALLOW:
-        return f"PERMISSION {permission.decision.value.upper()}: {permission.reason}"
+    if permission.decision is Decision.DENY:
+        return f"PERMISSION DENY: {permission.reason}"
+    if permission.decision is Decision.ASK:
+        handler = getattr(h, "approval_handler", None)
+        if callable(handler):
+            try:
+                decision = str(handler(command)).strip().casefold()
+            except Exception:
+                decision = "deny"
+            if decision != "allow":
+                return "PERMISSION DENY: user rejected this command in the interactive approval prompt"
+        else:
+            return f"PERMISSION ASK: {permission.reason}"
     timeout = max(1, min(timeout, config.max_command_timeout()))
     try:
         proc = subprocess.run(

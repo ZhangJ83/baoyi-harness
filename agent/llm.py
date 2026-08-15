@@ -104,7 +104,8 @@ class LLM:
             except Exception:
                 pass
 
-    def chat(self, messages: list[dict[str, Any]], tools: list[dict] | None = None) -> LLMReply:
+    def chat(self, messages: list[dict[str, Any]], tools: list[dict] | None = None,
+             stream: bool = False, on_token=None) -> LLMReply:
         event = getattr(self, "_cancelled", None)
         if event is None:
             event = self._cancelled = threading.Event()
@@ -129,6 +130,35 @@ class LLM:
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+        if stream and on_token is not None and not tools:
+            kwargs["stream"] = True
+            kwargs["stream_options"] = {"include_usage": True}
+            resp = _retry(lambda: client.chat.completions.create(**kwargs), event.is_set)
+            content_parts: list[str] = []
+            reasoning_parts: list[str] = []
+            usage_tokens = (0, 0, 0)
+            for chunk in resp:
+                if not getattr(chunk, "choices", None):
+                    usage = getattr(chunk, "usage", None)
+                    if usage is not None:
+                        usage_tokens = (getattr(usage, "prompt_tokens", 0) or 0,
+                                        getattr(usage, "completion_tokens", 0) or 0,
+                                        getattr(usage, "total_tokens", 0) or 0)
+                    continue
+                delta = chunk.choices[0].delta
+                piece = getattr(delta, "content", None)
+                if piece:
+                    content_parts.append(piece)
+                    on_token(piece)
+                reasoning = getattr(delta, "reasoning_content", None)
+                if reasoning:
+                    reasoning_parts.append(reasoning)
+            input_tokens, output_tokens, total_tokens = usage_tokens
+            total_tokens = total_tokens or input_tokens + output_tokens
+            return LLMReply.from_message(
+                AssistantMessage(content="".join(content_parts), reasoning_content="".join(reasoning_parts) or None),
+                total_tokens, input_tokens, output_tokens, total_tokens > 0,
+            )
         resp = _retry(lambda: client.chat.completions.create(**kwargs), event.is_set)
         msg = resp.choices[0].message
         tcs = [ToolCall(id=tc.id, function=ToolFn(name=tc.function.name, arguments=tc.function.arguments))
@@ -245,7 +275,11 @@ class AnthropicLLM:
             except Exception:
                 pass
 
-    def chat(self, messages: list[dict[str, Any]], tools: list[dict] | None = None) -> LLMReply:
+    def chat(self, messages: list[dict[str, Any]], tools: list[dict] | None = None,
+             stream: bool = False, on_token=None) -> LLMReply:
+        # Anthropic transport currently streams lazily per message; the OpenAI-
+        # compatible client above is the token-streaming path used in practice.
+        del stream, on_token
         event = getattr(self, "_cancelled", None)
         if event is None:
             event = self._cancelled = threading.Event()

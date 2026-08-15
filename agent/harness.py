@@ -85,9 +85,33 @@ class Harness:
         self.goal_store = GoalStore(config.sandbox_root())
         self.active_goal = self.goal_store.load()
         self._last_planning_signature = None
+        # Product-facing extension points. These belong to the UI/session
+        # layer, not to the loop policy, and are deliberately preserved across
+        # Harness.reset().
+        self.undo_stack: list[bytes] = []
+        self.approval_handler: Callable[[str], str] | None = None
+        self.stream_callback: Callable[[str], None] | None = None
 
     def attach_printer(self, printer: Callable[[str, str, str], None]) -> None:
         self.on_tool = printer
+
+    def undo(self) -> str:
+        """Restore the deck snapshot taken before the most recent PPT mutation.
+
+        This is a UI-level convenience, not a loop repair action: it does not
+        consume repair budget and it does not touch verification evidence.
+        """
+        import io
+
+        if not self.undo_stack:
+            return "没有可撤销的 PPT 修改（撤销栈为空）。"
+        from pptx import Presentation
+
+        payload = self.undo_stack.pop()
+        self.deck = Presentation(io.BytesIO(payload))
+        self.state.record_change("deck:undo")
+        slide_count = len(self.deck.slides) if self.deck is not None else 0
+        return f"已撤销最近一次修改，当前内存稿：{slide_count} 页（剩余 {len(self.undo_stack)} 步可撤销）。"
 
     def subscribe(self, callback) -> Callable[[], None]:
         return self.events.subscribe(callback)
@@ -282,6 +306,7 @@ class Harness:
         self.loaded_skills = set()
         self.skill_allowed_tools = set()
         self.recorder = None
+        self.undo_stack = []
         from .controller_policies import PolicyGuard
         self.policy_guard = PolicyGuard(getattr(self, "controller_policy", "cegar_h"))
         self._run_control = None
@@ -942,10 +967,14 @@ class Harness:
             if {"read_file", "glob_files"} & advertised_names:
                 admitted_names.add("sys_exec")
             try:
-                reply = self.llm.chat(
-                    self.messages,
-                    advertised_tools,
-                )
+                import inspect
+                chat_kwargs: dict[str, Any] = {}
+                chat_params = inspect.signature(self.llm.chat).parameters
+                if "stream" in chat_params:
+                    chat_kwargs["stream"] = getattr(self, "stream_callback", None) is not None
+                if "on_token" in chat_params:
+                    chat_kwargs["on_token"] = getattr(self, "stream_callback", None)
+                reply = self.llm.chat(self.messages, advertised_tools, **chat_kwargs)
             except Exception:
                 if self.cancel_requested():
                     return self._interrupt_stop()
