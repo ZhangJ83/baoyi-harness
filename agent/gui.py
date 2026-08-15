@@ -24,6 +24,7 @@ class AgentGUI:
         self.model = model
         self.h = Harness(model=model, interactive=True)
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
+        self.approvals: queue.Queue = queue.Queue()
         self.running = False
         self.process_visible = tk.BooleanVar(value=True)
         self.detail_visible = tk.BooleanVar(value=True)
@@ -34,13 +35,22 @@ class AgentGUI:
         self.live_phase = tk.StringVar(value="阶段：—")
         self.live_elapsed = tk.StringVar(value="0 秒")
         self.live_counts = tk.StringVar(value="工具 0 · 完成 0 · 失败 0")
+        self.model_var = tk.StringVar(value=getattr(self.h.llm, "model", config.model()))
+        self.theme_var = tk.StringVar(value=config.theme())
+        self.permissions_var = tk.StringVar(value=config.command_policy())
         self.started_at = None
         self.tool_started_count = self.tool_completed_count = self.tool_failed_count = 0
         self.workspace = tk.StringVar(value=str(config.sandbox_root()))
+        self._streaming_started = False
+        self.h.approval_handler = self._approve_command
+        self.h.stream_callback = self._on_stream_token
         self.h.subscribe(self._capture_runtime_event)
         self._build()
+        self._refresh_sessions()
         self.root.after(60, self._drain_events)
+        self.root.after(120, self._drain_approvals)
         self.root.after(250, self._tick_elapsed)
+        self._refresh_status()
 
     def _build(self) -> None:
         self.root.title("小朴 Agent")
@@ -57,6 +67,20 @@ class AgentGUI:
         top.pack(fill="x")
         ttk.Label(top, text="小朴", font=("Microsoft YaHei UI", 18, "bold")).pack(side="left")
         ttk.Label(top, text="  通用 Agent · PowerPoint 强化", foreground="#999999").pack(side="left")
+        ttk.Label(top, text="模型 ").pack(side="left", padx=(18, 0))
+        self.model_box = ttk.Combobox(top, textvariable=self.model_var, values=config.known_models(), width=20, state="readonly")
+        self.model_box.pack(side="left")
+        self.model_box.bind("<<ComboboxSelected>>", self._switch_model)
+        ttk.Label(top, text=" 主题 ").pack(side="left", padx=(10, 0))
+        self.theme_box = ttk.Combobox(top, textvariable=self.theme_var, values=list(config.THEMES), width=8, state="readonly")
+        self.theme_box.pack(side="left")
+        self.theme_box.bind("<<ComboboxSelected>>", self._switch_theme)
+        ttk.Label(top, text=" 权限 ").pack(side="left", padx=(10, 0))
+        self.permissions_box = ttk.Combobox(top, textvariable=self.permissions_var, values=("allow", "ask", "deny"), width=6, state="readonly")
+        self.permissions_box.pack(side="left")
+        self.permissions_box.bind("<<ComboboxSelected>>", self._switch_permissions)
+        ttk.Button(top, text="导出", command=self._export_session).pack(side="right")
+        ttk.Button(top, text="撤销", command=self._undo).pack(side="right", padx=5)
         ttk.Button(top, text="选择工作区", command=self._choose_workspace).pack(side="right")
         ttk.Button(top, text="保存 PPT", command=self._save_ppt).pack(side="right", padx=5)
         ttk.Button(top, text="验证", command=self._verify).pack(side="right")
@@ -77,10 +101,22 @@ class AgentGUI:
 
         pane = ttk.Panedwindow(self.root, orient="horizontal")
         pane.pack(fill="both", expand=True, padx=14)
+        session_frame = ttk.Frame(pane)
         chat_frame = ttk.Frame(pane)
         process_frame = ttk.Frame(pane)
+        pane.add(session_frame, weight=1)
         pane.add(chat_frame, weight=4)
         pane.add(process_frame, weight=2)
+
+        ttk.Label(session_frame, text="会话", font=("Microsoft YaHei UI", 11, "bold")).pack(anchor="w", pady=(0, 5))
+        self.session_list = tk.Listbox(session_frame, bg="#151515", fg="#e8e8e8", selectbackground="#2867b2",
+                                       relief="flat", activestyle="none", height=18)
+        self.session_list.pack(fill="both", expand=True)
+        session_buttons = ttk.Frame(session_frame)
+        session_buttons.pack(fill="x", pady=(6, 0))
+        ttk.Button(session_buttons, text="恢复", command=self._resume_session).pack(side="left")
+        ttk.Button(session_buttons, text="删除", command=self._delete_session).pack(side="left", padx=(5, 0))
+        ttk.Button(session_buttons, text="刷新", command=self._refresh_sessions).pack(side="left", padx=(5, 0))
 
         ttk.Label(chat_frame, text="对话", font=("Microsoft YaHei UI", 11, "bold")).pack(anchor="w", pady=(0, 5))
         self.chat = tk.Text(chat_frame, wrap="word", bg="#151515", fg="#ededed", insertbackground="white",
@@ -157,7 +193,8 @@ class AgentGUI:
         bottom = ttk.Frame(self.root, padding=(14, 0, 14, 10))
         bottom.pack(fill="x")
         ttk.Label(bottom, textvariable=self.status).pack(side="left")
-        ttk.Label(bottom, text=f"{config.model()} · {config.provider()}", foreground="#777777").pack(side="right")
+        ttk.Label(bottom, textvariable=self.model_var, foreground="#777777").pack(side="right")
+        ttk.Label(bottom, text=f"{config.provider()} · ", foreground="#777777").pack(side="right")
         self._append_chat("小朴", "已就绪。输入一句任务，或先启动长期 Goal。", "assistant")
 
     def _append(self, widget: tk.Text, text: str, tag: str | None = None) -> None:
@@ -188,6 +225,119 @@ class AgentGUI:
     def _append_chat(self, role: str, text: str, tag: str) -> None:
         self._append(self.chat, f"{role}\n{text}\n", tag)
 
+    def _on_stream_token(self, piece: str) -> None:
+        self.events.put(("stream", piece))
+
+    def _approve_command(self, command: str) -> str:
+        decided = threading.Event()
+        holder: dict = {"decision": "deny"}
+        self.approvals.put((command, decided, holder))
+        decided.wait(timeout=120)
+        return holder["decision"]
+
+    def _drain_approvals(self) -> None:
+        try:
+            while True:
+                command, decided, holder = self.approvals.get_nowait()
+                ok = messagebox.askyesno("权限确认", f"允许执行这条 Shell 命令？\n\n{command}")
+                holder["decision"] = "allow" if ok else "deny"
+                decided.set()
+        except queue.Empty:
+            pass
+        self.root.after(120, self._drain_approvals)
+
+    def _switch_model(self, _event=None) -> None:
+        value = self.model_var.get().strip()
+        if not value:
+            return
+        if config.provider() == "anthropic":
+            os.environ["ANTHROPIC_MODEL"] = value
+        else:
+            os.environ["OPENAI_MODEL"] = value
+        self.h.llm.model = value
+        self._refresh_status()
+
+    def _switch_theme(self, _event=None) -> None:
+        config.set_theme(self.theme_var.get())
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        palettes = {
+            "dark": {"bg": "#111111", "text_bg": "#151515", "input_bg": "#262626", "fg": "#ededed"},
+            "light": {"bg": "#f2f2f2", "text_bg": "#ffffff", "input_bg": "#ffffff", "fg": "#111111"},
+            "dracula": {"bg": "#282a36", "text_bg": "#282a36", "input_bg": "#44475a", "fg": "#f8f8f2"},
+        }
+        p = palettes.get(self.theme_var.get(), palettes["dark"])
+        self.root.configure(bg=p["bg"])
+        style = ttk.Style(self.root)
+        style.configure("TFrame", background=p["bg"])
+        style.configure("TLabel", background=p["bg"], foreground=p["fg"])
+        for widget in (self.chat, self.process, self.tool_detail, self.signal):
+            widget.configure(bg=p["text_bg"], fg=p["fg"], insertbackground=p["fg"])
+        self.input.configure(bg=p["input_bg"], fg=p["fg"], insertbackground=p["fg"])
+
+    def _switch_permissions(self, _event=None) -> None:
+        os.environ["COMMAND_POLICY"] = self.permissions_var.get()
+        self.status.set(f"Shell 策略：{self.permissions_var.get()}")
+
+    def _undo(self) -> None:
+        self._append_chat("撤销", self.h.undo(), "assistant")
+
+    def _export_session(self) -> None:
+        from .session_store import export_session, save_session
+
+        record = save_session(self.h)
+        path = filedialog.asksaveasfilename(defaultextension=".md", filetypes=[("Markdown", "*.md")])
+        if not path:
+            return
+        try:
+            exported = export_session(record.id, Path(path))
+            self._append_chat("导出", f"会话已导出：{exported}", "assistant")
+        except Exception as exc:
+            messagebox.showerror("导出失败", str(exc))
+
+    def _refresh_sessions(self) -> None:
+        from .session_store import list_sessions
+
+        self.session_list.delete(0, "end")
+        self._session_records = list_sessions()
+        for record in self._session_records:
+            self.session_list.insert("end", f"{record.id[:8]} · {record.title[:32]}")
+
+    def _resume_session(self) -> None:
+        selection = self.session_list.curselection()
+        if not selection:
+            return
+        from .session_store import load_session, restore_harness
+
+        record = self._session_records[selection[0]]
+        payload = load_session(record.id)
+        if payload is None:
+            messagebox.showerror("恢复失败", "会话文件不可用。")
+            return
+        report = restore_harness(self.h, payload)
+        self._append_chat("系统", report, "assistant")
+        self._refresh_status()
+
+    def _delete_session(self) -> None:
+        selection = self.session_list.curselection()
+        if not selection:
+            return
+        from .session_store import delete_session
+
+        record = self._session_records[selection[0]]
+        if messagebox.askyesno("删除会话", f"删除会话 {record.id[:8]}？此操作不可撤销。"):
+            delete_session(record.id)
+            self._refresh_sessions()
+
+    def _refresh_status(self) -> None:
+        state = self.h.state
+        fresh = len(state.fresh_evidence())
+        self.status.set(
+            f"{state.phase.value} · epoch {state.mutation_epoch} · 证据 {fresh} · "
+            f"tokens {state.total_tokens} · repair {state.repair_attempts}/{state.max_repairs}"
+        )
+
     def _capture_runtime_event(self, event) -> None:
         self.events.put(("runtime", event))
 
@@ -196,11 +346,23 @@ class AgentGUI:
             while True:
                 kind, payload = self.events.get_nowait()
                 if kind == "result":
-                    self._append_chat("小朴", str(payload), "assistant")
+                    if self._streaming_started:
+                        self._streaming_started = False
+                        self._append(self.chat, "\n" + str(payload) + "\n", "assistant")
+                    else:
+                        self._append_chat("小朴", str(payload), "assistant")
                     self._set_running(False)
+                    self._refresh_status()
                 elif kind == "error":
                     self._append_chat("错误", str(payload), "error")
                     self._set_running(False)
+                    self._refresh_status()
+                elif kind == "stream":
+                    if not self._streaming_started:
+                        self._append(self.chat, "小朴\n", "assistant")
+                        self._streaming_started = True
+                    self.chat.insert("end", str(payload), "assistant")
+                    self.chat.see("end")
                 elif kind == "runtime":
                     self._show_event(payload)
         except queue.Empty:
@@ -214,6 +376,8 @@ class AgentGUI:
         if event.kind == EventKind.TURN_STARTED:
             self.live_action.set("正在分析任务并选择执行路线…")
             self.live_phase.set("阶段：intake")
+            self._streaming_started = False
+            self._refresh_status()
             return
         if event.kind == EventKind.CONTROLLER_DECISION:
             self.live_action.set(f"控制器决策：{p.get('action', 'planning')}")
@@ -316,6 +480,7 @@ class AgentGUI:
         else:
             self.started_at = None
             self.live_action.set("任务已结束，等待下一条指令")
+        self._refresh_status()
 
     def _refresh_counts(self) -> None:
         self.live_counts.set(f"工具 {self.tool_started_count} · 完成 {self.tool_completed_count} · 失败 {self.tool_failed_count}")
@@ -362,8 +527,11 @@ class AgentGUI:
     def _new_session(self) -> None:
         if self.running:
             return
+        from .session_store import save_session
+        save_session(self.h)
         self.h.reset()
-        self._append_chat("系统", "已创建新会话。", "assistant")
+        self._append_chat("系统", "已保存当前会话并创建新会话。", "assistant")
+        self._refresh_status()
 
     def _verify(self) -> None:
         try:
@@ -387,14 +555,20 @@ class AgentGUI:
         path = filedialog.askdirectory(initialdir=self.workspace.get())
         if not path:
             return
-        if not messagebox.askyesno("切换工作区", "切换将创建新的会话，是否继续？"):
+        if not messagebox.askyesno("切换工作区", "切换将保存当前会话并创建新的会话，是否继续？"):
             return
         from .harness import Harness
+        from .session_store import save_session
+        save_session(self.h)
         os.environ["WORKSPACE"] = str(Path(path).resolve())
         self.h = Harness(model=self.model, interactive=True)
+        self.h.approval_handler = self._approve_command
+        self.h.stream_callback = self._on_stream_token
         self.h.subscribe(self._capture_runtime_event)
         self.workspace.set(os.environ["WORKSPACE"])
+        self.model_var.set(getattr(self.h.llm, "model", config.model()))
         self._append_chat("系统", f"已切换工作区：{path}", "assistant")
+        self._refresh_sessions()
 
 
 def build_parser() -> argparse.ArgumentParser:
