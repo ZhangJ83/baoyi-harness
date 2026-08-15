@@ -903,17 +903,21 @@ class Harness:
             )
             if not any(message.get("content") == brief_message for message in self.messages[-4:]):
                 self.messages.append({"role": "system", "content": brief_message})
-        # Surface the deterministic compiled plan as a separate system message
-        # (not into the classification text) so the model executes every
-        # required step — e.g. "修复受影响页布局" for overlap repair, "按模板
-        # 批量生成" for multi-page creation — instead of stopping at the first
-        # mutation. This is the harness-owned plan envelope, not a task hint.
+        # Route context is not an execution plan: the harness compiles only the
+        # coarse artifact route (new deck vs edit existing) and the verification
+        # contract. How to plan and sequence the actual work stays with the
+        # model, inside the phase-scoped tool surface and gates.
         if is_ppt and getattr(self.task_spec, "plan", None):
-            plan_message = "Execution plan (follow in order):\n" + "\n".join(
-                f"{index}. {step}" for index, step in enumerate(self.task_spec.plan, 1)
+            route_message = (
+                "Route context (not a fixed plan): "
+                f"artifact_mode={self.task_spec.artifact_mode}, "
+                f"input={self.task_spec.primary_input or 'none'}, "
+                f"output={self.task_spec.output_path or 'contract output'}. "
+                "Plan your own execution steps; the harness enforces only phase tools, "
+                "verification freshness, and the delivery gates."
             )
-            if not any(message.get("content") == plan_message for message in self.messages[-4:]):
-                self.messages.append({"role": "system", "content": plan_message})
+            if not any(message.get("content") == route_message for message in self.messages[-4:]):
+                self.messages.append({"role": "system", "content": route_message})
         # Compound replacement contract: instructions like
         # "Liability/Liabilities -> Debt/Debts" must be executed as one batch
         # with every variant, not as a single singular-only replace.
