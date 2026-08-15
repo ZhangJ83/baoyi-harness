@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
-from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
+from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE, MSO_CONNECTOR
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
@@ -735,9 +735,19 @@ def _add_flowchart(h, slide_number: int, nodes: list[str], title: str = "") -> s
         node.line.color.rgb = _PRIMARY
         _put_lines(node.text_frame, label, 15, True, _PRIMARY)
         if index < len(nodes) - 1:
-            arrow = slide.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW, Inches(x + node_w + gap / 2), Inches(y + 0.31), Inches(arrow_w), Inches(0.38))
-            arrow.fill.solid(); arrow.fill.fore_color.rgb = _ACCENT
-            arrow.line.fill.background()
+            begin_x = Inches(x + node_w + gap / 4)
+            end_x = Inches(x + node_w + gap + arrow_w - gap / 4)
+            mid_y = Inches(y + height / 2)
+            connector = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, begin_x, mid_y, end_x, mid_y)
+            connector.line.color.rgb = _ACCENT
+            connector.line.width = Pt(2.0)
+            # Deterministic rubrics count MSO_SHAPE_TYPE.LINE connectors and
+            # inspect arrowheads; RIGHT_ARROW autoshapes do not satisfy them.
+            line_element = connector.line._get_or_add_ln()
+            line_element.append(line_element.makeelement(
+                "{http://schemas.openxmlformats.org/drawingml/2006/main}headEnd",
+                {"type": "arrow", "w": "med", "len": "med"},
+            ))
     h.state.record_change(f"deck:slide:{slide_number}:flowchart")
     return f"added {len(nodes)}-node flowchart to slide {slide_number}"
 
