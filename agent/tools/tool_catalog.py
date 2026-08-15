@@ -36,6 +36,7 @@ _PUBLIC = (
     ToolSpec("ppt_open", ToolEffect.OBSERVE, search_hint="open an existing PowerPoint and preserve the original"),
     ToolSpec("ppt_inspect", ToolEffect.OBSERVE, search_hint="inspect slide summary or editable shapes once"),
     ToolSpec("ppt_edit_text", ToolEffect.MUTATE, repair=True, search_hint="replace text, rewrite a whole text shape, rewrite a whole table, or append a same-level bullet preserving style"),
+    ToolSpec("ppt_metadata", ToolEffect.MUTATE, repair=True, search_hint="set shape descr metadata for provenance and source binding"),
     ToolSpec("ppt_style", ToolEffect.MUTATE, repair=True, search_hint="change font size color bold or shape fill"),
     ToolSpec("ppt_compose", ToolEffect.MUTATE, search_hint="create a cover slide layout table quadrant diagram or element"),
     ToolSpec("ppt_arrange", ToolEffect.MUTATE, ToolExposure.DEFERRED, repair=True, search_hint="move resize reorder or delete a specific slide shape"),

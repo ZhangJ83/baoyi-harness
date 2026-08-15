@@ -1163,6 +1163,26 @@ def _rewrite_table_preserving_style(table, rows: list[list[str]]) -> None:
                 run._r.insert(0, deepcopy(rpr))
 
 
+def _set_shape_metadata(h, slide_number: int, descr: str, shape_id: int | None = None,
+                        shape_name: str = "") -> str:
+    """Set the shape description metadata (descr) used by deterministic binders.
+
+    Many office verifiers treat shape alt text/description as a first-class
+    provenance surface: an html_anchor, metric_id or chart_id recorded here
+    satisfies source-binding checks even when it is not part of visible text.
+    """
+    if not descr.strip():
+        raise ValueError("set_metadata requires non-empty descr")
+    if shape_id is None and not shape_name:
+        raise ValueError("set_metadata requires shape_id or shape_name")
+    _, shape = _select_shape_on_slide(h, slide_number, shape_id, shape_name)
+    nv = shape._element.nvSpPr.cNvPr
+    nv.set("descr", descr)
+    h.state.ppt_affected_slides.add(slide_number)
+    h.state.record_change(f"deck:slide:{slide_number}:shape:{shape.shape_id}:metadata")
+    return f"set metadata on slide {slide_number} shape {shape.shape_id} ({shape.name!r})"
+
+
 def _select_shape_on_slide(h, slide_number: int, shape_id: int | None = None,
                            shape_name: str = "", text_contains: str = ""):
     """Resolve one shape by its stable selector (id > name > contained text)."""
@@ -2442,6 +2462,15 @@ ppt_tools = [
             },
         }, ["operation"],
         lambda h, **kw: _ppt_edit_text(h, **kw),
+    ),
+    _make(
+        "ppt_metadata",
+        "Set shape description metadata (descr). Use it to record provenance IDs (html_anchor, metric_id, chart_id) that verifiers read from shape alt text/description even when they should not appear in visible body text.",
+        {
+            "slide_number": {"type": "integer"}, "shape_id": {"type": "integer"},
+            "shape_name": {"type": "string"}, "descr": {"type": "string"},
+        }, ["slide_number", "descr"],
+        lambda h, **kw: _set_shape_metadata(h, kw["slide_number"], kw["descr"], kw.get("shape_id"), kw.get("shape_name", "")),
     ),
     _make(
         "ppt_style",

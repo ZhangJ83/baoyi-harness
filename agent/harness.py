@@ -1303,7 +1303,7 @@ class Harness:
                 # tool output so the complete blocker manifest can be planned
                 # against, not just its first fragment.
                 if tc.function.name == "run_task_evaluator":
-                    visible_limit = 16000
+                    visible_limit = 22000
                 elif tc.function.name == "finish":
                     visible_limit = 12000
                 elif tc.function.name == "ppt_inspect":

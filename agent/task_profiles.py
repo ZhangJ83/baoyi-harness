@@ -69,7 +69,7 @@ TASK_PROFILES: tuple[TaskProfile, ...] = (
 # the model-facing tool surface.  The facade stays deliberately small while
 # the lifecycle owns rendering, provenance capture, and final delivery.
 PPT_OBSERVE = frozenset({"ppt_open", "ppt_inspect"})
-PPT_EDIT = frozenset({"ppt_edit_text", "ppt_style"})
+PPT_EDIT = frozenset({"ppt_edit_text", "ppt_style", "ppt_metadata"})
 PPT_COMPOSE = frozenset({"ppt_compose"})
 PPT_ARRANGE = frozenset({"ppt_arrange"})
 PPT_COMMIT = frozenset({"ppt_save"})
@@ -92,7 +92,7 @@ CAPABILITY_TOOL_GROUPS: dict[str, frozenset[str]] = {
     "overlap_repair": PPT_ARRANGE,
     "artifact_preservation": PPT_COMMIT,
     "artifact_provenance": PPT_COMPOSE | PPT_COMMIT,
-    "provenance_binding": PPT_COMMIT,
+    "provenance_binding": frozenset({"ppt_metadata"}) | PPT_COMMIT,
     "source_notes": PPT_COMMIT,
     "ppt_structural": PPT_VERIFY,
     "ppt_geometry": PPT_VERIFY,

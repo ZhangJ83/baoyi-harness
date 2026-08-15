@@ -8,7 +8,7 @@
   "null_hypothesis": "CEGAR-H has no paired success or verification-cost advantage over direct, always-verify, or evidence-only.",
   "task_source": {
     "path": "benchmarks/pptbench_model_eval_v2.json",
-    "sha256": "2f4a34eeb34e2ed7590be9d7a17ba65bb031b5f19b66eeea810821bfefd09da4"
+    "sha256": "317f3435b8e103c93ff86cb2b07798273ae92189df85d318657b90ccf37c437f"
   },
   "paired_task_set": true,
   "n_tasks": 12,
@@ -80,7 +80,7 @@
     "path": "agent/controller_policies.py",
     "sha256": "02a007ee907e2e38b134f113e3f41af305eb62d2aaa26683f48a2b90c0ad7eff",
     "harness_path": "agent/harness.py",
-    "harness_sha256": "2fcc647e3ff7a29ce571a608fddb4e88aeee3725aee08f2bdc52aaf3407fb4e5",
+    "harness_sha256": "607745dae28b6a29a000b58f962a9fb52b45317cdc6bda78fe581e7c149b897d",
     "harness_argument": "controller_policy"
   },
   "model": {

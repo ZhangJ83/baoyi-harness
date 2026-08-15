@@ -75,7 +75,7 @@ def _clean_detail(value, max_detail: int = 200) -> str:
     return detail
 
 
-def _format_failed_checks(checks: list[dict], max_other_checks: int = 24, max_detail: int = 200) -> str:
+def _format_failed_checks(checks: list[dict], max_other_checks: int = 80, max_detail: int = 180) -> str:
     """Turn verifier failures into a scoped, actionable repair manifest.
 
     Plain ``slide_N_required_text_*``/``forbidden_text_*`` checks are grouped
