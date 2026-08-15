@@ -76,39 +76,55 @@ PPT_COMMIT = frozenset({"ppt_save"})
 PPT_VERIFY = frozenset({"ppt_check"})
 
 
-CAPABILITY_TOOL_GROUPS: dict[str, frozenset[str]] = {
-    "workspace_discovery": frozenset({"discover_workspace", "list_dir", "glob_files", "search_text"}),
-    "scoped_read": frozenset({"read_file", "read_many"}) | PPT_OBSERVE,
+# General PPT capability catalog. Task classification no longer selects a
+# task-specific bundle; every PPT project gets the same small, auditable
+# capability set and the model plans which capability to use inside each phase.
+GENERAL_PPT_CAPABILITY_GROUPS: dict[str, frozenset[str]] = {
+    "workspace_read": frozenset({"discover_workspace", "list_dir", "glob_files", "search_text"}),
     "source_read": frozenset({"read_file", "read_many", "search_text", "list_dir"}),
-    "multi_source_read": frozenset({"read_file", "read_many", "search_text", "list_dir"}),
-    "content_ir": frozenset({"read_many", "read_file", "search_text"}),
-    "shape_targeting": PPT_OBSERVE,
-    "targeted_diagnosis": PPT_OBSERVE | PPT_VERIFY,
-    "native_edit": PPT_EDIT | PPT_COMPOSE | PPT_ARRANGE | PPT_COMMIT,
-    "geometry_edit": PPT_ARRANGE | PPT_COMMIT,
-    "layout_compose": PPT_COMPOSE | PPT_ARRANGE,
-    "semantic_layout": PPT_COMPOSE | PPT_ARRANGE,
-    "content_compose": PPT_COMPOSE,
-    "overlap_repair": PPT_ARRANGE,
-    "artifact_preservation": PPT_COMMIT,
-    "artifact_provenance": PPT_COMPOSE | PPT_COMMIT,
-    "provenance_binding": frozenset({"ppt_metadata"}) | PPT_COMMIT,
-    "source_notes": PPT_COMMIT,
-    "ppt_structural": PPT_VERIFY,
-    "ppt_geometry": PPT_VERIFY,
-    "ppt_render": PPT_VERIFY,
-    "render_inspection": PPT_VERIFY,
-    "ppt_visual": PPT_VERIFY,
-    "ppt_provenance": PPT_VERIFY,
-    "content_binding": PPT_VERIFY,
-    "reverification": PPT_VERIFY,
-    "bounded_repair": PPT_EDIT | PPT_COMPOSE | PPT_ARRANGE | PPT_COMMIT,
+    "deck_observe": PPT_OBSERVE,
+    "text_edit": PPT_EDIT,
+    "compose": PPT_COMPOSE,
+    "arrange": PPT_ARRANGE,
+    "commit": PPT_COMMIT,
+    "verify": PPT_VERIFY,
+}
+
+# Compatibility surface for legacy profile/contract code. New routing uses
+# GENERAL_PPT_CAPABILITY_GROUPS; these names are retained only so older tests
+# and diagnostics keep stable identifiers.
+CAPABILITY_TOOL_GROUPS: dict[str, frozenset[str]] = {
+    "workspace_discovery": GENERAL_PPT_CAPABILITY_GROUPS["workspace_read"],
+    "scoped_read": GENERAL_PPT_CAPABILITY_GROUPS["source_read"] | GENERAL_PPT_CAPABILITY_GROUPS["deck_observe"],
+    "source_read": GENERAL_PPT_CAPABILITY_GROUPS["source_read"],
+    "multi_source_read": GENERAL_PPT_CAPABILITY_GROUPS["source_read"],
+    "content_ir": GENERAL_PPT_CAPABILITY_GROUPS["source_read"],
+    "shape_targeting": GENERAL_PPT_CAPABILITY_GROUPS["deck_observe"],
+    "targeted_diagnosis": GENERAL_PPT_CAPABILITY_GROUPS["deck_observe"] | GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "native_edit": GENERAL_PPT_CAPABILITY_GROUPS["text_edit"] | GENERAL_PPT_CAPABILITY_GROUPS["compose"] | GENERAL_PPT_CAPABILITY_GROUPS["arrange"] | GENERAL_PPT_CAPABILITY_GROUPS["commit"],
+    "geometry_edit": GENERAL_PPT_CAPABILITY_GROUPS["arrange"] | GENERAL_PPT_CAPABILITY_GROUPS["commit"],
+    "layout_compose": GENERAL_PPT_CAPABILITY_GROUPS["compose"] | GENERAL_PPT_CAPABILITY_GROUPS["arrange"],
+    "semantic_layout": GENERAL_PPT_CAPABILITY_GROUPS["compose"] | GENERAL_PPT_CAPABILITY_GROUPS["arrange"],
+    "content_compose": GENERAL_PPT_CAPABILITY_GROUPS["compose"],
+    "overlap_repair": GENERAL_PPT_CAPABILITY_GROUPS["arrange"],
+    "artifact_preservation": GENERAL_PPT_CAPABILITY_GROUPS["commit"],
+    "artifact_provenance": GENERAL_PPT_CAPABILITY_GROUPS["compose"] | GENERAL_PPT_CAPABILITY_GROUPS["commit"],
+    "provenance_binding": frozenset({"ppt_metadata"}) | GENERAL_PPT_CAPABILITY_GROUPS["commit"],
+    "source_notes": GENERAL_PPT_CAPABILITY_GROUPS["commit"],
+    "ppt_structural": GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "ppt_geometry": GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "ppt_render": GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "render_inspection": GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "ppt_visual": GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "ppt_provenance": GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "content_binding": GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "reverification": GENERAL_PPT_CAPABILITY_GROUPS["verify"],
+    "bounded_repair": GENERAL_PPT_CAPABILITY_GROUPS["text_edit"] | GENERAL_PPT_CAPABILITY_GROUPS["compose"] | GENERAL_PPT_CAPABILITY_GROUPS["arrange"] | GENERAL_PPT_CAPABILITY_GROUPS["commit"],
 }
 
 
-# Skill-level composition table. Each PPT skill is a named bundle of the
-# capability groups above; ``tools_for_skill`` is the single source used by
-# ExecutionContract so capability-to-tool-surface routing stays in one place.
+# Legacy names kept for diagnostics only. tools_for_skill now returns the
+# general PPT catalog so the model owns capability selection and planning.
 SKILL_CAPABILITY_GROUPS: dict[str, frozenset[str]] = {
     "ppt.atomic_edit": frozenset({"scoped_read", "shape_targeting", "native_edit", "artifact_preservation", "ppt_structural"}),
     "ppt.atomic_style": frozenset({"scoped_read", "shape_targeting", "native_edit", "artifact_preservation", "ppt_structural"}),
@@ -124,15 +140,15 @@ SKILL_CAPABILITY_GROUPS: dict[str, frozenset[str]] = {
 
 
 def tools_for_skill(skill: str) -> set[str]:
-    """Canonical model-facing PPT tools for a compiled skill.
+    """Canonical model-facing PPT tools for any PPT project.
 
-    This is the single binding used by ExecutionContract; it composes
-    ``CAPABILITY_TOOL_GROUPS`` only, plus the always-available observe/commit/
-    verify facade.
+    The compiler no longer picks a task-specific bundle. Every PPT skill
+    receives the same general capability catalog; phase scoping and the
+    delivery gates still constrain when each capability may be used.
     """
     tools: set[str] = set(PPT_OBSERVE) | set(PPT_COMMIT) | set(PPT_VERIFY)
-    for capability in SKILL_CAPABILITY_GROUPS.get(skill, ()):
-        tools.update(CAPABILITY_TOOL_GROUPS.get(capability, ()))
+    for group in GENERAL_PPT_CAPABILITY_GROUPS.values():
+        tools.update(group)
     for name in tuple(tools):
         tools.update(_LEGACY_TOOL_ALIASES.get(name, ()))
     return tools
