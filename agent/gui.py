@@ -57,7 +57,10 @@ class AgentGUI:
         self._workspace_records = []
         self.h.approval_handler = self._approve_command
         self.h.stream_callback = self._on_stream_token
+        self.h.reasoning_callback = self._on_reasoning
         self.h.subscribe(self._capture_runtime_event)
+        self._reasoning_text = ""
+        self._trajectory: list[str] = []
         self._build()
         from .workspace_store import register_workspace
         try:
@@ -186,11 +189,13 @@ class AgentGUI:
         self.process.grid(row=1, column=2, sticky="nsew", padx=(0, 18), pady=(0, 10))
         self.process.add("计划")
         self.process.add("工具")
-        self.process.add("推理信号")
+        self.process.add("思维链")
+        self.process.add("轨迹")
         self.plan_box = self._process_box("计划")
         self.tool_box = self._process_box("工具")
-        self.signal_box = self._process_box("推理信号")
-        self._append(self.signal_box, "这里显示模型实际返回的推理信号状态和可审计摘要。\n不会伪造或展示模型未提供的私有思维链。")
+        self.cot_box = self._process_box("思维链")
+        self.trajectory_box = self._process_box("轨迹")
+        self._append(self.cot_box, "这里实时显示模型实际返回的原始思维链。\n如果 provider 不返回 reasoning_content，则明确提示未提供，绝不伪造。")
 
         goal = ctk.CTkFrame(main, fg_color="transparent")
         goal.grid(row=2, column=0, columnspan=3, padx=18, pady=(0, 6), sticky="ew")
@@ -375,6 +380,10 @@ class AgentGUI:
     def _on_stream_token(self, piece: str) -> None:
         self.events.put(("stream", piece))
 
+    def _on_reasoning(self, piece: str) -> None:
+        """Provider-returned raw reasoning stream; never synthesized."""
+        self.events.put(("reasoning", piece))
+
     def _approve_command(self, command: str) -> str:
         decided = threading.Event()
         holder: dict = {"decision": "deny"}
@@ -420,6 +429,9 @@ class AgentGUI:
                     self.chat.insert("end", str(payload), "assistant")
                     self.chat.see("end")
                     self.chat.configure(state="disabled")
+                elif kind == "reasoning":
+                    self._reasoning_text += str(payload)
+                    self._append(self.cot_box, str(payload))
                 elif kind == "runtime":
                     self._show_event(payload)
         except queue.Empty:
@@ -434,48 +446,77 @@ class AgentGUI:
             self.live_action.set("正在分析任务并选择执行路线…")
             self.live_phase.set("阶段：intake")
             self._streaming_started = False
+            self._reasoning_text = ""
+            self._trajectory = []
             self._refresh_status()
             return
         if event.kind == EventKind.CONTROLLER_DECISION:
             self.live_action.set(f"控制器决策：{p.get('action', 'planning')}")
             self.live_phase.set(f"阶段：{p.get('phase', '—')}")
+            line = f"控制器决策 · {p.get('action')} · {p.get('reason', '')}"
+            self._trajectory.append(line)
+            self._append(self.trajectory_box, line)
             return
         if event.kind == EventKind.PLANNING_DECISION:
             line = f"计划 · {p.get('next_action', '')}\n依据 · {p.get('reason', '')}"
+            self._trajectory.append(line)
+            self._append(self.trajectory_box, line)
             self.live_action.set(str(p.get("next_action", "正在规划…")))
             self.live_phase.set(f"阶段：{p.get('stage', '—')}")
-        elif event.kind == EventKind.GOAL_UPDATED:
+            self._append(self.plan_box, line)
+            return
+        if event.kind == EventKind.GOAL_UPDATED:
             line = f"Goal · {p.get('status')} · {len(p.get('completed', []))}/{len(p.get('milestones', []))}"
+            self._trajectory.append(line)
+            self._append(self.trajectory_box, line)
         elif event.kind == EventKind.TOOL_STARTED:
             self.tool_started_count += 1
             self._refresh_counts()
             self.live_action.set(f"正在调用 {p.get('tool', '未知工具')}…")
-            self.tool_log_lines.append(f"▸ {p.get('tool', '?')}  {p.get('arguments', '')[:120]}")
-            self._append(self.tool_box, self.tool_log_lines[-1])
+            line = f"▸ {p.get('tool', '?')}  {p.get('arguments', '')[:200]}"
+            self.tool_log_lines.append(line)
+            self._trajectory.append(line)
+            self._append(self.tool_box, line)
+            self._append(self.trajectory_box, line)
             return
         elif event.kind == EventKind.TOOL_COMPLETED:
             self.tool_completed_count += 1
             self._refresh_counts()
             self.live_action.set(f"{p.get('tool', '工具')} 已完成，正在处理结果…")
+            line = f"✓ {p.get('tool', '?')}\n结果：{str(p.get('output', ''))[:600]}"
+            self._trajectory.append(line)
             self._append(self.tool_box, f"✓ {p.get('tool', '?')}")
+            self._append(self.trajectory_box, line)
             return
         elif event.kind == EventKind.TOOL_FAILED:
             self.tool_failed_count += 1
             self._refresh_counts()
             self.live_action.set(f"{p.get('tool', '工具')} 失败，正在调整路线…")
-            self._append(self.tool_box, f"✕ {p.get('tool', '?')}: {str(p.get('error', ''))[:160]}")
+            line = f"✕ {p.get('tool', '?')}: {str(p.get('error', ''))[:300]}"
+            self._trajectory.append(line)
+            self._append(self.tool_box, line)
+            self._append(self.trajectory_box, line)
             return
         elif event.kind == EventKind.MODEL_RESPONSE:
             chars = int(p.get("reasoning_chars", 0) or 0)
+            reasoning = str(p.get("reasoning_content") or self._reasoning_text or "")
+            if reasoning.strip():
+                self._append(self.cot_box, "\n── 模型响应 ──\n" + reasoning + "\n")
+                self._trajectory.append("原始思维链：\n" + reasoning)
+                self._append(self.trajectory_box, "原始思维链：\n" + reasoning)
+            else:
+                self._append(self.cot_box, "\n本次响应 provider 未返回原始思维链。\n")
             self.live_action.set("模型已返回，正在执行工具…" if p.get("tool_call_count") else "正在检查完成条件…")
-            self._append(self.signal_box, f"模型响应 · 推理信号 {chars} 字符 · 工具请求 {p.get('tool_call_count', 0)} 个")
             return
         elif event.kind == EventKind.PHASE_CHANGED:
             line = f"阶段 · {p.get('from_phase')} → {p.get('to_phase')}"
+            self._trajectory.append(line)
+            self._append(self.trajectory_box, line)
             self.live_phase.set(f"阶段：{p.get('to_phase', '—')}")
+            self._append(self.plan_box, line)
+            return
         else:
             return
-        self._append(self.plan_box, line)
 
     def _set_running(self, value: bool) -> None:
         self.running = value

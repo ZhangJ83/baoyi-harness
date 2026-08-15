@@ -55,6 +55,9 @@ class RunState:
     reasoning_observed: bool = False
     last_reasoning_chars: int = 0
     reasoning_chars: int = 0
+    # Actual provider-returned reasoning text (may be empty for providers that
+    # do not expose chain-of-thought). Never synthesized by the harness.
+    last_reasoning_text: str = ""
     provider_usage_authoritative: bool = True
     failures: dict[str, int] = field(default_factory=dict)
     changed_files: set[str] = field(default_factory=set)

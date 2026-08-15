@@ -56,6 +56,8 @@ COMMANDS: dict[str, str] = {
     "/permissions": "查看或设置 shell 策略（allow/ask/deny）",
     "/plan": "切换计划模式（on/off）",
     "/process": "设置过程显示（quiet/balanced/detail）",
+    "/trajectory": "导出本轮完整轨迹：规划/决策/工具/原始思维链",
+    "/cot": "显示最近一次模型实际返回的原始思维链",
     "/goal": "启动或查看可恢复的长期目标",
     "/theme": "切换主题（dark/light）",
     "/help": "查看全部命令说明",
@@ -73,6 +75,8 @@ HELP_TEXT = """\
 [cyan]/verify[/]  结构校验              [cyan]/save[/]      保存演示文稿
 [cyan]/model[/]   查看/切换模型         [cyan]/theme[/]     深色/浅色主题
 [cyan]/process[/] 过程显示 quiet/balanced/detail
+[cyan]/trajectory[/] 本轮完整轨迹（规划/工具/思维链）
+[cyan]/cot[/] 查看模型实际返回的原始思维链
 [cyan]/doctor[/]  环境诊断（密钥永不显示）
 [cyan]/goal[/]    启动/查看长期目标
 [cyan]/exit[/]    保存会话并退出
@@ -122,14 +126,17 @@ class XiaopuCLI:
         self.h.attach_printer(self._on_tool)
         self.h.approval_handler = self._approve_command
         self.h.stream_callback = self._on_token
+        self.h.reasoning_callback = self._on_reasoning
         subscribe = getattr(self.h, "subscribe", None)
         if callable(subscribe):
             subscribe(self._on_event)
         self._approval_queue: queue.Queue = queue.Queue()
         self._streamed_text = ""
+        self._reasoning_text = ""
         self._latest_activity: list[str] = []
+        self._trajectory: list[tuple[str, str]] = []
         self._last_tool_error: str | None = None
-        self._process_view = "balanced"
+        self._process_view = "detail"
         self._stream_counts = {"decisions": 0, "tools": 0, "verifications": 0}
         self._theme = config.theme()
         self._is_tty = sys.stdin.isatty() and sys.stdout.isatty()
@@ -212,6 +219,13 @@ class XiaopuCLI:
     def _on_token(self, piece: str) -> None:
         self._streamed_text += piece
 
+    def _on_reasoning(self, piece: str) -> None:
+        """Provider-returned reasoning stream; never synthesized."""
+        self._reasoning_text += piece
+        self._trajectory.append(("reasoning", piece))
+        if self._process_view == "detail":
+            console.print(piece, end="", style="magenta", soft_wrap=True)
+
     def _on_tool(self, name: str, args: str, out: str) -> None:
         try:
             parsed = json.loads(args)
@@ -234,6 +248,7 @@ class XiaopuCLI:
         if pretty_args:
             body.append(f"  {pretty_args}", style="dim")
         self._latest_activity.append(f"{label} · {pretty_args} · {summary}")
+        self._trajectory.append(("tool", f"{label}\nargs={pretty_args}\nresult={redact((out or '').strip())[:1200]}"))
         if self._process_view == "quiet":
             return
         console.print(body)
@@ -272,6 +287,8 @@ class XiaopuCLI:
         if kind == EventKind.TURN_STARTED:
             self._stream_counts = {"decisions": 0, "tools": 0, "verifications": 0}
             self._streamed_text = ""
+            self._reasoning_text = ""
+            self._trajectory = []
             return
         if kind == EventKind.TASK_PROFILED and self._process_view != "quiet":
             console.print(Panel(
@@ -293,6 +310,14 @@ class XiaopuCLI:
             if self._process_view != "quiet":
                 console.print(Panel(body, title="执行计划", border_style="bright_black", padding=(0, 1)))
             return
+        if kind == EventKind.PLANNING_DECISION:
+            self._trajectory.append(("planning", f"next={payload.get('next_action')} reason={payload.get('reason')}"))
+            if self._process_view == "detail":
+                console.print(
+                    f"[cyan]规划[/] {payload.get('next_action', '')} "
+                    f"[dim]· {payload.get('reason', '')}[/]"
+                )
+            return
         if kind == EventKind.GOAL_UPDATED and self._process_view != "quiet":
             console.print(
                 f"[bold]Goal[/] {payload.get('status', 'active')} · "
@@ -302,24 +327,39 @@ class XiaopuCLI:
             return
         if kind == EventKind.CONTROLLER_DECISION:
             self._stream_counts["decisions"] += 1
+            self._trajectory.append(("decision", f"action={payload.get('action')} phase={payload.get('phase')} reason={payload.get('reason')}"))
             if self._process_view == "detail":
                 console.print(
                     f"[magenta]Decision[/] {payload.get('action', 'continue')}  "
                     f"[dim]{payload.get('reason', '')[:180]}[/]"
                 )
             return
-        if kind == EventKind.PHASE_CHANGED and self._process_view == "detail":
-            console.print(
-                f"[cyan]Phase[/] {payload.get('from_phase', '?')} -> "
-                f"[bold]{payload.get('to_phase', '?')}[/]"
-            )
+        if kind == EventKind.PHASE_CHANGED:
+            self._trajectory.append(("phase", f"{payload.get('from_phase')} -> {payload.get('to_phase')}"))
+            if self._process_view == "detail":
+                console.print(
+                    f"[cyan]Phase[/] {payload.get('from_phase', '?')} -> "
+                    f"[bold]{payload.get('to_phase', '?')}[/]"
+                )
             return
-        if kind == EventKind.MODEL_RESPONSE and self._process_view == "detail":
+        if kind == EventKind.MODEL_RESPONSE:
             count = payload.get("tool_call_count", 0)
-            console.print(
-                f"[dim]Model turn[/] · {count} tool call(s) · "
-                f"auditable reasoning signal {payload.get('reasoning_chars', 0)} chars"
-            )
+            reasoning = str(payload.get("reasoning_content") or self._reasoning_text or "")
+            if reasoning.strip():
+                self._trajectory.append(("reasoning_full", reasoning))
+                if self._process_view != "quiet":
+                    console.print(Panel(
+                        Text(reasoning, style="magenta"),
+                        title="原始思维链（模型实际返回，未做任何加工）",
+                        border_style="magenta", padding=(0, 1),
+                    ))
+            elif self._process_view != "quiet":
+                console.print("[dim]本次模型响应没有返回可显示的原始思维链（provider 未提供）。[/]")
+            if self._process_view == "detail":
+                console.print(
+                    f"[dim]Model turn[/] · {count} tool call(s) · "
+                    f"auditable reasoning signal {payload.get('reasoning_chars', 0)} chars"
+                )
             return
         if kind == EventKind.TOOL_STARTED:
             self._stream_counts["tools"] += 1
@@ -569,6 +609,26 @@ class XiaopuCLI:
                 return False
             self._process_view = value
             console.print(f"[dim]过程显示：{value}[/]\n")
+            return False
+        if cmd == "/trajectory":
+            if not self._trajectory:
+                console.print("[dim]本轮暂无轨迹（先执行一个任务）。[/]\n")
+                return False
+            table = Table(title="本轮详细轨迹", border_style="bright_black", expand=True)
+            table.add_column("#", style="dim", width=4)
+            table.add_column("阶段", style="bold cyan", width=12)
+            table.add_column("内容", style="white")
+            for index, (kind, content) in enumerate(self._trajectory, 1):
+                table.add_row(str(index), kind, content[:4000])
+            console.print(table)
+            console.print()
+            return False
+        if cmd == "/cot":
+            text = self.h.state.last_reasoning_text or self._reasoning_text
+            if not text.strip():
+                console.print("[dim]模型最近一次响应没有返回原始思维链（provider 未提供）。[/]\n")
+                return False
+            console.print(Panel(Text(text, style="magenta"), title="原始思维链（模型实际返回）", border_style="magenta", padding=(0, 1)))
             return False
         if cmd == "/goal":
             objective = parts[1].strip() if len(parts) > 1 else ""

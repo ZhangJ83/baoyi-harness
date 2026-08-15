@@ -92,6 +92,10 @@ class Harness:
         self.undo_stack: list[bytes] = []
         self.approval_handler: Callable[[str], str] | None = None
         self.stream_callback: Callable[[str], None] | None = None
+        # UI extension point: actual reasoning text returned by the provider.
+        # The terminal/GUI may display it, clearly labelled as model output;
+        # xiaopu never fabricates a hidden chain-of-thought.
+        self.reasoning_callback: Callable[[str], None] | None = None
         # Obligation-based progress monitor (CEGAR-H v2):
         # progress = an unresolved obligation was resolved, or the artifact
         # mutation epoch advanced; fresh-but-unchanged evidence is NOT progress.
@@ -1113,6 +1117,8 @@ class Harness:
                     chat_kwargs["stream"] = getattr(self, "stream_callback", None) is not None
                 if "on_token" in chat_params:
                     chat_kwargs["on_token"] = getattr(self, "stream_callback", None)
+                if "on_reasoning" in chat_params:
+                    chat_kwargs["on_reasoning"] = getattr(self, "reasoning_callback", None)
                 reply = self.llm.chat(self.messages, advertised_tools, **chat_kwargs)
             except Exception:
                 if self.cancel_requested():
@@ -1142,12 +1148,15 @@ class Harness:
             self.state.reasoning_chars += reply.reasoning_chars
             self.state.reasoning_observed = self.state.reasoning_observed or reply.reasoning_chars > 0
             self.state.provider_usage_authoritative = self.state.provider_usage_authoritative and reply.usage_authoritative
+            reasoning_text = getattr(reply.choices[0].message, "reasoning_content", None) or ""
+            self.state.last_reasoning_text = reasoning_text
             self.events.publish(
                 EventKind.MODEL_RESPONSE,
                 phase=self.state.phase.value,
                 has_tool_calls=bool(getattr(reply.choices[0].message, "tool_calls", None)),
                 tool_call_count=len(getattr(reply.choices[0].message, "tool_calls", None) or []),
                 reasoning_chars=reply.reasoning_chars,
+                reasoning_content=reasoning_text,
                 output_chars=len(getattr(reply.choices[0].message, "content", "") or ""),
             )
             if recorder is not None and callable(getattr(recorder, "event", None)):

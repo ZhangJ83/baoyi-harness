@@ -88,7 +88,6 @@ class LLM:
         self._cancelled = threading.Event()
         self._client = self._create_client()
         self.model = model or config.model()
-
     @staticmethod
     def _create_client():
         import openai
@@ -115,7 +114,7 @@ class LLM:
                 pass
 
     def chat(self, messages: list[dict[str, Any]], tools: list[dict] | None = None,
-             stream: bool = False, on_token=None) -> LLMReply:
+             stream: bool = False, on_token=None, on_reasoning=None) -> LLMReply:
         event = getattr(self, "_cancelled", None)
         if event is None:
             event = self._cancelled = threading.Event()
@@ -163,6 +162,8 @@ class LLM:
                 reasoning = getattr(delta, "reasoning_content", None)
                 if reasoning:
                     reasoning_parts.append(reasoning)
+                    if on_reasoning is not None:
+                        on_reasoning(reasoning)
             input_tokens, output_tokens, total_tokens = usage_tokens
             total_tokens = total_tokens or input_tokens + output_tokens
             return LLMReply.from_message(
@@ -286,10 +287,10 @@ class AnthropicLLM:
                 pass
 
     def chat(self, messages: list[dict[str, Any]], tools: list[dict] | None = None,
-             stream: bool = False, on_token=None) -> LLMReply:
+             stream: bool = False, on_token=None, on_reasoning=None) -> LLMReply:
         # Anthropic transport currently streams lazily per message; the OpenAI-
         # compatible client above is the token-streaming path used in practice.
-        del stream, on_token
+        del stream, on_token, on_reasoning
         event = getattr(self, "_cancelled", None)
         if event is None:
             event = self._cancelled = threading.Event()

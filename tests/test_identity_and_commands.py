@@ -50,6 +50,7 @@ def test_repeated_identical_tool_errors_render_only_once():
     cli = XiaopuCLI.__new__(XiaopuCLI)
     cli._process_view = "balanced"
     cli._latest_activity = []
+    cli._trajectory = []
     cli._last_tool_error = None
     output = "TOOL ERROR (Example): failed"
     with patch("agent.cli.console") as fake_console:

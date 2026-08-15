@@ -13,6 +13,7 @@ def test_gui_tool_start_event_appends_to_tool_log():
     gui = AgentGUI.__new__(AgentGUI)
     gui.process_visible = True
     gui.tool_log_lines = []
+    gui._trajectory = []
     gui.tool_started_count = 0
     gui.tool_completed_count = 0
     gui.tool_failed_count = 0
@@ -20,6 +21,11 @@ def test_gui_tool_start_event_appends_to_tool_log():
     gui.live_phase = type("Value", (), {"set": lambda self, value: None})()
     gui.live_counts = type("Value", (), {"set": lambda self, value: None})()
     gui.tool_box = type("Box", (), {
+        "configure": lambda self, *a, **kw: None,
+        "insert": lambda self, *a, **kw: None,
+        "see": lambda self, *a: None,
+    })()
+    gui.trajectory_box = type("Box", (), {
         "configure": lambda self, *a, **kw: None,
         "insert": lambda self, *a, **kw: None,
         "see": lambda self, *a: None,
