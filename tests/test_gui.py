@@ -9,17 +9,25 @@ def test_gui_has_independent_native_entry():
     assert args.model == "m"
 
 
-def test_gui_tool_event_uses_runtime_tool_field_not_missing_name():
+def test_gui_tool_start_event_appends_to_tool_log():
     gui = AgentGUI.__new__(AgentGUI)
-    gui.tool_rows = {}
-    gui.tool_payloads = {}
-    observed = {}
-    gui.tool_tree = type("Tree", (), {
-        "insert": lambda self, *a, **kw: observed.setdefault("values", kw["values"]) or "row",
-        "selection": lambda self: (),
+    gui.process_visible = True
+    gui.tool_log_lines = []
+    gui.tool_started_count = 0
+    gui.tool_completed_count = 0
+    gui.tool_failed_count = 0
+    gui.live_action = type("Value", (), {"set": lambda self, value: None})()
+    gui.live_phase = type("Value", (), {"set": lambda self, value: None})()
+    gui.live_counts = type("Value", (), {"set": lambda self, value: None})()
+    gui.tool_box = type("Box", (), {
+        "configure": lambda self, *a, **kw: None,
+        "insert": lambda self, *a, **kw: None,
+        "see": lambda self, *a: None,
     })()
-    gui._upsert_tool({"call_id": "1", "tool": "list_dir", "arguments": "{}"}, "运行中")
-    assert observed["values"] == ("运行中", "list_dir")
+
+    from agent.events import EventKind, RuntimeEvent
+    gui._show_event(RuntimeEvent(EventKind.TOOL_STARTED, {"tool": "list_dir", "arguments": "{}"}))
+    assert "▸ list_dir" in gui.tool_log_lines[0]
 
 
 def test_gui_live_counts_report_current_execution_state():
@@ -45,3 +53,19 @@ def test_readonly_output_allows_copy_and_blocks_typing():
     assert bindings["<KeyPress>"](event) == "break"
     event.state, event.keysym = 4, "c"
     assert bindings["<KeyPress>"](event) is None
+
+
+def test_send_requires_text_and_uses_worker_thread():
+    from unittest.mock import patch
+
+    gui = AgentGUI.__new__(AgentGUI)
+    gui.running = False
+    gui.input = type("Input", (), {
+        "get": lambda self, *a: "   ",
+        "delete": lambda self, *a: None,
+    })()
+    gui._append_chat = lambda *a, **kw: None
+    gui._set_running = lambda *a: None
+    with patch("agent.gui.threading.Thread") as thread:
+        gui._send()
+        thread.assert_not_called()

@@ -242,10 +242,10 @@ def main() -> int:
                 stream.write(f"\n===== RESULT ({elapsed}s) =====\n{reply}\n")
         return 0
 
-    # interactive terminal UI
-    from .tui import run_tui
+    # interactive terminal REPL
+    from .cli import run_cli
 
-    return run_tui(model=model)
+    return run_cli(model=model)
 
 
 if __name__ == "__main__":

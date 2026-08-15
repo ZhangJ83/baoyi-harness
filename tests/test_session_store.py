@@ -88,7 +88,7 @@ def test_cli_export_unknown_session_fails(tmp_path, monkeypatch):
 
 
 def test_hybrid_completer_routes_slash_and_paths(tmp_path):
-    from agent.tui import HybridCompleter
+    from agent.cli import HybridCompleter
     from prompt_toolkit.document import Document
 
     completer = HybridCompleter()
