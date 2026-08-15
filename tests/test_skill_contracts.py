@@ -28,7 +28,7 @@ def test_task_card_capability_overrides_keyword_noise():
     assert spec.intent == "atomic_edit"
 
 
-def test_complex_combined_skill_has_matching_plan():
+def test_complex_combined_skill_has_no_fixed_plan():
     spec = compile_task(
         "完成 tasks/Aircraft_surface-004",
         {
@@ -38,4 +38,4 @@ def test_complex_combined_skill_has_matching_plan():
         },
     )
     assert spec.skill == "ppt.content_and_layout"
-    assert len(spec.plan) == 4
+    assert spec.plan == ()

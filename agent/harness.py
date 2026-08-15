@@ -907,7 +907,7 @@ class Harness:
         # coarse artifact route (new deck vs edit existing) and the verification
         # contract. How to plan and sequence the actual work stays with the
         # model, inside the phase-scoped tool surface and gates.
-        if is_ppt and getattr(self.task_spec, "plan", None):
+        if is_ppt:
             route_message = (
                 "Route context (not a fixed plan): "
                 f"artifact_mode={self.task_spec.artifact_mode}, "

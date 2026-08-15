@@ -15,13 +15,13 @@ def test_one_line_cross_slide_request_compiles_to_compose_skill():
     assert "ppt_render" in spec.verification
 
 
-def test_atomic_request_gets_short_plan():
+def test_atomic_request_has_no_fixed_plan():
     spec = compile_task(
         "add a bullet on slide 2",
         {"ppt_input_deck": r"tasks\Aircraft_surface-004\Aircraft_surface.pptx"},
     )
     assert spec.skill == "ppt.atomic_edit"
-    assert len(spec.plan) == 4
+    assert spec.plan == ()
     assert spec.mutation_slides == (2,)
     assert spec.operation == "append_bullet"
 

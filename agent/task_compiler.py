@@ -154,18 +154,9 @@ def compile_task(request: str, facts: dict[str, str] | None = None, brief: str =
     verification = ["ppt_structural"]
     if skill not in {"ppt.atomic_edit", "ppt.atomic_style"}:
         verification += ["ppt_render", "ppt_visual"]
-    plans = {
-        "ppt.atomic_edit": ("定位输入与目标范围", "执行一次语义修改", "保存并局部验证", "交付"),
-        "ppt.atomic_style": ("定位输入与样式目标", "执行样式修改", "保存并局部验证", "交付"),
-        "ppt.compose_from_slides": ("读取来源页并提取内容", "合成目标页面", "保存、渲染并检查", "必要时修复一次并交付"),
-        "ppt.layout_reflow": ("检查目标页结构与几何", "执行局部重排", "保存、渲染并检查", "必要时修复一次并交付"),
-        "ppt.diagram_composition": ("读取目标页和图示要求", "创建语义图示", "保存、渲染并检查", "交付"),
-        "ppt.element_creation": ("定位目标页", "创建元素并保持风格", "保存并检查", "交付"),
-        "ppt.template_build": ("读取模板与来源", "按模板批量生成", "保存并渲染检查", "交付"),
-        "ppt.source_grounded_build": ("读取来源并建立内容绑定", "生成带 provenance 的页面", "保存、渲染并检查", "必要时修复一次并交付"),
-        "ppt.content_and_layout": ("检查目标内容与相邻布局", "完成内容修改", "修复受影响页布局", "保存、检查并交付"),
-        "ppt.source_sync": ("读取源数据并建立更新映射", "批量事务更新演示文稿", "保存并执行一致性检查", "交付"),
-    }
+    # The compiler no longer emits a fixed step-by-step plan. It only records
+    # the coarse artifact route and contract fields; sequencing decisions
+    # belong to the model inside the Loop.
     # Reconciliation with the portable contract: when the legacy decision and
     # the PPTTaskDefinition agree on a canonical type, the portable type wins.
     # Legacy-only types (source_sync / content_and_layout) stay authoritative
@@ -177,12 +168,12 @@ def compile_task(request: str, facts: dict[str, str] | None = None, brief: str =
         and not (mode == "new_deck" and skill == "ppt.template_build")
     ):
         portable_skill = f"ppt.{portable.task_type}"
-        if portable_skill in plans:
+        if portable_skill.startswith("ppt."):
             skill, intent = portable_skill, portable.task_type
     return TaskSpec(task_root=task_root, artifact_mode=mode, intent=intent, skill=skill,
                     primary_input=primary, output_path=output, source_slides=source,
                     operation=operation, mutation_slides=mutation,
-                    verification=tuple(verification), plan=plans[skill])
+                    verification=tuple(verification), plan=())
 
 
 def brief_json(spec: TaskSpec) -> str:
