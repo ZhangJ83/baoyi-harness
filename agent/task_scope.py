@@ -14,8 +14,9 @@ import re
 
 _GLOBAL_SCOPE = re.compile(
     r"\b(?:all\s+(?:slides?|pages?)|entire\s+(?:presentation|deck)|"
-    r"whole\s+(?:presentation|deck))\b|"
-    r"(?:所有页面|全部页面|所有幻灯片|全部幻灯片|整个演示文稿|整份演示文稿|全局)",
+    r"whole\s+(?:presentation|deck)|throughout(?:\s+the)?\s+(?:slides?|presentation|deck)|"
+    r"across\s+all\s+slides?)\b|"
+    r"(?:所有页面|全部页面|所有幻灯片|全部幻灯片|整个演示文稿|整份演示文稿|全文|通篇|全篇|全篇幻灯片|全文幻灯片)",
     re.IGNORECASE,
 )
 

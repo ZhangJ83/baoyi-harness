@@ -83,6 +83,14 @@ def _shape_attributes(shape) -> dict:
                 if run.font.size is not None:
                     font_sizes.append(round(run.font.size.pt, 1))
         attrs["font_sizes"] = tuple(font_sizes)
+    if getattr(shape, "has_table", False):
+        attrs["table_text"] = ";;".join(
+            "|".join(cell.text for cell in row.cells) for row in shape.table.rows
+        )
+    nv = shape._element.nvSpPr.cNvPr
+    descr = nv.get("descr")
+    if descr:
+        attrs["descr"] = descr
     try:
         if shape.fill.type is not None and shape.fill.type == 1:
             attrs["fill"] = str(shape.fill.fore_color.rgb)

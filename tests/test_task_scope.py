@@ -27,7 +27,7 @@ def test_global_scope_is_explicit_but_open() -> None:
         "Update all slides",
         "Rewrite the entire presentation",
         "修改所有页面",
-        "全局统一字体",
+        "通篇统一字体",
     ):
         assert infer_ppt_mutation_scope(task) is None
         assert ppt_scope_is_explicit(task) is True
