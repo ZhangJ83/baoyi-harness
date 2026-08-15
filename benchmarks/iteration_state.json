@@ -11,7 +11,7 @@
     "Accounting Equation-004": 0.5,
     "Aircraft_surface-004": 1.0,
     "HSC Careers and Expo FINAL COM MOD-038": 1.0,
-    "Accounting Equation-045": 0.9,
+    "Accounting Equation-045": 1.0,
     "4._Pre-Colonial_Filipino_Culture-005": 1.0
   },
   "ppt_best": {
@@ -25,7 +25,7 @@
     "Accounting Equation-004": 0.5,
     "Aircraft_surface-004": 1.0,
     "HSC Careers and Expo FINAL COM MOD-038": 1.0,
-    "Accounting Equation-045": 0.9,
+    "Accounting Equation-045": 1.0,
     "4._Pre-Colonial_Filipino_Culture-005": 1.0
   },
   "ppt_failures": {
@@ -42,14 +42,7 @@
     ],
     "Aircraft_surface-004": [],
     "HSC Careers and Expo FINAL COM MOD-038": [],
-    "Accounting Equation-045": [
-      {
-        "name": "Appropriate flowchart shapes used",
-        "status": "scored",
-        "score": 0.6,
-        "reason": "Found 3 step shapes but only 0 connectors. Missing arrows."
-      }
-    ],
+    "Accounting Equation-045": [],
     "4._Pre-Colonial_Filipino_Culture-005": [],
     "xmind-screenshot-template-ppt": [],
     "board-material-update-timeline-excel": [],
@@ -131,7 +124,7 @@
     "html-report-quadrant-ppt": 4,
     "xmind-screenshot-template-ppt": 5,
     "Accounting Equation-004": 5,
-    "Accounting Equation-045": 4
+    "Accounting Equation-045": 5
   },
   "trajectory_analyses": {
     "r1_board-material-update-timeline-excel": {

@@ -78,8 +78,8 @@ def snapshot_harness(harness) -> dict:
         "final_summary": getattr(state, "final_summary", None),
         # Progress-preservation state: resume must reload the same working deck,
         # not the frozen input or a stale copy.
-        "deck_source_path": getattr(harness, "deck_source_path", None),
-        "deck_working_path": getattr(harness, "deck_working_path", None),
+        "deck_source_path": str(getattr(harness, "deck_source_path", "") or ""),
+        "deck_working_path": str(getattr(harness, "deck_working_path", "") or ""),
         "unresolved_checks": sorted(getattr(state, "unresolved_checks", set())),
         "repair_attempts": getattr(state, "repair_attempts", 0),
         "last_verification_failed": getattr(state, "last_verification_failed", False),

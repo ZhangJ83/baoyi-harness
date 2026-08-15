@@ -100,7 +100,7 @@ def _finish(h, summary: str):
             input_rel = h.state.facts.get("ppt_input_deck", "")
             if input_rel:
                 from pathlib import Path as _Path
-                from ... import config as _config
+                from .. import config as _config
                 from domains.ppt.transaction import diff_decks
 
                 input_path = _Path(_config.sandbox_root()) / input_rel
