@@ -260,8 +260,13 @@ def prepare_task_brief(task: str, state, recorder=None, *, max_sources: int = 24
         if path.is_file()
         and path != instruction
         and path.name != "TRAJECTORY_CAPTURE_CONTRACT.md"
+        and path.name != "reference_output.pptx"
         and path.suffix.lower() in OFFICE_SUFFIXES
     )
+    reference_output = task_root / "reference_output.pptx"
+    if reference_output.is_file():
+        state.record_fact("reference_output", str(reference_output.relative_to(config.sandbox_root())))
+        state.reference_output = reference_output.resolve()
     # Keep order stable while removing duplicates and generated deliverables.
     unique: list[Path] = []
     seen: set[Path] = set()

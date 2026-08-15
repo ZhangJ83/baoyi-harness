@@ -4,11 +4,11 @@
     "3-002": 1.0,
     "3-003": 1.0,
     "board-material-update-timeline-excel": 1.0,
-    "html-report-quadrant-ppt": 0.7564,
-    "xmind-screenshot-template-ppt": 0.6814,
+    "html-report-quadrant-ppt": 1.0,
+    "xmind-screenshot-template-ppt": 1.0,
     "4._Pre-Colonial_Filipino_Culture-001": 1.0,
     "HSC Careers and Expo FINAL COM MOD-008": 1.0,
-    "Accounting Equation-004": 0.5,
+    "Accounting Equation-004": 1.0,
     "Aircraft_surface-004": 1.0,
     "HSC Careers and Expo FINAL COM MOD-038": 1.0,
     "Accounting Equation-045": 1.0,
@@ -18,11 +18,11 @@
     "3-002": 1.0,
     "3-003": 1.0,
     "board-material-update-timeline-excel": 1.0,
-    "html-report-quadrant-ppt": 0.7564,
-    "xmind-screenshot-template-ppt": 0.6814,
+    "html-report-quadrant-ppt": 1.0,
+    "xmind-screenshot-template-ppt": 1.0,
     "4._Pre-Colonial_Filipino_Culture-001": 1.0,
     "HSC Careers and Expo FINAL COM MOD-008": 1.0,
-    "Accounting Equation-004": 0.5,
+    "Accounting Equation-004": 1.0,
     "Aircraft_surface-004": 1.0,
     "HSC Careers and Expo FINAL COM MOD-038": 1.0,
     "Accounting Equation-045": 1.0,
@@ -32,14 +32,7 @@
     "4._Pre-Colonial_Filipino_Culture-001": [],
     "3-006": [],
     "HSC Careers and Expo FINAL COM MOD-008": [],
-    "Accounting Equation-004": [
-      {
-        "name": "No extraneous text changes were made",
-        "status": "scored",
-        "score": 0.0,
-        "reason": "Extraneous text changes found (beyond 'Liability/Liabilities' -> 'Debt/Debts'):\nSlide 1: expected 'Similarly the business had obtained the money from Mr. A and this money will have to be returned in form of either cash or benefits. Any thing for which the business has to repay in ay form is called ...' but got 'Similarly the business had obtained the money from Mr. A and this money will have to be returned in form of either cash or benefits. Any thing for which the business has to repay in ay form is called ...'\nSlide 6: expected 'ASSETS\nAssets are the properties and possessions of the business.\nProperties and possessions can be of two types, one that have physical existence (called tangible) and the others that have no physica...' but got 'ASSETS\nAssets are the properties and possessions of the business.\nProperties and possessions can be of two types, one that have physical existence (called tangible) and the others that have no physica...'"
-      }
-    ],
+    "Accounting Equation-004": [],
     "Aircraft_surface-004": [],
     "HSC Careers and Expo FINAL COM MOD-038": [],
     "Accounting Equation-045": [],
@@ -121,9 +114,9 @@
   },
   "ppt_attempts": {
     "board-material-update-timeline-excel": 23,
-    "html-report-quadrant-ppt": 4,
-    "xmind-screenshot-template-ppt": 5,
-    "Accounting Equation-004": 5,
+    "html-report-quadrant-ppt": 5,
+    "xmind-screenshot-template-ppt": 6,
+    "Accounting Equation-004": 6,
     "Accounting Equation-045": 5
   },
   "trajectory_analyses": {

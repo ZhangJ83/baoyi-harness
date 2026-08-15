@@ -54,11 +54,20 @@ def snapshot_harness(harness) -> dict:
                 content = redact(str(content))
             messages.append({"role": role, "content": content})
             if role == "assistant" and message.get("tool_calls"):
-                messages[-1]["tool_calls"] = [
-                    {"id": tc.get("id"), "function": {"name": tc.get("function", {}).get("name"),
-                                                     "arguments": tc.get("function", {}).get("arguments", "")}}
-                    for tc in message["tool_calls"]
-                ]
+                calls = []
+                for tc in message["tool_calls"]:
+                    function = dict(tc.get("function") or {})
+                    calls.append({
+                        "id": tc.get("id"),
+                        "type": "function",
+                        "function": {
+                            "name": function.get("name"),
+                            "arguments": function.get("arguments", ""),
+                        },
+                    })
+                messages[-1]["tool_calls"] = calls
+                if message.get("reasoning_content"):
+                    messages[-1]["reasoning_content"] = message["reasoning_content"]
         elif role == "tool":
             messages.append({"role": "tool", "tool_call_id": message.get("tool_call_id"),
                              "content": redact(str(message.get("content", "")))}) if message.get("tool_call_id") else None
