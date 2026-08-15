@@ -58,6 +58,17 @@ class PresentationSourceIR:
             f"visual_refs={len(self.visual_refs)}"
         )
 
+    def hierarchy_text(self, limit: int = 80) -> str:
+        """Compact indented outline of any structured source (xmind-style)."""
+        if not self.hierarchy:
+            return ""
+        lines = []
+        for depth, title in self.hierarchy[:limit]:
+            lines.append(f"{'  ' * depth}- {title}")
+        if len(self.hierarchy) > limit:
+            lines.append(f"... and {len(self.hierarchy) - limit} more source nodes")
+        return "source outline:\n" + "\n".join(lines)
+
 
 def normalize_pptx(path: Path) -> List[Dict[str, Any]]:
     """Deck -> slide structure inventory."""
@@ -133,19 +144,41 @@ def _walk_xmind_topics(node: Dict[str, Any], depth: int, out: List[Tuple[int, st
 
 
 def normalize_xmind(path: Path) -> List[Tuple[int, str]]:
-    """Mind-map package -> topic hierarchy."""
+    """Mind-map package -> topic hierarchy.
+
+    XMind package revisions disagree on where the workbook lives: the modern
+    package wraps it as ``content.json -> workbook -> rootTopic``, older ones
+    store a list of sheets directly under ``content.json``.  Both are located
+    structurally instead of by a fixed path.
+    """
     out: List[Tuple[int, str]] = []
     with zipfile.ZipFile(path) as zf:
         for name in zf.namelist():
-            if name.endswith("content.json"):
-                try:
-                    data = json.loads(zf.read(name).decode("utf-8", errors="replace"))
-                except Exception:
-                    continue
-                for sheet in data if isinstance(data, list) else [data]:
-                    root = sheet.get("rootTopic") if isinstance(sheet, dict) else None
+            if not name.endswith("content.json"):
+                continue
+            try:
+                data = json.loads(zf.read(name).decode("utf-8", errors="replace"))
+            except Exception:
+                continue
+
+            def find_roots(node: Any) -> List[Dict[str, Any]]:
+                if isinstance(node, dict):
+                    root = node.get("rootTopic")
                     if isinstance(root, dict):
-                        _walk_xmind_topics(root, 0, out)
+                        return [root]
+                    roots: List[Dict[str, Any]] = []
+                    for value in node.values():
+                        roots.extend(find_roots(value))
+                    return roots
+                if isinstance(node, list):
+                    roots = []
+                    for value in node:
+                        roots.extend(find_roots(value))
+                    return roots
+                return []
+
+            for root in find_roots(data):
+                _walk_xmind_topics(root, 0, out)
     return out
 
 

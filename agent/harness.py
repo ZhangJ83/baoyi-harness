@@ -923,6 +923,29 @@ class Harness:
             )
             if not any(message.get("content") == route_message for message in self.messages[-4:]):
                 self.messages.append({"role": "system", "content": route_message})
+            # Whole-PPT-class tool guidance by capability (not a task-specific
+            # plan): template projects must transform the already-open template
+            # instead of replacing it with a blank deck or from_slides synthesis.
+            skill_guidance = {
+                "ppt.template_build": (
+                    "Template capability note: the bound template deck is already open. "
+                    "Rewrite its named boxes with ppt_edit_text set_shape_text (names come from ppt_inspect summary), "
+                    "add extra content pages with ppt_compose kind='content' up to the slide-count contract, "
+                    "and never call new_deck or from_slides for this project."
+                ),
+                "ppt.source_grounded_build": (
+                    "Source-grounded capability note: prefer ppt_compose kind='quadrant' with slide_number=1 "
+                    "(or ppt_edit_text set_shape_text on the open template boxes). Record anchor/metric/chart ids "
+                    "per quadrant with ppt_metadata on the quadrant's provenance shape. Keep exactly one board slide."
+                ),
+                "ppt.source_sync": (
+                    "Source-sync capability note: rewrite whole cards/tables with set_shape_text/set_table in "
+                    "batch_updates; a replace that misses one stale fragment still fails the contract gate. "
+                    "Do not reopen files or re-inspect unchanged slides once the per-slide counterexample list is known."
+                ),
+            }.get(self.task_spec.skill, "")
+            if skill_guidance and not any(message.get("content") == skill_guidance for message in self.messages[-4:]):
+                self.messages.append({"role": "system", "content": skill_guidance})
         # Compound replacement contract: instructions like
         # "Liability/Liabilities -> Debt/Debts" must be executed as one batch
         # with every variant, not as a single singular-only replace.
@@ -940,6 +963,23 @@ class Harness:
             )
             if not any(message.get("content") == compound_message for message in self.messages[-4:]):
                 self.messages.append({"role": "system", "content": compound_message})
+        elif is_ppt and self.task_spec.skill == "ppt.atomic_edit":
+            # Single capitalized term -> single replacement: case variants still
+            # matter (Liability/liability/LIABILITIES -> Debt/debt/DEBTS).
+            single_match = re.search(
+                r"['\"]?([A-Z][A-Za-z]+)['\"]?\s*(?:替换为|改为|改成|→|->|to)\s*['\"]?([A-Z][A-Za-z]+)",
+                execution_task,
+                re.IGNORECASE,
+            )
+            if single_match:
+                old_term, new_term = single_match.groups()
+                single_message = (
+                    "Deterministic replacement contract: use operation='replace_case_variants' once "
+                    f"(old='{old_term}' new='{new_term}'), not one case-sensitive replace. "
+                    "This replaces singular/plural and lowercase/Capitalized/UPPERCASE forms together."
+                )
+                if not any(message.get("content") == single_message for message in self.messages[-4:]):
+                    self.messages.append({"role": "system", "content": single_message})
         # Give code tasks their deterministic language/test-runner context so the
         # model runs the actual tests (run_checks) instead of stopping at a
         # content-only verify_files assertion.
@@ -1335,6 +1375,10 @@ class Harness:
                     visible_limit = 12000
                 elif tc.function.name == "ppt_inspect":
                     visible_limit = 14000
+                elif tc.function.name == "ppt_check":
+                    # A failed contract gate is a full per-slide repair manifest;
+                    # truncating it hides the slides the model has not fixed yet.
+                    visible_limit = 20000 if "FAILED" in text else 8000
                 else:
                     visible_limit = 14000 if tc.function.name == "read_many" else 5000
                 self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": bounded_tool_result(text, visible_limit)})
@@ -1375,12 +1419,22 @@ class Harness:
                     else:
                         self.state.transition(RuntimePhase.VERIFY)
                         self._publish_phase_change(previous_phase, "no-progress redirect to verification")
-                        message = (
-                            "CEGAR-H detected repeated equivalent edits with no new information. "
-                            "A saved draft with fresh structural evidence already exists. "
-                            "Do not issue another equivalent edit. Run ppt_check if evidence is stale, then call finish "
-                            "(the official task evaluator will run automatically and return concrete counterexamples if anything is still wrong)."
-                        )
+                        blockers = sorted(self.state.unresolved_checks)
+                        if blockers:
+                            message = (
+                                "CEGAR-H detected repeated equivalent observations/edits with no new information, "
+                                f"but these verifier obligations are still unresolved: {', '.join(blockers)}. "
+                                "Do not reopen files or re-inspect unchanged slides. Repair ONLY the cited slides/shapes "
+                                "with ppt_edit_text (set_shape_text/set_table/batch_updates) or ppt_metadata, then "
+                                "ppt_save and rerun ppt_check. finish stays rejected until the blockers clear."
+                            )
+                        else:
+                            message = (
+                                "CEGAR-H detected repeated equivalent edits with no new information. "
+                                "A saved draft with fresh structural evidence already exists. "
+                                "Do not issue another equivalent edit. Run ppt_check if evidence is stale, then call finish "
+                                "(the official task evaluator will run automatically and return concrete counterexamples if anything is still wrong)."
+                            )
                     self.messages.append({"role": "user", "content": message})
                     self._maybe_compact(force=True)
                     continue
@@ -1527,6 +1581,20 @@ class Harness:
             try:
                 if self.cancel_requested():
                     return "CANCELLED: user interrupted the current task before this tool ran"
+                # Repair-phase observation closure: once verifier counterexamples
+                # exist and an observation turn has already passed, further
+                # inspect/open calls are equivalent-loop fuel, not repair work.
+                if (
+                    tc.function.name in {"ppt_inspect", "ppt_open"}
+                    and self.state.unresolved_checks
+                    and self.state.no_progress_streak >= 1
+                ):
+                    blockers = ", ".join(sorted(self.state.unresolved_checks))
+                    return (
+                        "TOOL ERROR (RuntimeError): observation closed while repair obligations remain "
+                        f"({blockers}). Apply the cited repairs now with ppt_edit_text / ppt_metadata / "
+                        "ppt_arrange; do not inspect or reopen again until after a mutation changes the deck."
+                    )
                 if self._mutation_gated(tc.function.name):
                     # The verify-before-continue gate is a loop invariant, but
                     # commit + verification are harness-owned lifecycle steps.
@@ -1629,7 +1697,15 @@ class Harness:
                         "change strategy instead of trying an equivalent call."
                     )
                     if getattr(self, "deck", None) is not None and getattr(self.state, "mutation_epoch", 0):
-                        hint += " A draft is already in memory; the shortest valid path is ppt_save, then ppt_check, then finish."
+                        blockers = sorted(self.state.unresolved_checks)
+                        if blockers:
+                            hint += (
+                                " A draft is already in memory; save it, run ppt_check/run_task_evaluator, "
+                                "then repair ONLY the cited counterexamples. finish stays rejected while "
+                                f"{', '.join(blockers)} remain unresolved."
+                            )
+                        else:
+                            hint += " A draft is already in memory; the shortest valid path is ppt_save, then ppt_check, then finish."
                 # Safety fuse (generalized rejection signature): the same
                 # (action, error class, blocker set) three times in a row with
                 # no obligation progress means the run is stuck on the same

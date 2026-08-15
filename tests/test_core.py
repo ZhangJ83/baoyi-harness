@@ -69,8 +69,12 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(h._done, "verified")
 
     def test_invalid_json_is_actionable(self):
-        with self.assertRaisesRegex(ValueError, "invalid JSON"):
+        # A truncated-but-closable object now recovers to "{}" and reports the
+        # missing schema field; a truly malformed string still names JSON.
+        with self.assertRaisesRegex(ValueError, "missing required"):
             dispatch("finish", "{", DummyHarness())
+        with self.assertRaisesRegex(ValueError, "invalid JSON"):
+            dispatch("finish", "{invalid", DummyHarness())
 
     def test_schema_validation_is_actionable(self):
         with self.assertRaisesRegex(TypeError, "arguments.summary must be string"):

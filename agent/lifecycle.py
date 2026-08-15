@@ -294,13 +294,30 @@ class RunRecorder:
             if source in self._source_by_working:
                 return source
             existing = self._working_by_source.get(source)
+            fresh = False
             if existing is not None and existing.is_file():
+                try:
+                    fresh = (
+                        source.stat().st_size == existing.stat().st_size
+                        and source.stat().st_mtime_ns <= existing.stat().st_mtime_ns
+                    )
+                except OSError:
+                    fresh = False
+            if existing is not None and fresh:
                 return existing
         self.record_input(source, "editable-source")
         # Source preservation is execution correctness, not optional
         # trajectory bookkeeping, so failure here must remain visible.
         self.work.mkdir(parents=True, exist_ok=True)
         target = self.work / f"{source.stem}.working{source.suffix}"
+        # The persisted deliverable can legitimately change mid-run (save then
+        # reopen for repair).  A cached working copy would silently roll the
+        # draft back to an older revision, so refresh whenever source changed.
+        if existing is not None and existing.is_file() and not fresh:
+            try:
+                existing.unlink()
+            except OSError:
+                pass
         shutil.copy2(source, target)
         target = target.resolve()
         with self._lock:

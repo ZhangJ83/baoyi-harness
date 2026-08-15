@@ -1,45 +1,49 @@
 {
-  "round": 4,
+  "round": 6,
   "ppt_scores": {
     "3-002": 1.0,
     "3-003": 1.0,
-    "board-material-update-timeline-excel": null,
-    "html-report-quadrant-ppt": 0.7436,
-    "xmind-screenshot-template-ppt": 0.6195,
+    "3-006": 1.0,
     "4._Pre-Colonial_Filipino_Culture-001": 1.0,
     "HSC Careers and Expo FINAL COM MOD-008": 1.0,
     "Accounting Equation-004": 1.0,
     "Aircraft_surface-004": 1.0,
     "HSC Careers and Expo FINAL COM MOD-038": 1.0,
     "Accounting Equation-045": 1.0,
-    "4._Pre-Colonial_Filipino_Culture-005": 1.0
+    "4._Pre-Colonial_Filipino_Culture-005": 1.0,
+    "board-material-update-timeline-excel": 1.0,
+    "html-report-quadrant-ppt": 1.0,
+    "xmind-screenshot-template-ppt": 1.0
   },
   "ppt_best": {
     "3-002": 1.0,
     "3-003": 1.0,
-    "board-material-update-timeline-excel": 0.8549,
-    "html-report-quadrant-ppt": 1.0,
-    "xmind-screenshot-template-ppt": 1.0,
+    "3-006": 1.0,
     "4._Pre-Colonial_Filipino_Culture-001": 1.0,
     "HSC Careers and Expo FINAL COM MOD-008": 1.0,
     "Accounting Equation-004": 1.0,
     "Aircraft_surface-004": 1.0,
     "HSC Careers and Expo FINAL COM MOD-038": 1.0,
     "Accounting Equation-045": 1.0,
-    "4._Pre-Colonial_Filipino_Culture-005": 1.0
+    "4._Pre-Colonial_Filipino_Culture-005": 1.0,
+    "board-material-update-timeline-excel": 1.0,
+    "html-report-quadrant-ppt": 1.0,
+    "xmind-screenshot-template-ppt": 1.0
   },
   "ppt_failures": {
-    "4._Pre-Colonial_Filipino_Culture-001": [],
+    "3-002": [],
+    "3-003": [],
     "3-006": [],
+    "4._Pre-Colonial_Filipino_Culture-001": [],
     "HSC Careers and Expo FINAL COM MOD-008": [],
     "Accounting Equation-004": [],
     "Aircraft_surface-004": [],
     "HSC Careers and Expo FINAL COM MOD-038": [],
     "Accounting Equation-045": [],
     "4._Pre-Colonial_Filipino_Culture-005": [],
-    "xmind-screenshot-template-ppt": [],
     "board-material-update-timeline-excel": [],
-    "html-report-quadrant-ppt": []
+    "html-report-quadrant-ppt": [],
+    "xmind-screenshot-template-ppt": []
   },
   "code_scores": {
     "HumanEval_0": {
@@ -67,24 +71,24 @@
       "detail": ""
     },
     "HumanEval_6": {
-      "passed": false,
-      "detail": "Traceback (most recent call last):\n  File \"<string>\", line 15, in <module>\n    check(parse_nested_parens)\n          ^^^^^^^^^^^^^^^^^^^\nNameError: name 'parse_nested_parens' is not defined\n"
+      "passed": true,
+      "detail": ""
     },
     "HumanEval_7": {
       "passed": true,
       "detail": ""
     },
     "HumanEval_8": {
-      "passed": false,
-      "detail": "Traceback (most recent call last):\n  File \"<string>\", line 17, in <module>\n    check(sum_product)\n          ^^^^^^^^^^^\nNameError: name 'sum_product' is not defined\n"
+      "passed": true,
+      "detail": ""
     },
     "HumanEval_9": {
-      "passed": false,
-      "detail": "Traceback (most recent call last):\n  File \"<string>\", line 16, in <module>\n    check(rolling_max)\n          ^^^^^^^^^^^\nNameError: name 'rolling_max' is not defined\n"
+      "passed": true,
+      "detail": ""
     },
     "HumanEval_10": {
-      "passed": false,
-      "detail": "Traceback (most recent call last):\n  File \"<string>\", line 17, in <module>\n    check(make_palindrome)\n          ^^^^^^^^^^^^^^^\nNameError: name 'make_palindrome' is not defined\n"
+      "passed": true,
+      "detail": ""
     },
     "HumanEval_11": {
       "passed": true,
@@ -97,26 +101,31 @@
     "HumanEval_13": {
       "passed": true,
       "detail": ""
+    },
+    "HumanEval_14": {
+      "passed": true,
+      "detail": ""
     }
   },
-  "code_next": 14,
-  "no_improve_streak": 1,
+  "code_next": 15,
+  "no_improve_streak": 0,
   "notes": [
-    "代码任务先读 problem.md 定位需求，写出最小正确实现并保存到指定文件，再用本地测试快速自检后 finish。",
+    "保存后 run_task_evaluator / ppt_check full 返回的官方失败项就是下一步修复清单。",
     "图示/流程图必须同时创建节点形状和箭头连接线，连接线连接相邻节点。",
     "在 finish 之前必须先保存产物到任务要求的 output 路径，然后运行任务自带的验证器。",
     "局部编辑任务只允许修改目标页；保存后系统会对照输入 deck 检查非目标页并阻止 finish。",
-    "连接类错误会自动重试；仍失败时先保存再继续，不要空转。"
+    "替换单个词也要用 replace_case_variants 覆盖大小写与单复数变体。",
+    "模板类任务优先改写已打开模板的命名文本框，必要时用 ppt_notes 写后台覆盖口径。",
+    "连接类错误会自动重试；仍失败时先保存再继续，不要空转。",
+    "验证失败时先看完整官方反例清单，再逐条修复；不要重开文件或重复观察未变化的页面。"
   ],
   "ppt_unscorable": {
     "3-006": true
   },
   "ppt_attempts": {
-    "board-material-update-timeline-excel": 23,
-    "html-report-quadrant-ppt": 5,
-    "xmind-screenshot-template-ppt": 6,
-    "Accounting Equation-004": 6,
-    "Accounting Equation-045": 5
+    "board-material-update-timeline-excel": 25,
+    "html-report-quadrant-ppt": 7,
+    "xmind-screenshot-template-ppt": 8
   },
   "trajectory_analyses": {
     "r1_board-material-update-timeline-excel": {
@@ -544,5 +553,6 @@
     "save_before_pause",
     "llm_retry_apiconnection",
     "finish_immutability_gate"
-  ]
+  ],
+  "ppt_notes_3_006": "VLM scorer unavailable locally; deterministic proxy: all 3 vCPU1 magenta fills -> green on slide 3, no other slide changes"
 }

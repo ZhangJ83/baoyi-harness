@@ -227,24 +227,42 @@ def run_code_cell(state: dict) -> dict:
         f"请在 {workdir.name} 目录中实现函数 `{problem['entry_point']}`，保存为 solution.py，"
         "只输出代码，不要写测试文件。", encoding="utf-8")
     env = dict(os.environ); env["PYTHONIOENCODING"] = "utf-8"
-    start = time.time()
-    run = subprocess.run([sys.executable, "-m", "agent.main", "--workspace", str(workdir),
-                          f"完成代码任务：见 problem.md，实现 {problem['entry_point']} 并保存到 solution.py。"],
-                         cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                         timeout=1500, env=env)
-    elapsed = round(time.time() - start, 1)
-    solution = workdir / "solution.py"
-    code = solution.read_text(encoding="utf-8", errors="replace") if solution.is_file() else ""
-    payload = code + "\n" + problem["test"] + "\n" + f"check({problem['entry_point']})\n"
-    try:
-        proc = subprocess.run([sys.executable, "-c", payload], capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=120)
-        passed = proc.returncode == 0
-        detail = (proc.stdout + proc.stderr)[-1000:]
-    except subprocess.TimeoutExpired:
-        passed, detail = False, "timeout"
-    return {"task": task_id, "passed": passed, "elapsed": elapsed, "detail": detail,
-            "has_solution": bool(code), "tail": (run.stdout + run.stderr)[-600:]}
+
+    # Counterexample-driven repair: the hidden harness test is the task-local
+    # verifier.  After a failed attempt the next run receives the concrete
+    # failure (not the test source), which is generic verifier feedback rather
+    # than a task-specific patch.
+    detail = ""
+    for attempt in range(3):
+        prompt = (
+            f"完成代码任务：见 problem.md，实现 {problem['entry_point']} 并保存到 solution.py。"
+        )
+        if attempt and detail:
+            prompt += (
+                f"\n\n上一轮隐藏测试未通过，反馈如下：\n{detail}\n"
+                f"请检查 solution.py 并修复实现，然后再次保存 solution.py。"
+            )
+        start = time.time()
+        run = subprocess.run([sys.executable, "-m", "agent.main", "--workspace", str(workdir), prompt],
+                             cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                             timeout=1500, env=env)
+        elapsed = round(time.time() - start, 1)
+        solution = workdir / "solution.py"
+        code = solution.read_text(encoding="utf-8", errors="replace") if solution.is_file() else ""
+        payload = code + "\n" + problem["test"] + "\n" + f"check({problem['entry_point']})\n"
+        try:
+            proc = subprocess.run([sys.executable, "-c", payload], capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace", timeout=120)
+            passed = proc.returncode == 0
+            detail = (proc.stdout + proc.stderr)[-1000:]
+        except subprocess.TimeoutExpired:
+            passed, detail = False, "timeout"
+        if passed or attempt == 2:
+            return {"task": task_id, "passed": passed, "elapsed": elapsed, "detail": detail,
+                    "has_solution": bool(code), "attempts": attempt + 1,
+                    "tail": (run.stdout + run.stderr)[-600:]}
+    return {"task": task_id, "passed": False, "elapsed": 0.0, "detail": "unreachable",
+            "has_solution": False, "attempts": 3, "tail": ""}
 
 
 def apply_trajectory_optimizations(state: dict, cells: list[dict]) -> None:

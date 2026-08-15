@@ -170,14 +170,53 @@ def _validate(value: Any, schema: dict, path: str = "arguments") -> None:
                 _validate(item, item_schema, f"{path}[{index}]")
 
 
+def _repair_truncated_json(text: str) -> dict | None:
+    """Recover one common provider failure mode: a long JSON call truncated by
+    the output cap.  Close open containers in reverse order, which preserves a
+    valid prefix when the truncation happened inside a nested object/array."""
+    stack: list[str] = []
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        else:
+            if char == '"':
+                in_string = True
+            elif char in "{[":
+                stack.append(char)
+            elif char in "}]":
+                if stack and ((char == "}" and stack[-1] == "{") or (char == "]" and stack[-1] == "[")):
+                    stack.pop()
+    if in_string or not stack:
+        return None
+    closing = "".join("}" if char == "{" else "]" for char in reversed(stack))
+    candidate = text + closing
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def dispatch(name: str, arguments_json: str, harness) -> str:
+    args = None
     try:
         args = json.loads(arguments_json or "{}")
     except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"invalid JSON arguments at character {exc.pos}; send ONE valid JSON object. "
-            "If the update list is too long, split it into several smaller tool calls."
-        ) from exc
+        recovered = _repair_truncated_json(arguments_json or "")
+        if recovered is not None:
+            args = recovered
+        else:
+            raise ValueError(
+                f"invalid JSON arguments at character {exc.pos}; send ONE valid JSON object. "
+                "If the update list is too long, split it into several smaller tool calls."
+            ) from exc
     if not isinstance(args, dict):
         raise TypeError("tool arguments must be a JSON object")
     # Argument-contract recovery: some providers emit

@@ -83,7 +83,7 @@ def task_root_from_prompt(task: str, root: Path | None = None) -> Path | None:
     return candidate if path_within(workspace, candidate) and candidate.is_dir() else None
 
 
-def _verification_contract_brief(task_root: Path, max_chars: int = 6000) -> str:
+def _verification_contract_brief(task_root: Path, max_chars: int = 9000) -> str:
     """Expose the task-local verification requirements before the first edit.
 
     WorkBuddy-style packages ship ``tests/gold/gold_answer.json`` next to the
@@ -91,7 +91,10 @@ def _verification_contract_brief(task_root: Path, max_chars: int = 6000) -> str:
     observable in UNDERSTAND, not discovered as a surprise after the first
     finish rejection. This builds a compact requirement manifest (required /
     forbidden terms per slide, co-location and one-to-many sync obligations,
-    distractor preservation) from the task-local contract only.
+    distractor preservation, slide-count contract, quadrant/chart binding
+    contract and source coverage obligations) from the task-local contract
+    schema only. Fields that are absent are skipped, so a package using a
+    different schema still receives exactly what it declares.
     """
     gold = task_root / "tests" / "gold" / "gold_answer.json"
     if not gold.is_file():
@@ -109,16 +112,23 @@ def _verification_contract_brief(task_root: Path, max_chars: int = 6000) -> str:
         footer_bits = []
         footer_version = output_contract.get("footer_version")
         footer_date = output_contract.get("footer_material_date")
+        expected_slides = output_contract.get("expected_slide_count")
         if footer_version:
             footer_bits.append(f"version='{footer_version}'")
         if footer_date:
             footer_bits.append(f"material_date='{footer_date}'")
         if footer_bits:
             sections.append("footer contract (all slides): " + ", ".join(footer_bits))
+        if expected_slides is not None:
+            sections.append(f"output contract: slide_count={expected_slides}")
 
     def term_text(terms) -> str:
         values = [str(term) for term in (terms or [])]
         return " | ".join(values)
+
+    def short(value, limit: int = 140) -> str:
+        text = str(value or "").replace("\n", " ")
+        return text[:limit] + ("…" if len(text) > limit else "")
 
     required = data.get("required_slide_expectations")
     if isinstance(required, dict) and required:
@@ -178,12 +188,16 @@ def _verification_contract_brief(task_root: Path, max_chars: int = 6000) -> str:
     answer_contract = data.get("answer_contract")
     if isinstance(answer_contract, dict):
         bits = []
+        if answer_contract.get("slide_count") is not None:
+            bits.append(f"slide_count={answer_contract.get('slide_count')}")
         if answer_contract.get("min_slide_count") is not None:
             bits.append(f"min_slides={answer_contract.get('min_slide_count')}")
         if answer_contract.get("max_slide_count") is not None:
             bits.append(f"max_slides={answer_contract.get('max_slide_count')}")
         if answer_contract.get("output_kind"):
             bits.append(f"output={answer_contract.get('output_kind')}")
+        if answer_contract.get("required_format"):
+            bits.append(f"format={answer_contract.get('required_format')}")
         if bits:
             sections.append("answer contract: " + ", ".join(bits))
 
@@ -201,8 +215,92 @@ def _verification_contract_brief(task_root: Path, max_chars: int = 6000) -> str:
         if bits:
             sections.append("template contract: " + "; ".join(bits))
 
+    chart_binding = data.get("chart_binding_contract")
+    if isinstance(chart_binding, dict):
+        bits = []
+        for key, label in (
+            ("required_anchor_ids", "anchors"),
+            ("required_binding_ids", "bindings"),
+            ("required_chart_ids", "charts"),
+            ("required_subanchors", "subanchors"),
+        ):
+            if chart_binding.get(key):
+                bits.append(f"{label}=[{term_text(chart_binding.get(key))}]")
+        for key, label in (
+            ("forecast_rule", "forecast_rule"),
+            ("traceability_rule", "traceability_rule"),
+            ("anti_dump_rule", "anti_dump_rule"),
+        ):
+            if chart_binding.get(key):
+                bits.append(f"{label}: {short(chart_binding.get(key))}")
+        if bits:
+            sections.append("chart/binding contract: " + "; ".join(bits))
+
+    required_quadrants = data.get("required_quadrants")
+    if isinstance(required_quadrants, list) and required_quadrants:
+        lines = []
+        for item in required_quadrants:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"  {item.get('id', '?')} {item.get('name', '')}: period={item.get('period', '?')}; "
+                f"terms=[{term_text(item.get('must_include_terms'))}]; values=[{term_text(item.get('must_include_values'))}]; "
+                f"not_promote=[{term_text(item.get('must_not_promote_values'))}]; "
+                f"anchors=[{term_text(item.get('html_anchors'))}]; metrics=[{term_text(item.get('required_metric_ids'))}]; "
+                f"charts=[{term_text(item.get('chart_ids'))}]"
+            )
+        if lines:
+            sections.append("required quadrants (source-grounded board):\n" + "\n".join(lines))
+
+    correction_contract = data.get("correction_contract")
+    if isinstance(correction_contract, dict) and correction_contract:
+        lines = []
+        for key, item in correction_contract.items():
+            if not isinstance(item, dict):
+                continue
+            bits = []
+            if item.get("metric_id"):
+                bits.append(f"metric={item.get('metric_id')}")
+            if item.get("value") is not None:
+                bits.append(f"value={item.get('value')}")
+            if item.get("forbidden_claim"):
+                bits.append(f"forbidden=[{term_text(item.get('forbidden_claim'))}]")
+            if item.get("evidence"):
+                bits.append(f"evidence=[{term_text(item.get('evidence'))}]")
+            if item.get("correct_metric_id"):
+                bits.append(f"correct_metric={item.get('correct_metric_id')}")
+            if item.get("correct_value") is not None:
+                bits.append(f"correct_value={item.get('correct_value')}")
+            if item.get("stale_metric_id"):
+                bits.append(f"stale_metric={item.get('stale_metric_id')}")
+            if item.get("stale_value") is not None:
+                bits.append(f"stale_value={item.get('stale_value')}")
+            if bits:
+                lines.append(f"  {key}: " + "; ".join(bits))
+        if lines:
+            sections.append("correction contract (replace stale claims, keep background annotations):\n" + "\n".join(lines))
+
+    workbook_expected = data.get("workbook_expected")
+    if isinstance(workbook_expected, dict):
+        bits = []
+        if workbook_expected.get("current_version_display"):
+            bits.append(f"version={workbook_expected.get('current_version_display')}")
+        if workbook_expected.get("material_date"):
+            bits.append(f"material_date={workbook_expected.get('material_date')}")
+        if workbook_expected.get("current_scope_value"):
+            bits.append(f"scope={workbook_expected.get('current_scope_value')}")
+        for key in ("alias_rows", "current_records", "excluded_records", "out_of_scope_rows"):
+            if workbook_expected.get(key):
+                bits.append(f"{key}={workbook_expected.get(key)}")
+        if workbook_expected.get("version_normalization"):
+            bits.append(f"version_normalization={short(workbook_expected.get('version_normalization'))}")
+        if bits:
+            sections.append("workbook contract: " + "; ".join(bits))
+
     xmind_expected = data.get("xmind_expected")
     if isinstance(xmind_expected, dict):
+        if xmind_expected.get("root_title"):
+            sections.append(f"source root: {xmind_expected.get('root_title')}")
         top_level = xmind_expected.get("top_level_topics") or []
         if top_level:
             lines = [
@@ -211,6 +309,22 @@ def _verification_contract_brief(task_root: Path, max_chars: int = 6000) -> str:
             ]
             if lines:
                 sections.append("source outline (must be covered by the generated deck):\n" + "\n".join(lines))
+        lanes = xmind_expected.get("relationship_lanes")
+        if isinstance(lanes, dict) and lanes:
+            sections.append("source relationship lanes: " + ", ".join(str(k) for k in lanes))
+        relationships = xmind_expected.get("relationships") or []
+        if isinstance(relationships, list) and relationships:
+            lines = [
+                f"  {item.get('from', '?')} --[{item.get('label', '')}]--> {item.get('to', '?')}"
+                for item in relationships if isinstance(item, dict)
+            ]
+            if lines:
+                sections.append("source relationships (must be represented as cross-links, not dumped):\n" + "\n".join(lines[:32]))
+        boundaries = xmind_expected.get("distractor_boundaries")
+        if isinstance(boundaries, dict) and boundaries:
+            lines = [f"  {key}: {short(value)}" for key, value in boundaries.items() if value]
+            if lines:
+                sections.append("distractor boundaries (keep in notes/backstage or scope them):\n" + "\n".join(lines))
 
     text = "\n".join(sections)
     if len(text) > max_chars:
@@ -237,8 +351,32 @@ def _verification_contract_terms(task_root: Path) -> dict:
             for key in ("footer_version", "footer_material_date", "expected_slide_count")
             if output_contract.get(key) is not None
         }
-    for key in ("required_slide_expectations", "co_location_expectations", "one_to_many_sync", "distractor_contract",
-                "answer_contract", "template_expected", "xmind_expected"):
+    answer_contract = data.get("answer_contract")
+    if isinstance(answer_contract, dict):
+        terms["answer_contract"] = {
+            key: answer_contract.get(key)
+            for key in ("slide_count", "min_slide_count", "max_slide_count", "required_output", "output_kind")
+            if answer_contract.get(key) is not None
+        }
+    template_expected = data.get("template_expected")
+    if isinstance(template_expected, dict):
+        terms["template_expected"] = {
+            key: template_expected.get(key)
+            for key in ("slide_count", "required_template_features", "placeholder_texts")
+            if template_expected.get(key)
+        }
+    for key in (
+        "required_slide_expectations",
+        "co_location_expectations",
+        "one_to_many_sync",
+        "distractor_contract",
+        "chart_binding_contract",
+        "required_quadrants",
+        "correction_contract",
+        "workbook_expected",
+        "xmind_expected",
+        "safety_contract",
+    ):
         if data.get(key):
             terms[key] = data[key]
     return terms
@@ -350,6 +488,8 @@ def prepare_task_brief(task: str, state, recorder=None, *, max_sources: int = 24
         try:
             source_ir = build_presentation_source_ir(task_root)
             ppt_source_ir = source_ir.summary()
+            if source_ir.hierarchy:
+                ppt_source_ir += "\n" + source_ir.hierarchy_text()
             state.record_fact("ppt_source_ir", ppt_source_ir)
         except Exception:
             ppt_source_ir = ""

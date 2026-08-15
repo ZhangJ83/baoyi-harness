@@ -749,7 +749,7 @@ class PowerPointTests(unittest.TestCase):
             "replace_shape_text", "set_shape_geometry", "delete_shape", "delete_slide",
             "replace_text", "append_bullet", "set_text_style", "set_shape_fill", "add_textbox_to_slide", "add_flowchart",
             "move_slide", "set_speaker_notes", "save_deck",
-            "ppt_edit_text", "ppt_style", "ppt_metadata", "ppt_compose", "ppt_arrange", "ppt_save",
+            "ppt_edit_text", "ppt_style", "ppt_metadata", "ppt_notes", "ppt_compose", "ppt_arrange", "ppt_save",
         }
         self.assertEqual(_PPT_MUTATORS, expected)
 

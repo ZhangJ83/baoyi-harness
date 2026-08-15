@@ -66,7 +66,7 @@ class ExecutionContract:
             and phase == RuntimePhase.VERIFY
             and self.capability not in {"ppt.atomic_edit", "ppt.atomic_style"}
         ):
-            visible.update({"ppt_compose", "ppt_edit_text", "ppt_style", "ppt_arrange"})
+            visible.update({"ppt_compose", "ppt_edit_text", "ppt_style", "ppt_arrange", "ppt_metadata"})
         return visible | {"finish"}
 
 
@@ -98,7 +98,14 @@ def compile_execution_contract(spec: TaskSpec | None, ppt_task: bool, code_spec=
                 StageSpec("verify", "保存并验证", (RuntimePhase.VERIFY,), frozenset(set(PPT_COMMIT) | set(PPT_VERIFY)), frozenset({"ppt_structural"})),
             ),
             finish_certificates=frozenset(spec.verification if spec else ("ppt_structural",)),
-            max_repairs=1 if skill in {"ppt.atomic_edit", "ppt.atomic_style"} else 3,
+            max_repairs=(
+                1 if skill in {"ppt.atomic_edit", "ppt.atomic_style"}
+                else 8 if skill in {
+                    "ppt.template_build", "ppt.source_grounded_build",
+                    "ppt.compose_from_slides", "ppt.diagram_composition",
+                }
+                else 6
+            ),
             **portable_kwargs,
         )
     return ExecutionContract(

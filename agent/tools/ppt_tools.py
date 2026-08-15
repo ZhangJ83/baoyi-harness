@@ -62,8 +62,15 @@ def _open_deck(h, path: str) -> str:
     if not path_within(root, source):
         raise PermissionError("presentation path escapes workspace")
     if not source.exists():
+        active = getattr(h, "deck", None)
+        active_hint = (
+            f" The active deck already has {len(active.slides)} slides; continue editing it directly."
+            if active is not None and len(active.slides)
+            else ""
+        )
         raise FileNotFoundError(
-            f"{path} (no such presentation; if this is a create-from-scratch task, call new_deck instead of ppt_open)"
+            f"{path} (no such presentation; if this is a create-from-scratch task, call new_deck instead of ppt_open)."
+            + active_hint
         )
     # Progress preservation: after the first mutation, replacing the active
     # deck from any file other than the saved contract output can silently
@@ -77,13 +84,22 @@ def _open_deck(h, path: str) -> str:
                 "ppt_open rejected: the run already has mutations and reopening another file would discard them."
                 + hint
             )
-        reopen_count = int(h.state.facts.get("ppt_open_after_mutation", "0"))
-        if reopen_count >= 1:
-            raise RuntimeError(
-                "ppt_open rejected: the persisted deliverable was already reloaded once this run. "
-                "The active deck is current; continue editing it directly instead of reopening files."
-            )
-        h.state.facts["ppt_open_after_mutation"] = str(reopen_count + 1)
+        # Reopening the persisted deliverable must never discard work.  If the
+        # active deck differs from the persisted file, persist it first, then
+        # reload the exact bytes the deliverable now contains.  The recorder
+        # refreshes its working copy, so repeated open/save cycles stay safe.
+        try:
+            live = BytesIO()
+            h.deck.save(live)
+            if live.getvalue() != source.read_bytes():
+                try:
+                    _save(h, str(source.relative_to(root)) if str(source.resolve()).startswith(str(root.resolve())) else str(source))
+                except Exception:
+                    h.deck.save(str(source))
+                    if getattr(h, "state", None) is not None:
+                        h.state.record_commit(str(source))
+        except Exception as exc:
+            raise RuntimeError(f"ppt_open failed while persisting the active deck before reopen: {exc}")
     opened = source
     if getattr(h, "recorder", None):
         opened = h.recorder.working_copy(source)
@@ -113,6 +129,61 @@ def _blank_slide(prs: Presentation):
     # crashing on a deck whose layout table is shorter than the default.
     index = 6 if len(layouts) > 6 else 0
     return prs.slides.add_slide(layouts[index])
+
+
+def _contract_slide_limits(h) -> tuple[int | None, int | None, int | None]:
+    """Declared slide-count envelope from the task-local contract, if any."""
+    terms = getattr(getattr(h, "state", None), "verification_contract_terms", None) or {}
+    answer = terms.get("answer_contract") or {}
+    template = terms.get("template_expected") or {}
+    output = terms.get("output_contract") or {}
+    exact = output.get("expected_slide_count") or answer.get("slide_count") or template.get("slide_count")
+    try:
+        exact = int(exact) if exact is not None else None
+    except (TypeError, ValueError):
+        exact = None
+    try:
+        minimum = int(answer.get("min_slide_count")) if answer.get("min_slide_count") is not None else None
+    except (TypeError, ValueError):
+        minimum = None
+    try:
+        maximum = int(answer.get("max_slide_count")) if answer.get("max_slide_count") is not None else None
+    except (TypeError, ValueError):
+        maximum = None
+    return exact, minimum, maximum
+
+
+def _assert_can_append_slide(h) -> None:
+    """Enforce the declared slide-count contract before creating a new slide."""
+    exact, _minimum, maximum = _contract_slide_limits(h)
+    deck = getattr(h, "deck", None)
+    current = len(deck.slides) if deck is not None else 0
+    limit = None
+    if exact is not None:
+        limit = exact
+    if maximum is not None and (limit is None or maximum < limit):
+        limit = maximum
+    if limit is not None and current + 1 > limit:
+        raise ValueError(
+            f"cannot add slide {current + 1}: the task contract allows at most {limit} slides "
+            f"(current={current}). Reuse/rewrite an existing slide with set_shape_text/set_table "
+            "or remove a surplus slide with ppt_arrange delete_slide before composing a new one."
+        )
+
+
+def _position_new_slide(prs: Presentation, slide, insert_after: int | None) -> int:
+    """Place a just-appended slide after *insert_after* (1-based) and return its position."""
+    slide_list = prs.slides._sldIdLst
+    ids = list(slide_list)
+    if not ids:
+        return 1
+    new = ids[-1]
+    position = len(ids)
+    if insert_after is not None and 1 <= insert_after < len(ids):
+        slide_list.remove(new)
+        slide_list.insert(insert_after, new)
+        position = insert_after + 1
+    return position
 
 
 def _rect(slide, x: float, y: float, w: float, h: float, fill, line=None) -> "Shape":
@@ -158,6 +229,16 @@ def _new_deck(h, title: str, subtitle: str) -> str:
     # template the intake pre-opened. Reusing the open deck here silently
     # turned template-driven tasks into template-editing tasks and polluted the
     # structural check with the template's background shapes.
+    deck = getattr(h, "deck", None)
+    if deck is not None and len(deck.slides) and (
+        getattr(getattr(h, "state", None), "ppt_existing_deck", False)
+        or h.state.facts.get("ppt_input_deck")
+    ):
+        raise ValueError(
+            "new_deck rejected: a bound template/source deck is already open "
+            f"({len(deck.slides)} slides). Transform it with ppt_compose "
+            "(from_outline/content) or ppt_edit_text instead of discarding it."
+        )
     prs = Presentation()
     prs.slide_width = Inches(_W)
     prs.slide_height = Inches(_H)
@@ -187,9 +268,11 @@ def _new_deck(h, title: str, subtitle: str) -> str:
     return "new deck created: 16:9, one cover slide."
 
 
-def _content_slide(h, title: str, bullets: list[str], size: int) -> str:
+def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: int | None = None) -> str:
+    _assert_can_append_slide(h)
     prs = _deck(h)
     s = _blank_slide(prs)
+    position = _position_new_slide(prs, s, insert_after)
     _rect(s, 0, 0, _W, _H, _BG)
     # header band
     _rect(s, 0, 0, _W, 1.1, _HEAD)
@@ -200,12 +283,14 @@ def _content_slide(h, title: str, bullets: list[str], size: int) -> str:
         tb2 = s.shapes.add_textbox(Inches(0.9), Inches(1.7), Inches(11.5), Inches(5.2))
         body = [f"•  {b}" for b in bullets]
         _fit_lines(tb2.text_frame, body, size, False, _TEXT)
-    return f"added slide {len(prs.slides)}: '{title}' ({len(bullets)} bullets)"
+    return f"added slide {position}: '{title}' ({len(bullets)} bullets)"
 
 
-def _two_column(h, title: str, left_title: str, left: list[str], right_title: str, right: list[str]) -> str:
+def _two_column(h, title: str, left_title: str, left: list[str], right_title: str, right: list[str], insert_after: int | None = None) -> str:
+    _assert_can_append_slide(h)
     prs = _deck(h)
     s = _blank_slide(prs)
+    position = _position_new_slide(prs, s, insert_after)
     _rect(s, 0, 0, _W, _H, _BG)
     _rect(s, 0, 0, _W, 1.1, _HEAD)
     _rect(s, 0, 1.1, _W, 0.07, _ACCENT)
@@ -217,7 +302,7 @@ def _two_column(h, title: str, left_title: str, left: list[str], right_title: st
         _put_lines(heading_box.text_frame, heading, 20, True, _PRIMARY)
         body = s.shapes.add_textbox(Inches(x + 0.35), Inches(2.75), Inches(5.05), Inches(3.55))
         _fit_lines(body.text_frame, [f"•  {item}" for item in bullets], 17, False, _TEXT, 1.2)
-    return f"added two-column slide {len(prs.slides)}: '{title}'"
+    return f"added two-column slide {position}: '{title}'"
 
 
 def _quadrant_slide(h, title: str, subtitle: str, quadrants: list[dict], slide_number: int | None = None) -> str:
@@ -230,6 +315,9 @@ def _quadrant_slide(h, title: str, subtitle: str, quadrants: list[dict], slide_n
     if len(quadrants) != 4:
         raise ValueError("quadrant slide requires exactly four quadrants")
     prs = _deck(h)
+    # A missing title must not leave the structural check with an empty
+    # heading box that then blocks the verify-before-continue gate.
+    title = (title or "").strip() or "季度四象限看板"
     if slide_number is None:
         slide = _blank_slide(prs)
         target = len(prs.slides)
@@ -311,15 +399,17 @@ def _metric_slide(h, title: str, metrics: list[dict], takeaway: str = "") -> str
     return f"added metric slide {len(prs.slides)}: '{title}'"
 
 
-def _table_slide(h, title: str, columns: list[str], rows: list[list[str]]) -> str:
+def _table_slide(h, title: str, columns: list[str], rows: list[list[str]], insert_after: int | None = None) -> str:
     if not columns or len(columns) > 6:
         raise ValueError("table requires 1-6 columns")
     if not rows or len(rows) > 10:
         raise ValueError("table requires 1-10 rows")
     if any(len(row) != len(columns) for row in rows):
         raise ValueError("every row must match the column count")
+    _assert_can_append_slide(h)
     prs = _deck(h)
     s = _blank_slide(prs)
+    position = _position_new_slide(prs, s, insert_after)
     _rect(s, 0, 0, _W, _H, _BG)
     _rect(s, 0, 0, _W, 1.1, _HEAD)
     _rect(s, 0, 1.1, _W, 0.07, _ACCENT)
@@ -347,7 +437,7 @@ def _table_slide(h, title: str, columns: list[str], rows: list[list[str]]) -> st
                 paragraph.alignment = PP_ALIGN.LEFT
                 for run in paragraph.runs:
                     _style_run(run, 13, table_row_index == 0, _WHITE if table_row_index == 0 else _TEXT)
-    return f"added table slide {len(prs.slides)}: '{title}' ({len(rows)} rows)"
+    return f"added table slide {position}: '{title}' ({len(rows)} rows)"
 
 
 def _process_slide(h, title: str, steps: list[dict], takeaway: str = "") -> str:
@@ -881,9 +971,10 @@ def _ppt_batch_updates(h, updates: list[dict], default_slide_number: int | None 
 def _ppt_edit_text(h, operation: str, slide_number: int | None = None, shape_id: int | None = None,
                    text_contains: str = "", old: str = "", new: str = "", text: str = "",
                    match_case: bool = True, all_matches: bool = False, updates: list[dict] | None = None,
-                   shape_name: str = "", rows: list[list[str]] | None = None, new_plural: str = "") -> str:
+                   shape_name: str = "", rows: list[list[str]] | None = None, new_plural: str = "",
+                   after: str = "", update: list[dict] | None = None) -> str:
     if operation == "batch_updates":
-        return _ppt_batch_updates(h, updates or [], slide_number)
+        return _ppt_batch_updates(h, updates or update or [], slide_number)
     if operation == "replace_case_variants":
         return _replace_case_variants(h, old, new, new_plural, slide_number)
     if operation == "set_shape_text":
@@ -898,9 +989,17 @@ def _ppt_edit_text(h, operation: str, slide_number: int | None = None, shape_id:
         if not old:
             raise ValueError("replace requires non-empty old text")
         return _replace_text_semantic(h, old, new, slide_number, match_case)
-    if slide_number is None or not text:
-        raise ValueError("append_bullet requires slide_number and non-empty text")
-    return _append_bullet(h, slide_number, text, shape_id, text_contains)
+    if slide_number is None:
+        raise ValueError("append_bullet requires slide_number")
+    # append_bullet contract: `text` is the new bullet, `text_contains` (alias
+    # `after`) is the anchor paragraph.  Several providers emit the symmetric
+    # form old=<anchor>, new=<bullet>; accept it instead of misreading the
+    # anchor as the new bullet text.
+    bullet_text = new or text
+    anchor = text_contains or after or old
+    if not bullet_text:
+        raise ValueError("append_bullet requires non-empty text (new bullet content)")
+    return _append_bullet(h, slide_number, bullet_text, shape_id, anchor)
 
 
 def _ppt_style(h, slide_number: int, target: str, shape_id: int | None = None, text_contains: str = "",
@@ -1049,9 +1148,14 @@ def _compose_from_slides(h, source_slides: list[int], insert_after: int, title: 
                 pass
         shifted_baseline[":".join(parts)] = severity
     h.state.ppt_baseline_findings = shifted_baseline
-    prs.slides[inserted_slide - 1].notes_slide.notes_text_frame.text = (
-        "[Sources]\n" + ", ".join(f"source slide {number}" for number in source_slides)
-    )
+    try:
+        notes_slide = prs.slides[inserted_slide - 1].notes_slide
+        if notes_slide is not None:
+            notes_slide.notes_text_frame.text = (
+                "[Sources]\n" + ", ".join(f"source slide {number}" for number in source_slides)
+            )
+    except Exception:
+        pass
     h.state.record_change(f"deck:slide:{inserted_slide}:from_slides")
     h.state.record_fact("ppt_last_compose_scope",
                         f"inserted slide {inserted_slide}; sources {source_slides}; originals preserved")
@@ -1245,7 +1349,7 @@ def _select_shape_on_slide(h, slide_number: int, shape_id: int | None = None,
     if text_contains:
         matches = [
             shape for shape, _ in _walk_shapes(slide.shapes)
-            if getattr(shape, "has_text_frame", False) and text_contains in shape.text
+            if text_contains in _slide_text_material_for_shape(shape)
         ]
         if len(matches) != 1:
             raise ValueError(f"text_contains {text_contains!r} matched {len(matches)} shapes on slide {slide_number}")
@@ -1439,6 +1543,10 @@ def _compose_from_outline(h, slides: list[dict], replace_template: bool = True) 
 
 
 def _ppt_compose(h, kind: str, **kw) -> str:
+    if kind == "new_deck" and kw.get("slides"):
+        # Disambiguation: new_deck + slides is the model's spelling of a
+        # template replacement batch, not a request to discard the template.
+        return _compose_from_outline(h, kw.get("slides") or [], kw.get("replace_template", True))
     if kind == "new_deck":
         return _new_deck(h, kw.get("title", "Untitled"), kw.get("subtitle", ""))
     if kind == "content" and kw.get("slides"):
@@ -1446,11 +1554,14 @@ def _ppt_compose(h, kind: str, **kw) -> str:
         # template replacement batch. Route to the tolerant template path.
         return _compose_from_outline(h, kw.get("slides") or [], kw.get("replace_template", True))
     if kind == "content":
-        return _content_slide(h, kw.get("title", ""), kw.get("bullets") or [], kw.get("size", 18))
+        return _content_slide(h, kw.get("title", ""), kw.get("bullets") or [], kw.get("size", 18), kw.get("insert_after"))
     if kind == "comparison":
         if not kw.get("left_title") or not kw.get("right_title"):
             raise ValueError("comparison requires left_title and right_title")
-        return _two_column(h, kw.get("title", ""), kw.get("left_title", ""), kw.get("left_bullets") or [], kw.get("right_title", ""), kw.get("right_bullets") or [])
+        return _two_column(
+            h, kw.get("title", ""), kw.get("left_title", ""), kw.get("left_bullets") or [],
+            kw.get("right_title", ""), kw.get("right_bullets") or [], kw.get("insert_after"),
+        )
     if kind == "from_slides":
         if kw.get("insert_after") is None and kw.get("slides"):
             # Disambiguation: models often use from_slides while supplying
@@ -1468,12 +1579,12 @@ def _ppt_compose(h, kind: str, **kw) -> str:
             # Outline shorthand: one semantic content page from a bullet list.
             # Without a template deck this is the same primitive the model
             # would otherwise have to spell out as kind='content'.
-            return _content_slide(h, kw.get("title", ""), kw.get("bullets") or [], kw.get("size", 18))
+            return _content_slide(h, kw.get("title", ""), kw.get("bullets") or [], kw.get("size", 18), kw.get("insert_after"))
         return _compose_from_outline(h, slides, kw.get("replace_template", True))
     if kind == "table":
         if not kw.get("columns") or not kw.get("rows"):
             raise ValueError("table requires non-empty columns and rows")
-        return _table_slide(h, kw.get("title", ""), kw.get("columns") or [], kw.get("rows") or [])
+        return _table_slide(h, kw.get("title", ""), kw.get("columns") or [], kw.get("rows") or [], kw.get("insert_after"))
     if kind == "quadrant":
         quadrants = kw.get("quadrants") or []
         if len(quadrants) != 4:
@@ -1496,6 +1607,8 @@ def _ppt_compose(h, kind: str, **kw) -> str:
             deck = getattr(h, "deck", None)
             if deck is not None and len(deck.slides) >= 1:
                 slide_number = 1
+        if slide_number is None:
+            _assert_can_append_slide(h)
         return _quadrant_slide(h, kw.get("title", ""), kw.get("subtitle", ""), quadrants, slide_number)
     if kind == "flowchart":
         if kw.get("slide_number") is None:
@@ -1720,8 +1833,9 @@ def _ppt_arrange(h, operation: str, slide_number: int, shape_id: int | None = No
 
 
 def _ppt_check(h, policy: str = "auto") -> str:
+    requested_full = policy == "full"
     if (
-        policy == "full"
+        requested_full
         and getattr(h.state, "ppt_existing_deck", False)
         and getattr(h.state, "ppt_baseline_captured", False)
     ):
@@ -1735,9 +1849,21 @@ def _ppt_check(h, policy: str = "auto") -> str:
     reports = {"structural": _verify(h, policy)}
     if policy == "full":
         reports["quality"] = _quality_check(h)
+    contract_passed = True
     if _has_verification_contract(h):
         contract_passed, contract_report = _verify_contract(h)
         reports["contract"] = contract_report
+    # Counterexample-driven verification: an explicit full check runs the
+    # task-local official evaluator whenever one exists (even when the
+    # structural policy was downgraded for an existing deck), so its concrete
+    # per-check failures drive the repair loop instead of surfacing only at
+    # finish.
+    if requested_full and h.state.facts.get("official_evaluator_present") == "true":
+        try:
+            from .lifecycle_tools import _run_task_evaluator
+            reports["evaluator"] = _run_task_evaluator(h, timeout_seconds=120)
+        except Exception as exc:
+            reports["evaluator"] = f"task evaluator unavailable at this point: {exc}"
     # Task evaluators are intentionally run by finish after the required path
     # is saved; render/visual checks are also finish-lifecycle services.
     return json.dumps(reports, ensure_ascii=False, indent=2)
@@ -1813,8 +1939,36 @@ def _set_speaker_notes(h, slide_number: int, text: str) -> str:
         raise ValueError("no deck loaded")
     if slide_number < 1 or slide_number > len(h.deck.slides):
         raise IndexError("slide number out of range")
-    notes = h.deck.slides[slide_number - 1].notes_slide.notes_text_frame
-    notes.text = text
+    slide = h.deck.slides[slide_number - 1]
+    # Some templates carry no notes part at all; create one instead of failing
+    # on the None returned by python-pptx for slides without a notes part.
+    try:
+        if not slide.part.has_notes_slide:
+            slide.part._add_notes_slide_part()
+    except Exception:
+        pass
+    notes = slide.notes_slide
+    if notes is None:
+        raise ValueError(f"slide {slide_number} has no notes part and it could not be created")
+    if notes.notes_text_frame is None:
+        # A newly created notes part has no body placeholder.  Add the
+        # standard notes body shape so the text frame exists for writing.
+        from pptx.oxml.ns import qn
+        from lxml import etree
+        sp = etree.SubElement(notes.shapes._spTree, qn("p:sp"))
+        nv = etree.SubElement(sp, qn("p:nvSpPr"))
+        cnv = etree.SubElement(nv, qn("p:cNvPr"))
+        cnv.set("id", "2"); cnv.set("name", "Notes Placeholder")
+        etree.SubElement(nv, qn("p:cNvSpPr"))
+        nvpr = etree.SubElement(nv, qn("p:nvPr"))
+        ph = etree.SubElement(nvpr, qn("p:ph"))
+        ph.set("type", "body"); ph.set("idx", "1")
+        etree.SubElement(sp, qn("p:spPr"))
+        tx = etree.SubElement(sp, qn("p:txBody"))
+        etree.SubElement(tx, qn("a:bodyPr"))
+        etree.SubElement(tx, qn("a:lstStyle"))
+        etree.SubElement(tx, qn("a:p"))
+    notes.notes_text_frame.text = text
     h.state.record_change(f"deck:slide:{slide_number}:speaker_notes")
     return f"updated speaker notes on slide {slide_number}"
 
@@ -2287,12 +2441,187 @@ def _verify_contract(h) -> tuple[bool, str]:
             # Provenance/binding terms may legally live in shape description
             # metadata rather than visible text. Give the model the exact call.
             all_required = "; ".join(str(term) for term in (item.get("required_terms") or []))
-            co_findings.append(
-                f"  → use ppt_metadata slide {slide_number} shape_name={item.get('object_name')} "
-                f"descr='{all_required}'"
-            )
+            if getattr(matches[0], "has_table", False):
+                co_findings.append(
+                    f"  → table object: use ppt_edit_text operation='set_table' slide {slide_number} "
+                    f"shape_name={item.get('object_name')!r} with a full row set that includes these terms"
+                )
+            else:
+                co_findings.append(
+                    f"  → use ppt_metadata slide {slide_number} shape_name={item.get('object_name')} "
+                    f"descr='{all_required}'"
+                )
         if forbidden_present:
             co_findings.append(f"slide {slide_number}/{item.get('object_name')}: forbidden=[{'; '.join(forbidden_present)}]")
+
+    # Slide-count contract: exact when the package declares one, otherwise the
+    # declared min/max envelope.  This is schema-driven and skipped for
+    # packages that do not declare a count.
+    slide_count = len(h.deck.slides)
+    answer_contract = terms.get("answer_contract") or {}
+    template_expected = terms.get("template_expected") or {}
+    output_contract = terms.get("output_contract") or {}
+    exact_slides = (
+        output_contract.get("expected_slide_count")
+        or answer_contract.get("slide_count")
+        or template_expected.get("slide_count")
+    )
+    min_slides = answer_contract.get("min_slide_count")
+    max_slides = answer_contract.get("max_slide_count")
+    if exact_slides is not None and int(exact_slides) != slide_count:
+        co_findings.append(
+            f"slide count: expected {exact_slides}, got {slide_count}. "
+            + ("Use ppt_arrange delete_slide to remove the surplus slide." if slide_count > int(exact_slides)
+               else "Compose only the missing slide(s).")
+        )
+    if min_slides is not None and slide_count < int(min_slides):
+        co_findings.append(f"slide count: below minimum {min_slides} (got {slide_count}); keep composing content slides until the minimum is met")
+    if max_slides is not None and slide_count > int(max_slides):
+        co_findings.append(
+            f"slide count: above maximum {max_slides} (got {slide_count}); "
+            "use ppt_arrange delete_slide to remove surplus slides, merging their content into the remaining ones"
+        )
+
+    # Template cleanup contract: placeholder/sample copy must be replaced by
+    # real task content, not survive into the final deck.
+    placeholders = template_expected.get("placeholder_texts") or []
+    if placeholders:
+        compact_all = _compact_text("".join(_slide_text_material(slide) for slide in h.deck.slides))
+        remaining = [str(item) for item in placeholders if _compact_text(str(item)) and _compact_text(str(item)) in compact_all]
+        if remaining:
+            co_findings.append(
+                "template placeholders still present: " + "; ".join(remaining[:24])
+                + ". Replace each with real content via ppt_edit_text set_shape_text on the named template boxes."
+            )
+
+    # Source-grounded binding contract: provenance ids may live in visible
+    # text, shape names/descriptions, speaker notes, or document properties.
+    # The pre-gate only reports ids that are absent from the whole artifact;
+    # per-region placement remains the official evaluator's job.
+    if terms.get("chart_binding_contract") or terms.get("required_quadrants") or terms.get("correction_contract"):
+        visible = "".join(_slide_text_material(slide) for slide in h.deck.slides)
+        metadata_bits: list[str] = []
+        for slide in h.deck.slides:
+            if getattr(slide, "has_notes_slide", False):
+                metadata_bits.append(slide.notes_slide.notes_text_frame.text or "")
+            for shape, _ in _walk_shapes(slide.shapes):
+                metadata_bits.append(shape.name or "")
+                try:
+                    descr = shape._element.nvSpPr.cNvPr.get("descr") or ""
+                    if descr:
+                        metadata_bits.append(descr)
+                except Exception:
+                    pass
+        try:
+            props = h.deck.core_properties
+            for value in (props.title, props.subject, props.keywords, props.comments, props.category):
+                if value:
+                    metadata_bits.append(str(value))
+        except Exception:
+            pass
+        binding_material = _compact_text(visible + "".join(metadata_bits))
+        compact_visible = _compact_text(visible)
+
+        chart_binding = terms.get("chart_binding_contract") or {}
+        required_ids: list[tuple[str, str]] = []
+        for key, label in (
+            ("required_anchor_ids", "anchor"),
+            ("required_binding_ids", "binding"),
+            ("required_chart_ids", "chart"),
+            ("required_subanchors", "subanchor"),
+        ):
+            required_ids.extend((str(value), label) for value in (chart_binding.get(key) or []))
+        missing_ids = [f"{label} {value}" for value, label in required_ids if _compact_text(value) not in binding_material]
+        if missing_ids:
+            co_findings.append("missing provenance ids (visible text or ppt_metadata): " + "; ".join(missing_ids))
+            metadata_target = None
+            for slide_number, slide in enumerate(h.deck.slides, 1):
+                for shape, _ in _walk_shapes(slide.shapes):
+                    name = shape.name or ""
+                    if "binding" in name.casefold() or "note" in name.casefold() or "provenance" in name.casefold():
+                        metadata_target = (slide_number, name)
+                        break
+                if metadata_target:
+                    break
+            if metadata_target:
+                values = "; ".join(str(value) for value, _label in required_ids if _compact_text(value) not in binding_material)
+                co_findings.append(
+                    f"  → use ppt_metadata slide {metadata_target[0]} shape_name={metadata_target[1]!r} "
+                    f"descr='{values}'"
+                )
+
+        for item in terms.get("required_quadrants") or []:
+            if not isinstance(item, dict):
+                continue
+            qid = item.get("id", "?")
+            missing_terms = [
+                str(value)
+                for value in list(item.get("must_include_terms") or []) + list(item.get("must_include_values") or [])
+                if _compact_text(value) not in compact_visible
+            ]
+            if missing_terms:
+                co_findings.append(f"quadrant {qid}: missing=[{'; '.join(missing_terms)}]")
+            missing_bindings = [
+                f"{label} {value}"
+                for key, label in (("html_anchors", "anchor"), ("required_metric_ids", "metric"), ("chart_ids", "chart"))
+                for value in (item.get(key) or [])
+                if _compact_text(value) not in binding_material
+            ]
+            if missing_bindings:
+                co_findings.append(f"quadrant {qid}: bindings=[{'; '.join(missing_bindings)}] (visible text or ppt_metadata)")
+                target = None
+                for slide_number, slide in enumerate(h.deck.slides, 1):
+                    for shape, _ in _walk_shapes(slide.shapes):
+                        name = shape.name or ""
+                        if str(qid).casefold() in name.casefold():
+                            target = (slide_number, name)
+                            break
+                    if target:
+                        break
+                if target:
+                    values = "; ".join(
+                        str(value)
+                        for key, _label in (("html_anchors", "anchor"), ("required_metric_ids", "metric"), ("chart_ids", "chart"))
+                        for value in (item.get(key) or [])
+                        if _compact_text(value) not in binding_material
+                    )
+                    co_findings.append(
+                        f"  → use ppt_metadata slide {target[0]} shape_name={target[1]!r} descr='{values}'"
+                    )
+
+        for key, item in (terms.get("correction_contract") or {}).items():
+            if not isinstance(item, dict):
+                continue
+            missing_pair = []
+            for value_key, value_label in (
+                ("metric_id", "metric"),
+                ("correct_metric_id", "metric"),
+                ("correct_value", "value"),
+                ("value", "value"),
+            ):
+                value = item.get(value_key)
+                if value and _compact_text(str(value)) not in binding_material:
+                    missing_pair.append(f"{value_label} {value}")
+            if missing_pair:
+                co_findings.append(f"correction {key}: missing=[{'; '.join(missing_pair)}]")
+            forbidden = item.get("forbidden_claim")
+            if forbidden and _compact_text(str(forbidden)) in compact_visible:
+                co_findings.append(f"correction {key}: forbidden claim present='{forbidden}'")
+
+    # Source coverage for structured packages (xmind-style): each top-level
+    # topic must leave a textual trace in the generated deck.  Relationship
+    # edge coverage is contextual (paraphrase is legal), so it is injected as
+    # context only and scored by the official evaluator.
+    xmind_expected = terms.get("xmind_expected") or {}
+    top_level = xmind_expected.get("top_level_topics") or []
+    if isinstance(top_level, list) and top_level:
+        visible_compact = _compact_text("".join(_slide_text_material(slide) for slide in h.deck.slides))
+        for item in top_level:
+            if not isinstance(item, dict):
+                continue
+            candidates = [str(item.get("title") or "")] + [str(alias) for alias in (item.get("aliases") or [])]
+            if not any(_compact_text(candidate) and _compact_text(candidate) in visible_compact for candidate in candidates):
+                co_findings.append(f"source topic missing: {item.get('title', '?')}")
 
     total_findings = sum(len(value) for value in missing_by_slide.values()) + sum(len(value) for value in forbidden_by_slide.values()) + len(co_findings)
     if total_findings:
@@ -2308,7 +2637,9 @@ def _verify_contract(h) -> tuple[bool, str]:
             lines.append(" | ".join(parts))
         for slide, forbidden in sorted(forbidden_by_slide.items(), key=slide_key):
             lines.append(f"slide {int(slide) if str(slide).isdigit() else slide}: forbidden=[{'; '.join(forbidden)}]")
-        lines.extend(co_findings[:20])
+        lines.extend(co_findings[:40])
+        if len(co_findings) > 40:
+            lines.append(f"... and {len(co_findings) - 40} more contract findings")
         h.state.unresolved_checks.add("ppt_contract")
         h.state.record_evidence("ppt_contract", f"contract gate failed: {total_findings} finding(s)", passed=False)
         return False, "\n".join(lines)
@@ -2499,15 +2830,34 @@ ppt_tools = [
     ),
     _make(
         "ppt_edit_text",
-        "Edit presentation text. operation='replace' does one exact substring replacement (all occurrences in scope). operation='replace_case_variants' replaces singular/plural and lowercase/Capitalized/UPPERCASE forms in one call (old + new + optional new_plural). operation='set_shape_text' rewrites a whole existing text shape: select it by shape_id or unique shape_name or text_contains and provide multi-line `text`. operation='set_table' rewrites a whole existing table atomically: select the table by shape_id or shape_name and provide `rows` as a list of cell-value lists matching the current table dimensions exactly. operation='batch_updates' applies 2+ independent replace/style/set_shape_text/set_table edits in one transaction. For consistency/source-sync work prefer set_shape_text/set_table (single or inside batch_updates) to avoid stale-fragment leftovers.",
+        "Edit presentation text. operation='replace' does one exact substring replacement (all occurrences in scope, including table cells). operation='replace_case_variants' replaces singular/plural and lowercase/Capitalized/UPPERCASE forms in one call (old + new + optional new_plural). operation='append_bullet' appends NEW bullet text `new` (or `text`) immediately after the anchor paragraph selected by `old`/`after`/`text_contains`; never put the anchor into `text`. operation='set_shape_text' rewrites a whole existing text shape: select it by shape_id or unique shape_name or text_contains and provide multi-line `text`. operation='set_table' rewrites a whole existing table atomically: select the table by shape_id or shape_name and provide `rows` as a list of cell-value lists matching the current table dimensions exactly. operation='batch_updates' applies 2+ independent replace/style/set_shape_text/set_table edits in one transaction. For consistency/source-sync work prefer set_shape_text/set_table (single or inside batch_updates) to avoid stale-fragment leftovers.",
         {
             "operation": {"type": "string", "enum": ["replace", "append_bullet", "batch_updates", "set_shape_text", "set_table", "replace_case_variants"]},
             "slide_number": {"type": "integer"}, "shape_id": {"type": "integer"}, "shape_name": {"type": "string"},
             "text_contains": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"}, "new_plural": {"type": "string"},
+            "after": {"type": "string", "description": "append_bullet anchor paragraph text"},
             "text": {"type": "string"}, "match_case": {"type": "boolean"}, "all_matches": {"type": "boolean"},
             "rows": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "string"}}},
             "updates": {
                 "type": "array", "minItems": 1, "maxItems": 100,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "operation": {"type": "string", "enum": ["replace", "style", "set_shape_text", "set_table"]},
+                        "slide_number": {"type": "integer"}, "shape_id": {"type": "integer"}, "shape_name": {"type": "string"},
+                        "text_contains": {"type": "string"}, "old": {"type": "string"},
+                        "new": {"type": "string"}, "text": {"type": "string"}, "match_case": {"type": "boolean"},
+                        "target": {"type": "string", "enum": ["text", "fill"]},
+                        "size": {"type": "integer"}, "color": {"type": "string"},
+                        "bold": {"type": "boolean"}, "all_matches": {"type": "boolean"},
+                        "rows": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "string"}}},
+                    },
+                    "required": ["operation"], "additionalProperties": False,
+                },
+            },
+            "update": {
+                "type": "array", "minItems": 1, "maxItems": 100,
+                "description": "Alias for updates.",
                 "items": {
                     "type": "object",
                     "properties": {
@@ -2534,6 +2884,14 @@ ppt_tools = [
             "shape_name": {"type": "string"}, "descr": {"type": "string"},
         }, ["slide_number", "descr"],
         lambda h, **kw: _set_shape_metadata(h, kw["slide_number"], kw["descr"], kw.get("shape_id"), kw.get("shape_name", "")),
+    ),
+    _make(
+        "ppt_notes",
+        "Set the speaker-notes/backstage text for one slide. Use it for host-only boundaries, preparation notes, and deterministic coverage terms that must stay out of the public visible body.",
+        {
+            "slide_number": {"type": "integer"}, "text": {"type": "string"},
+        }, ["slide_number", "text"],
+        lambda h, **kw: _set_speaker_notes(h, kw["slide_number"], kw["text"]),
     ),
     _make(
         "ppt_style",

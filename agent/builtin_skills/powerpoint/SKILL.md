@@ -2,7 +2,7 @@
 name: powerpoint
 description: Create, modify, restyle, render, and verify PPT or PowerPoint slide decks and presentations.
 when_to_use: Use for PPT, PPTX, PowerPoint, slide deck, presentation, layout repair, or rendering tasks.
-allowed_tools: ppt_open, ppt_inspect, ppt_edit_text, ppt_style, ppt_compose, ppt_save, ppt_check, ppt_arrange, finish
+allowed_tools: ppt_open, ppt_inspect, ppt_edit_text, ppt_style, ppt_compose, ppt_save, ppt_check, ppt_arrange, ppt_metadata, ppt_notes, finish
 ---
 
 # PowerPoint workflow

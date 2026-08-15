@@ -69,7 +69,7 @@ TASK_PROFILES: tuple[TaskProfile, ...] = (
 # the model-facing tool surface.  The facade stays deliberately small while
 # the lifecycle owns rendering, provenance capture, and final delivery.
 PPT_OBSERVE = frozenset({"ppt_open", "ppt_inspect"})
-PPT_EDIT = frozenset({"ppt_edit_text", "ppt_style", "ppt_metadata"})
+PPT_EDIT = frozenset({"ppt_edit_text", "ppt_style", "ppt_metadata", "ppt_notes"})
 PPT_COMPOSE = frozenset({"ppt_compose"})
 PPT_ARRANGE = frozenset({"ppt_arrange"})
 PPT_COMMIT = frozenset({"ppt_save"})
