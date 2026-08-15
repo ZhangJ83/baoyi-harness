@@ -1,0 +1,32 @@
+{
+  "version": "matched-eval-v1",
+  "protocol": {
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "max_total_tokens": 12000,
+    "max_output_tokens": 1500,
+    "max_steps": 3,
+    "max_tool_calls": 60,
+    "api_retries": 0,
+    "network_policy": "identical-provider-endpoint",
+    "container_policy": "same-task-container-image",
+    "scoring_policy": "suite-native-grader-plus-persisted-transcript"
+  },
+  "suites": {
+    "terminal_bench": {"task_ids": ["tb-001"], "metric": "task_success"},
+    "swe_bench_verified": {"task_ids": ["swe-001"], "metric": "official_test_pass"},
+    "pptbench": {"task_ids": ["ppt-create-001"], "metric": "deterministic_structural_score"}
+  },
+  "systems": ["xiaopu", "claude_code", "codex", "opencode"],
+  "provider_mapping": {
+    "xiaopu": "openai-compatible:https://api.deepseek.com",
+    "claude_code": "anthropic-compatible:https://api.deepseek.com/anthropic",
+    "codex": "openai-compatible:https://api.deepseek.com",
+    "opencode": "deepseek-native:https://api.deepseek.com"
+  },
+  "claims": {
+    "official_score": false,
+    "superiority": false,
+    "reason": "pilot manifest; requires matched execution, independent scoring, and enforceable competitor budget parity"
+  }
+}

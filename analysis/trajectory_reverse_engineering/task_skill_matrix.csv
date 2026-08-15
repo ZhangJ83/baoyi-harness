@@ -1,0 +1,79 @@
+﻿agent,task_id,difficulty,capability,skill,step_count,has_render,has_check,has_repair,has_output
+claude-code,3-002,easy,precise text editing,ppt.diagram_composition,12,True,True,True,False
+claude-code,3-003,easy,text structure editing,ppt.diagram_composition,10,True,True,True,False
+claude-code,3-006,medium,shape/color editing,ppt.diagram_composition,10,True,True,True,False
+claude-code,4._Pre-Colonial_Filipino_Culture-001,easy,font formatting,ppt.layout_reflow,7,True,True,False,False
+claude-code,4._Pre-Colonial_Filipino_Culture-005,hard,cross-slide synthesis and composite generation,ppt.compose_from_slides,8,True,True,False,False
+claude-code,Accounting Equation-004,medium,global cross-slide text replacement,ppt.compose_from_slides,8,True,True,False,False
+claude-code,Accounting Equation-045,hard,diagram generation,ppt.diagram_composition,8,True,True,False,False
+claude-code,Aircraft_surface-004,hard,content editing plus overlap repair,ppt.layout_reflow,9,True,True,False,False
+claude-code,board-material-update-timeline-excel,medium,PPTX update from XLSX source; consistency editing,ppt.compose_from_slides,13,True,True,True,False
+claude-code,HSC Careers and Expo FINAL COM MOD-008,medium,element creation and spatial positioning,ppt.layout_reflow,7,True,True,False,False
+claude-code,HSC Careers and Expo FINAL COM MOD-038,hard,layout reflow,ppt.layout_reflow,7,True,True,False,False
+claude-code,html-report-quadrant-ppt,medium,source-grounded one-slide synthesis; four-quadrant layout; provenance,ppt.compose_from_slides,10,True,True,True,True
+claude-code,xmind-screenshot-template-ppt,medium,structured deck generation from mindmap; template following,ppt.template_build,11,True,True,True,False
+Codex,3-002,,,ppt.layout_reflow,7,False,False,False,False
+Codex,3-003,,,ppt.layout_reflow,1,False,False,False,False
+Codex,3-006,,,ppt.layout_reflow,7,False,False,False,False
+Codex,4._Pre-Colonial_Filipino_Culture-001,,,ppt.diagram_composition,9,False,False,False,False
+Codex,4._Pre-Colonial_Filipino_Culture-005,,,ppt.compose_from_slides,9,False,False,False,False
+Codex,Accounting Equation-004,,,ppt.compose_from_slides,8,False,False,False,False
+Codex,Accounting Equation-045,,,ppt.layout_reflow,6,False,False,False,False
+Codex,Aircraft_surface-004,,,ppt.layout_reflow,7,False,False,False,False
+Codex,board-material-update-timeline-excel,,,ppt.source_grounded_build,47,False,False,False,False
+Codex,HSC Careers and Expo FINAL COM MOD-008,,,ppt.layout_reflow,6,False,False,False,False
+Codex,HSC Careers and Expo FINAL COM MOD-038,,,ppt.layout_reflow,6,False,False,False,False
+Codex,html-report-quadrant-ppt,,,ppt.compose_from_slides,20,False,False,False,False
+Codex,xmind-screenshot-template-ppt,,,ppt.source_grounded_build,38,False,False,False,False
+opencode,3-002,,,ppt.layout_reflow,16,False,False,False,False
+opencode,3-003,,,ppt.atomic_edit,8,False,False,False,False
+opencode,3-006,,,ppt.element_creation,9,False,False,False,False
+opencode,4._Pre-Colonial_Filipino_Culture-001,,,ppt.atomic_style,8,False,False,False,False
+opencode,4._Pre-Colonial_Filipino_Culture-005,,,ppt.compose_from_slides,11,False,False,False,False
+opencode,Accounting Equation-004,,,ppt.compose_from_slides,9,False,False,False,False
+opencode,Accounting Equation-045,,,ppt.diagram_composition,8,False,False,False,False
+opencode,Aircraft_surface-004,,,ppt.layout_reflow,9,False,False,False,False
+opencode,board-material-update-timeline-excel,,,ppt.template_build,15,False,False,False,False
+opencode,HSC Careers and Expo FINAL COM MOD-008,,,ppt.atomic_edit,0,False,False,False,False
+opencode,HSC Careers and Expo FINAL COM MOD-038,,,ppt.atomic_edit,0,False,False,False,False
+opencode,html-report-quadrant-ppt,,,ppt.atomic_edit,0,False,False,False,False
+opencode,xmind-screenshot-template-ppt,,,ppt.atomic_edit,0,False,False,False,False
+WorkBuddy,3-002,easy,precise text editing,ppt.layout_reflow,18,False,False,True,False
+WorkBuddy,3-003,easy,text structure editing,ppt.template_build,11,False,False,False,False
+WorkBuddy,3-006,medium,shape/color editing,ppt.element_creation,12,False,False,False,False
+workbuddy-deepseek,4._Pre-Colonial_Filipino_Culture-001,,,ppt.element_creation,12,False,False,False,False
+WorkBuddy,4._Pre-Colonial_Filipino_Culture-005,hard,cross-slide synthesis and composite generation,ppt.compose_from_slides,16,False,False,False,False
+WorkBuddy,Accounting Equation-004,medium,global cross-slide text replacement,ppt.compose_from_slides,13,False,False,False,False
+WorkBuddy,Accounting Equation-045,hard,diagram generation,ppt.layout_reflow,19,False,False,True,False
+WorkBuddy,Aircraft_surface-004,hard,content editing plus overlap repair,ppt.layout_reflow,13,False,False,False,False
+WorkBuddy,board-material-update-timeline-excel,medium,PPTX update from XLSX source; consistency editing,ppt.template_build,15,False,False,True,False
+WorkBuddy,HSC Careers and Expo FINAL COM MOD-008,medium,element creation and spatial positioning,ppt.layout_reflow,11,False,False,False,False
+WorkBuddy,HSC Careers and Expo FINAL COM MOD-038,hard,layout reflow,ppt.layout_reflow,13,False,False,True,False
+WorkBuddy,html-report-quadrant-ppt,medium,source-grounded one-slide synthesis; four-quadrant layout; provenance,ppt.compose_from_slides,17,False,False,True,False
+WorkBuddy,xmind-screenshot-template-ppt,medium,structured deck generation from mindmap; template following,ppt.source_grounded_build,21,False,True,True,False
+WorkBuddy,3-002,,,ppt.diagram_composition,13,True,True,False,True
+WorkBuddy,3-003,,,ppt.diagram_composition,13,True,True,False,True
+WorkBuddy,3-006,,,ppt.diagram_composition,13,True,True,False,True
+WorkBuddy,4._Pre-Colonial_Filipino_Culture-001,,,ppt.layout_reflow,13,True,True,False,True
+WorkBuddy,4._Pre-Colonial_Filipino_Culture-005,,,ppt.compose_from_slides,14,True,True,False,True
+WorkBuddy,Accounting Equation-004,,,ppt.compose_from_slides,14,True,True,False,True
+WorkBuddy,Accounting Equation-045,,,ppt.layout_reflow,13,True,True,False,True
+WorkBuddy,Aircraft_surface-004,,,ppt.layout_reflow,14,True,True,False,True
+WorkBuddy,board-material-update-timeline-excel,,,ppt.template_build,16,True,True,False,True
+workbuddy-HY3,HSC Careers and Expo FINAL COM MOD-008,,,ppt.atomic_edit,0,False,False,False,False
+workbuddy-HY3,HSC Careers and Expo FINAL COM MOD-038,,,ppt.atomic_edit,0,False,False,False,False
+workbuddy-HY3,html-report-quadrant-ppt,,,ppt.atomic_edit,0,False,False,False,False
+workbuddy-HY3,xmind-screenshot-template-ppt,,,ppt.atomic_edit,0,False,False,False,False
+WorkBuddy,3-002,,,ppt.diagram_composition,6,False,False,False,False
+WorkBuddy,3-003,,,ppt.diagram_composition,6,False,False,False,False
+WorkBuddy,3-006,,,ppt.diagram_composition,6,False,False,False,False
+WorkBuddy,4._Pre-Colonial_Filipino_Culture-001,,,ppt.atomic_style,6,False,False,False,False
+WorkBuddy,4._Pre-Colonial_Filipino_Culture-005,,,ppt.compose_from_slides,10,False,False,False,False
+WorkBuddy,Accounting Equation-004,,,ppt.compose_from_slides,7,False,False,False,False
+WorkBuddy,Accounting Equation-045,,,ppt.template_build,10,False,False,False,False
+WorkBuddy,Aircraft_surface-004,,,ppt.layout_reflow,7,False,False,False,False
+WorkBuddy,board-material-update-timeline-excel,,,ppt.atomic_edit,4,False,False,False,False
+WorkBuddy,HSC Careers and Expo FINAL COM MOD-008,,,ppt.element_creation,6,False,False,False,False
+WorkBuddy,HSC Careers and Expo FINAL COM MOD-038,,,ppt.layout_reflow,8,False,False,False,False
+WorkBuddy,html-report-quadrant-ppt,,,ppt.compose_from_slides,4,False,False,False,False
+WorkBuddy,xmind-screenshot-template-ppt,,,ppt.template_build,4,False,False,False,False

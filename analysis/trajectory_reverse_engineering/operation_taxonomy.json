@@ -1,0 +1,1191 @@
+{
+  "CHECK": {
+    "count": 12,
+    "task_count": 10,
+    "common_next": [
+      [
+        "TOOL",
+        2
+      ],
+      [
+        "RECORD",
+        1
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "WorkBuddy",
+        "task": "xmind-screenshot-template-ppt",
+        "sequence": [
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "REPAIR",
+          "TOOL",
+          "TOOL",
+          "CHECK",
+          "TOOL",
+          "CHECK",
+          "TOOL",
+          "TOOL",
+          "REPAIR",
+          "TOOL",
+          "TOOL"
+        ]
+      },
+      {
+        "agent": "WorkBuddy",
+        "task": "xmind-screenshot-template-ppt",
+        "sequence": [
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "TOOL",
+          "REPAIR",
+          "TOOL",
+          "TOOL",
+          "CHECK",
+          "TOOL",
+          "CHECK",
+          "TOOL",
+          "TOOL",
+          "REPAIR",
+          "TOOL",
+          "TOOL"
+        ]
+      },
+      {
+        "agent": "WorkBuddy",
+        "task": "3-002",
+        "sequence": [
+          "TOOL",
+          "READ",
+          "READ",
+          "READ",
+          "READ",
+          "TOOL",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY",
+          "VERIFY",
+          "CHECK"
+        ]
+      },
+      {
+        "agent": "WorkBuddy",
+        "task": "3-003",
+        "sequence": [
+          "TOOL",
+          "READ",
+          "READ",
+          "READ",
+          "READ",
+          "TOOL",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY",
+          "VERIFY",
+          "CHECK"
+        ]
+      }
+    ]
+  },
+  "EDIT": {
+    "count": 20,
+    "task_count": 11,
+    "common_next": [
+      [
+        "VERIFY",
+        10
+      ],
+      [
+        "SAVE",
+        9
+      ],
+      [
+        "TOOL",
+        1
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-001",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-005",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "INSPECT": {
+    "count": 23,
+    "task_count": 11,
+    "common_next": [
+      [
+        "EDIT",
+        17
+      ],
+      [
+        "INSPECT",
+        3
+      ],
+      [
+        "RENDER",
+        2
+      ],
+      [
+        "TOOL",
+        1
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-001",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "OUTPUT": {
+    "count": 1,
+    "task_count": 1,
+    "common_next": [
+      [
+        "VERIFY",
+        1
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "html-report-quadrant-ppt",
+        "sequence": [
+          "READ",
+          "TOOL",
+          "REPAIR",
+          "READ",
+          "READ",
+          "OUTPUT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "READ": {
+    "count": 55,
+    "task_count": 13,
+    "common_next": [
+      [
+        "READ",
+        30
+      ],
+      [
+        "TOOL",
+        13
+      ],
+      [
+        "INSPECT",
+        10
+      ],
+      [
+        "RENDER",
+        1
+      ],
+      [
+        "OUTPUT",
+        1
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "RECORD": {
+    "count": 13,
+    "task_count": 13,
+    "common_next": [
+      [
+        "STOP",
+        13
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-001",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-005",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "RENDER": {
+    "count": 27,
+    "task_count": 13,
+    "common_next": [
+      [
+        "RECORD",
+        12
+      ],
+      [
+        "VERIFY",
+        9
+      ],
+      [
+        "EDIT",
+        2
+      ],
+      [
+        "INSPECT",
+        1
+      ],
+      [
+        "CHECK",
+        1
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-001",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "REPAIR": {
+    "count": 18,
+    "task_count": 8,
+    "common_next": [
+      [
+        "TOOL",
+        11
+      ],
+      [
+        "READ",
+        3
+      ],
+      [
+        "RENDER",
+        2
+      ],
+      [
+        "EDIT",
+        1
+      ],
+      [
+        "VERIFY",
+        1
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "board-material-update-timeline-excel",
+        "sequence": [
+          "READ",
+          "TOOL",
+          "REPAIR",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "TOOL",
+          "REPAIR",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "board-material-update-timeline-excel",
+        "sequence": [
+          "READ",
+          "TOOL",
+          "REPAIR",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "TOOL",
+          "REPAIR",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "SAVE": {
+    "count": 9,
+    "task_count": 9,
+    "common_next": [
+      [
+        "RENDER",
+        9
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "WorkBuddy",
+        "task": "3-002",
+        "sequence": [
+          "TOOL",
+          "READ",
+          "READ",
+          "READ",
+          "READ",
+          "TOOL",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY",
+          "VERIFY",
+          "CHECK"
+        ]
+      },
+      {
+        "agent": "WorkBuddy",
+        "task": "3-003",
+        "sequence": [
+          "TOOL",
+          "READ",
+          "READ",
+          "READ",
+          "READ",
+          "TOOL",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY",
+          "VERIFY",
+          "CHECK"
+        ]
+      },
+      {
+        "agent": "WorkBuddy",
+        "task": "3-006",
+        "sequence": [
+          "TOOL",
+          "READ",
+          "READ",
+          "READ",
+          "READ",
+          "TOOL",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY",
+          "VERIFY",
+          "CHECK"
+        ]
+      },
+      {
+        "agent": "WorkBuddy",
+        "task": "4._Pre-Colonial_Filipino_Culture-001",
+        "sequence": [
+          "TOOL",
+          "READ",
+          "READ",
+          "READ",
+          "READ",
+          "TOOL",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY",
+          "VERIFY",
+          "CHECK"
+        ]
+      },
+      {
+        "agent": "WorkBuddy",
+        "task": "4._Pre-Colonial_Filipino_Culture-005",
+        "sequence": [
+          "TOOL",
+          "READ",
+          "READ",
+          "READ",
+          "READ",
+          "TOOL",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY",
+          "VERIFY",
+          "VERIFY",
+          "CHECK"
+        ]
+      }
+    ]
+  },
+  "STOP": {
+    "count": 13,
+    "task_count": 13,
+    "common_next": [],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-001",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-005",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "TOOL": {
+    "count": 553,
+    "task_count": 13,
+    "common_next": [
+      [
+        "TOOL",
+        467
+      ],
+      [
+        "REPAIR",
+        17
+      ],
+      [
+        "READ",
+        9
+      ],
+      [
+        "INSPECT",
+        9
+      ],
+      [
+        "CHECK",
+        2
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "board-material-update-timeline-excel",
+        "sequence": [
+          "READ",
+          "TOOL",
+          "REPAIR",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "TOOL",
+          "REPAIR",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "board-material-update-timeline-excel",
+        "sequence": [
+          "READ",
+          "TOOL",
+          "REPAIR",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "TOOL",
+          "REPAIR",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "html-report-quadrant-ppt",
+        "sequence": [
+          "READ",
+          "TOOL",
+          "REPAIR",
+          "READ",
+          "READ",
+          "OUTPUT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  },
+  "VERIFY": {
+    "count": 38,
+    "task_count": 13,
+    "common_next": [
+      [
+        "VERIFY",
+        16
+      ],
+      [
+        "RENDER",
+        12
+      ],
+      [
+        "CHECK",
+        9
+      ],
+      [
+        "REPAIR",
+        1
+      ]
+    ],
+    "examples": [
+      {
+        "agent": "claude-code",
+        "task": "3-002",
+        "sequence": [
+          "READ",
+          "READ",
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "TOOL",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-003",
+        "sequence": [
+          "READ",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "TOOL",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "3-006",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-001",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      },
+      {
+        "agent": "claude-code",
+        "task": "4._Pre-Colonial_Filipino_Culture-005",
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ]
+      }
+    ]
+  }
+}

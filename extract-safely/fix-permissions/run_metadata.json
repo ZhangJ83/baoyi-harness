@@ -1,0 +1,30 @@
+{
+    "run_id": "fix-permissions",
+    "uuid": "390af285-dc32-43da-a256-11ff0858b447",
+    "dataset_path": "E:\\project\\agent\\xiaopu\\..\\official_refs\\terminal-bench\\original-tasks",
+    "dataset_name": null,
+    "dataset_version": null,
+    "output_path": "E:\\project\\agent\\xiaopu\\extract-safely",
+    "agent_name": "xiaopu",
+    "no_rebuild": true,
+    "cleanup": false,
+    "log_level": 20,
+    "task_ids": [
+        "hello-world"
+    ],
+    "exclude_task_ids": null,
+    "n_tasks": null,
+    "n_concurrent_trials": 1,
+    "n_attempts": 1,
+    "dataset_size": 1,
+    "accuracy": 1.0,
+    "model_name": "openai/deepseek-chat",
+    "start_time": "2026-08-09T19:52:47.464949+00:00",
+    "end_time": "2026-08-09T19:53:10.288137+00:00",
+    "commit_hash": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+    "username": "ZhangJ83",
+    "s3_bucket": null,
+    "agent_kwargs": null,
+    "pass_at_k": {},
+    "resumed_at": null
+}

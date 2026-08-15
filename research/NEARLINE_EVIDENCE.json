@@ -1,0 +1,32 @@
+{
+  "source": "SWE-bench/SWE-bench_Verified",
+  "kind": "nearline_reproduction",
+  "formal_score_eligible": false,
+  "environment": {
+    "python": "3.10",
+    "astropy": "5.0.4",
+    "numpy": "1.26.4"
+  },
+  "tasks": [
+    {
+      "instance_id": "astropy__astropy-13033",
+      "status": "reproduced",
+      "observation": "misleading required-column error reproduced"
+    },
+    {
+      "instance_id": "astropy__astropy-13236",
+      "status": "reproduced",
+      "observation": "structured ndarray produced ordinary Column fields"
+    },
+    {
+      "instance_id": "astropy__astropy-13398",
+      "status": "environment_incompatible",
+      "observation": "transform failed before task assertion with NumPy compatibility error"
+    },
+    {
+      "instance_id": "astropy__astropy-13453",
+      "status": "reproduced",
+      "observation": "HTML formats argument was ignored"
+    }
+  ]
+}

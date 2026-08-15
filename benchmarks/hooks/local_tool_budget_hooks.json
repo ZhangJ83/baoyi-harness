@@ -1,0 +1,18 @@
+{
+  "description": "Shared Xiaopu matched-evaluation tool budget. Install into the isolated comparator container only.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "PYTHONPATH=/installed-agent python3 -m agent.tool_budget_hook",
+            "timeout": 10,
+            "statusMessage": "Checking matched-evaluation tool budget"
+          }
+        ]
+      }
+    ]
+  }
+}

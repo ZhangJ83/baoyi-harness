@@ -1,0 +1,1849 @@
+{
+  "3-002": {
+    "skill": "ppt.atomic_edit",
+    "capability": "precise text editing",
+    "instruction": "Change the lecture number from “Lecture 3” to “Lecture 1” in the presentation title. Preserve all unrelated content and formatting.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "RENDER",
+        "INSPECT",
+        "REPAIR",
+        "EDIT",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 12,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\3-002\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 12,
+        "sequence": [
+          "READ",
+          "RENDER",
+          "INSPECT",
+          "REPAIR",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 7,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "EDIT",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 16,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "EDIT",
+          "REPAIR",
+          "SAVE",
+          "EDIT",
+          "RENDER",
+          "CHECK",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 18,
+        "sequence": [
+          "READ",
+          "EDIT",
+          "SAVE",
+          "EDIT",
+          "OUTPUT",
+          "EXTRACT",
+          "RENDER",
+          "READ",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Repair",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 13,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 6,
+        "sequence": [
+          "START",
+          "READ",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "3-003": {
+    "skill": "ppt.atomic_edit",
+    "capability": "text structure editing",
+    "instruction": "On slide 2, add a new bullet point after “Dual Mode” that says “File System”. Preserve all unrelated content and formatting.",
+    "runs": 6,
+    "best_path": {
+      "agent": "opencode",
+      "sequence": [
+        "READ",
+        "PLAN",
+        "SAVE",
+        "EDIT",
+        "RENDER",
+        "STOP"
+      ],
+      "event_count": 8,
+      "tools": [
+        "bash",
+        "write"
+      ],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\opencode\\tasks\\3-003\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 10,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "REPAIR",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 1,
+        "sequence": [
+          "REPAIR"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 8,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "SAVE",
+          "EDIT",
+          "RENDER",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 11,
+        "sequence": [
+          "READ",
+          "EXTRACT",
+          "RENDER",
+          "READ",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 13,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 6,
+        "sequence": [
+          "START",
+          "READ",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "3-006": {
+    "skill": "ppt.atomic_style",
+    "capability": "shape/color editing",
+    "instruction": "On slide 3, change the vCPU1 color from magenta to green. Preserve all unrelated content and formatting.",
+    "runs": 6,
+    "best_path": {
+      "agent": "opencode",
+      "sequence": [
+        "READ",
+        "PLAN",
+        "EDIT",
+        "SAVE",
+        "EDIT",
+        "RENDER",
+        "STOP"
+      ],
+      "event_count": 9,
+      "tools": [
+        "bash",
+        "write"
+      ],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\opencode\\tasks\\3-006\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 10,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "REPAIR",
+          "RENDER",
+          "CHECK",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 7,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 9,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "EDIT",
+          "SAVE",
+          "EDIT",
+          "RENDER",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 12,
+        "sequence": [
+          "READ",
+          "EXTRACT",
+          "RENDER",
+          "READ",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 13,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 6,
+        "sequence": [
+          "START",
+          "READ",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "4._Pre-Colonial_Filipino_Culture-001": {
+    "skill": "ppt.atomic_style",
+    "capability": "font formatting",
+    "instruction": "Change the presentation title font size to 48pt. Preserve all unrelated content and formatting.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "INSPECT",
+        "EDIT",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 7,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\4._Pre-Colonial_Filipino_Culture-001\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 7,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 9,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "RENDER",
+          "VERIFY",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 8,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "SAVE",
+          "EDIT",
+          "RENDER",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 12,
+        "sequence": [
+          "READ",
+          "EXTRACT",
+          "RENDER",
+          "READ"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 13,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 6,
+        "sequence": [
+          "START",
+          "READ",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "4._Pre-Colonial_Filipino_Culture-005": {
+    "skill": "ppt.compose_from_slides",
+    "capability": "cross-slide synthesis and composite generation",
+    "instruction": "Combine the content, images and table from slides 2 and 3 into a new slide inserted after slide 3. Include male and female clothing categories, preserve the original slides, and do not delete them.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "INSPECT",
+        "EDIT",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 8,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\4._Pre-Colonial_Filipino_Culture-005\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 8,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 9,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "RENDER",
+          "VERIFY",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 11,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "SAVE",
+          "CHECK",
+          "REPAIR",
+          "RENDER",
+          "STOP"
+        ],
+        "failed_events": 1,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 16,
+        "sequence": [
+          "READ",
+          "RENDER",
+          "SAVE",
+          "EXTRACT",
+          "RENDER",
+          "READ",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 14,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 10,
+        "sequence": [
+          "START",
+          "READ",
+          "EXTRACT",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "Accounting Equation-004": {
+    "skill": "ppt.atomic_edit",
+    "capability": "global cross-slide text replacement",
+    "instruction": "Replace the word “Liability” with “Debt” throughout the slides. Do not alter unrelated text.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "INSPECT",
+        "EDIT",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 8,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\Accounting Equation-004\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 8,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 8,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "EDIT",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 9,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "EDIT",
+          "REPAIR",
+          "INSPECT",
+          "RENDER",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 13,
+        "sequence": [
+          "READ",
+          "SAVE",
+          "EXTRACT",
+          "RENDER",
+          "READ",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 14,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 7,
+        "sequence": [
+          "START",
+          "READ",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "Accounting Equation-045": {
+    "skill": "ppt.diagram_composition",
+    "capability": "diagram generation",
+    "instruction": "On slide 3, create a flowchart showing the logic Left Hand Side -> Right Hand Side -> Balance, using rounded rectangles and line arrows.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "INSPECT",
+        "RENDER",
+        "EDIT",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 8,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\Accounting Equation-045\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 8,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "RENDER",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 6,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 8,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "COMPOSE",
+          "INSPECT",
+          "RENDER",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 19,
+        "sequence": [
+          "READ",
+          "SAVE",
+          "RENDER",
+          "READ",
+          "REPAIR",
+          "SAVE",
+          "READ",
+          "REPAIR",
+          "RENDER",
+          "READ",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Repair",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 13,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 10,
+        "sequence": [
+          "START",
+          "READ",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "Aircraft_surface-004": {
+    "skill": "ppt.content_and_layout",
+    "capability": "content editing plus overlap repair",
+    "instruction": "On slide 2, add a new bullet point at the end of the list that says “All three axes intersect at the aircraft's center of gravity”. Resize the image to avoid overlap. Preserve the rest of the presentation.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "INSPECT",
+        "RENDER",
+        "EDIT",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 9,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\Aircraft_surface-004\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 9,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "RENDER",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 7,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "EDIT",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 9,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "EDIT",
+          "CHECK",
+          "REPAIR",
+          "RENDER",
+          "STOP"
+        ],
+        "failed_events": 1,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 13,
+        "sequence": [
+          "READ",
+          "CHECK",
+          "EDIT",
+          "SAVE",
+          "EXTRACT",
+          "RENDER",
+          "READ",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 14,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 7,
+        "sequence": [
+          "START",
+          "READ",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "HSC Careers and Expo FINAL COM MOD-008": {
+    "skill": "ppt.element_creation",
+    "capability": "element creation and spatial positioning",
+    "instruction": "On slide 2, create a text box with the phrase “Important Note” and position it in the bottom-right corner of the slide. Preserve all unrelated content and formatting.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "INSPECT",
+        "EDIT",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 7,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\HSC Careers and Expo FINAL COM MOD-008\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 7,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 6,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 0,
+        "sequence": [],
+        "failed_events": 0,
+        "has_plan": false,
+        "has_render": false,
+        "has_verify": false,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-deepseek": {
+        "event_count": 11,
+        "sequence": [
+          "READ",
+          "COMPOSE",
+          "SAVE",
+          "EXTRACT",
+          "RENDER",
+          "READ",
+          "CHECK"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 0,
+        "sequence": [],
+        "failed_events": 0,
+        "has_plan": false,
+        "has_render": false,
+        "has_verify": false,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 6,
+        "sequence": [
+          "START",
+          "READ",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "HSC Careers and Expo FINAL COM MOD-038": {
+    "skill": "ppt.layout_reflow",
+    "capability": "layout reflow",
+    "instruction": "Convert the entire checklist on slide 8 into a two-column layout to save space. Preserve all checklist content.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "INSPECT",
+        "EDIT",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 7,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\HSC Careers and Expo FINAL COM MOD-038\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 7,
+        "sequence": [
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 6,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 0,
+        "sequence": [],
+        "failed_events": 0,
+        "has_plan": false,
+        "has_render": false,
+        "has_verify": false,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-deepseek": {
+        "event_count": 13,
+        "sequence": [
+          "READ",
+          "CHECK",
+          "EDIT",
+          "VERIFY",
+          "CHECK",
+          "RENDER",
+          "READ",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Repair",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 0,
+        "sequence": [],
+        "failed_events": 0,
+        "has_plan": false,
+        "has_render": false,
+        "has_verify": false,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 8,
+        "sequence": [
+          "START",
+          "READ",
+          "EXTRACT",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": [
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "board-material-update-timeline-excel": {
+    "skill": "ppt.source_sync",
+    "capability": "pptx update from xlsx source; consistency editing",
+    "instruction": "直接更新这份治理会 PPT，不要重做成说明文档。\n\n材料：\n\n- `input/quarterly_governance_board_deck.pptx`\n- `input/program_milestone_update_register.xlsx`\n\n请帮我做三件事：\n\n1. 以现有 PPTX 为基础稿，统一本次治理会材料里的里程碑、状态、日期、版本和决策项口径；XLSX 只作为更新来源，不要修改。\n2. 把适用于本次治理会的更新同步进修订版 PPT，保持总览、时间线、工作流、决策风险、资源沟通和页脚版本/资料日期一致。\n3. 更新登记簿里可见的前置关系和风险窗口要写对：抽样复核包冻结先于采购口径审定，采购仍为待治理会确认，风险降级证据需在 7月12日前提交并在 8月第一周复盘。\n\n输出到：\n\n`output/quarterly_governance_board_deck_revised.pptx`\n\n注意：\n\n- 保留原演示稿的页面顺序、标题/章节结构、页脚、卡片、表格、时间线节点和模板页用途。\n- 不要把更新登记簿原表整页复制进 PPT。\n- 区分当前材料、历史归档、后续版本草稿、仅监控观察项和模板占位内容；不要用相似名称做全局替换。\n- 不要修改、覆盖、删除或重命名原始 PPTX、XLSX 或环境说明文件。\n- 只需要可打开的 PPTX，不要输出说明文档、Markdown、PDF、图片或额外交付物。\n- 不需要联网，不要使用外部模板、私有服务、账号后台、外部素材库、OCR、VLM、图片理解或像素级视觉比对。\n\n完成后只简洁说明输出文件路径和是否生成成功。",
+    "runs": 6,
+    "best_path": {
+      "agent": "opencode",
+      "sequence": [
+        "READ",
+        "PLAN",
+        "EDIT",
+        "CHECK",
+        "REPAIR",
+        "CHECK",
+        "READ",
+        "REPAIR",
+        "CHECK",
+        "RENDER",
+        "STOP"
+      ],
+      "event_count": 15,
+      "tools": [
+        "bash",
+        "write"
+      ],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\opencode\\tasks\\board-material-update-timeline-excel\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 13,
+        "sequence": [
+          "READ",
+          "REPAIR",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "VERIFY",
+          "RENDER",
+          "REPAIR",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 1,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 47,
+        "sequence": [
+          "READ",
+          "SAVE",
+          "PLAN",
+          "EDIT",
+          "RENDER",
+          "SAVE"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 15,
+        "sequence": [
+          "READ",
+          "PLAN",
+          "EDIT",
+          "CHECK",
+          "REPAIR",
+          "CHECK",
+          "READ",
+          "REPAIR",
+          "CHECK",
+          "RENDER",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": [
+          "bash",
+          "write"
+        ]
+      },
+      "workbuddy-deepseek": {
+        "event_count": 15,
+        "sequence": [
+          "READ",
+          "EDIT",
+          "INSPECT",
+          "SAVE",
+          "CHECK",
+          "REPAIR",
+          "RENDER"
+        ],
+        "failed_events": 2,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Repair",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 16,
+        "sequence": [
+          "START",
+          "READ",
+          "INSPECT",
+          "EDIT",
+          "SAVE",
+          "RENDER",
+          "VERIFY"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 4,
+        "sequence": [
+          "START",
+          "READ",
+          "SAVE",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "filesystem",
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "html-report-quadrant-ppt": {
+    "skill": "ppt.source_grounded_build",
+    "capability": "source-grounded one-slide synthesis; four-quadrant layout; provenance",
+    "instruction": "Complete the supplied WorkBuddy task using all required input files. Generate the requested Q2 actuals four-quadrant board PPT and follow the detailed task requirements in this task package.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "REPAIR",
+        "READ",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 10,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\html-report-quadrant-ppt\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 10,
+        "sequence": [
+          "READ",
+          "REPAIR",
+          "READ",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 20,
+        "sequence": [
+          "READ",
+          "SAVE",
+          "PLAN",
+          "RENDER",
+          "SAVE"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 0,
+        "sequence": [],
+        "failed_events": 0,
+        "has_plan": false,
+        "has_render": false,
+        "has_verify": false,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-deepseek": {
+        "event_count": 17,
+        "sequence": [
+          "READ",
+          "REPAIR",
+          "EDIT",
+          "SAVE",
+          "CHECK",
+          "REPAIR",
+          "RENDER"
+        ],
+        "failed_events": 2,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Repair",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 0,
+        "sequence": [],
+        "failed_events": 0,
+        "has_plan": false,
+        "has_render": false,
+        "has_verify": false,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 4,
+        "sequence": [
+          "START",
+          "READ",
+          "SAVE",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "filesystem",
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  },
+  "xmind-screenshot-template-ppt": {
+    "skill": "ppt.template_build",
+    "capability": "structured deck generation from mindmap; template following",
+    "instruction": "Complete the supplied WorkBuddy task using the XMind, reference image and PPTX template in this task package. Generate the requested Chinese community sustainability workshop deck and follow the detailed task requirements in this task package.",
+    "runs": 6,
+    "best_path": {
+      "agent": "claude-code",
+      "sequence": [
+        "READ",
+        "REPAIR",
+        "READ",
+        "RENDER",
+        "VERIFY",
+        "RENDER",
+        "RECORD",
+        "STOP"
+      ],
+      "event_count": 11,
+      "tools": [],
+      "trajectory_dir": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\claude-code\\tasks\\xmind-screenshot-template-ppt\\trajectory"
+    },
+    "agents": {
+      "claude-code": {
+        "event_count": 11,
+        "sequence": [
+          "READ",
+          "REPAIR",
+          "READ",
+          "RENDER",
+          "VERIFY",
+          "RENDER",
+          "RECORD",
+          "STOP"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": true,
+        "tools": []
+      },
+      "codex": {
+        "event_count": 38,
+        "sequence": [
+          "READ",
+          "SAVE",
+          "READ",
+          "PLAN",
+          "EDIT",
+          "RENDER",
+          "SAVE"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "opencode": {
+        "event_count": 0,
+        "sequence": [],
+        "failed_events": 0,
+        "has_plan": false,
+        "has_render": false,
+        "has_verify": false,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-deepseek": {
+        "event_count": 21,
+        "sequence": [
+          "READ",
+          "COMPOSE",
+          "EDIT",
+          "REPAIR",
+          "SAVE",
+          "CHECK",
+          "RENDER"
+        ],
+        "failed_events": 2,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "Bash",
+          "PowerShell",
+          "Read",
+          "Repair",
+          "Write"
+        ]
+      },
+      "workbuddy-HY3": {
+        "event_count": 0,
+        "sequence": [],
+        "failed_events": 0,
+        "has_plan": false,
+        "has_render": false,
+        "has_verify": false,
+        "has_repair": false,
+        "has_stop": false,
+        "tools": []
+      },
+      "workbuddy-ppt-agent-mode": {
+        "event_count": 4,
+        "sequence": [
+          "START",
+          "READ",
+          "SAVE",
+          "RENDER"
+        ],
+        "failed_events": 0,
+        "has_plan": true,
+        "has_render": true,
+        "has_verify": true,
+        "has_repair": true,
+        "has_stop": false,
+        "tools": [
+          "filesystem",
+          "pptx_render",
+          "python-pptx",
+          "task"
+        ]
+      }
+    }
+  }
+}

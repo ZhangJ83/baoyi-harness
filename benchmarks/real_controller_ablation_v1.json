@@ -1,0 +1,166 @@
+{
+  "schema": "real-controller-ablation-protocol-v1",
+  "status": "prospective_not_run",
+  "registered_at": "2026-08-11T05:59:00+08:00",
+  "amended_at": "2026-08-14T11:25:00+08:00",
+  "amendment_boundary": "before any live controller cell was run, the production harness was upgraded so the preregistered CEGAR-H meta-action selector executes online (semantic no-progress control, phase-aware tools, stable artifacts, bounded context, preflight ContentIR, automatic provenance binding, plan injection, finish auto-save, COM render retry). Runtime hashes were refreshed prospectively; paired tasks, policies, caps, outcomes, and statistics are unchanged.",
+  "research_question": "At a fixed model and budget, does CEGAR-H improve real PPT artifact success or reduce verification cost at matched success?",
+  "null_hypothesis": "CEGAR-H has no paired success or verification-cost advantage over direct, always-verify, or evidence-only.",
+  "task_source": {
+    "path": "benchmarks/pptbench_model_eval_v2.json",
+    "sha256": "d6a1952b44e4c832867ed6a8aae902da10e70d2f8e6ca7a94bdc4faedf902400"
+  },
+  "paired_task_set": true,
+  "n_tasks": 12,
+  "n_cells": 48,
+  "tasks": [
+    {
+      "id": "create-launch-decision",
+      "kind": "create"
+    },
+    {
+      "id": "create-quarterly-review",
+      "kind": "create"
+    },
+    {
+      "id": "create-system-architecture",
+      "kind": "create"
+    },
+    {
+      "id": "create-bilingual-program",
+      "kind": "typography"
+    },
+    {
+      "id": "create-scientific-result",
+      "kind": "create"
+    },
+    {
+      "id": "create-training-workshop",
+      "kind": "create"
+    },
+    {
+      "id": "edit-harness-story",
+      "kind": "modify"
+    },
+    {
+      "id": "edit-coffee-comparison",
+      "kind": "modify"
+    },
+    {
+      "id": "repair-executive-summary",
+      "kind": "repair"
+    },
+    {
+      "id": "repair-dense-benchmark",
+      "kind": "repair"
+    },
+    {
+      "id": "repair-bilingual-overview",
+      "kind": "typography"
+    },
+    {
+      "id": "edit-title-to-decision",
+      "kind": "modify"
+    }
+  ],
+  "policies": {
+    "direct": "fixed 25-step generation baseline; no mutation after terminal verification begins",
+    "always_verify": "fixed 25-step generation cap; require fresh structural, render, and pixel evidence between material mutations",
+    "evidence_only": "fixed 25-step generation cap; allow direct and evidence meta-actions but prohibit compute and joint meta-actions",
+    "cegar_h": "adaptive generation compute up to 50 steps; allow direct, evidence, compute, and joint meta-actions; invalidate certificates after mutation"
+  },
+  "generation_step_caps": {
+    "direct": 25,
+    "always_verify": 25,
+    "evidence_only": 25,
+    "cegar_h": 50
+  },
+  "policy_implementation_required": true,
+  "policy_runtime": {
+    "path": "agent/controller_policies.py",
+    "sha256": "02a007ee907e2e38b134f113e3f41af305eb62d2aaa26683f48a2b90c0ad7eff",
+    "harness_path": "agent/harness.py",
+    "harness_sha256": "69a345c1a18a422201f25485bfa0a145a0a95cb917d6cb10058d7ecba774bb94",
+    "harness_argument": "controller_policy"
+  },
+  "model": {
+    "provider": "deepseek",
+    "name": "deepseek-v4-flash",
+    "temperature": 0.0,
+    "attempts": 1
+  },
+  "budget": {
+    "max_generated_output_tokens": 4500,
+    "max_covered_local_tool_calls": 60,
+    "max_agent_wall_seconds": 300
+  },
+  "order_control": {
+    "schedule": "four_by_four_latin_square_over_task_index",
+    "orders": [
+      [
+        "direct",
+        "always_verify",
+        "evidence_only",
+        "cegar_h"
+      ],
+      [
+        "always_verify",
+        "evidence_only",
+        "cegar_h",
+        "direct"
+      ],
+      [
+        "evidence_only",
+        "cegar_h",
+        "direct",
+        "always_verify"
+      ],
+      [
+        "cegar_h",
+        "direct",
+        "always_verify",
+        "evidence_only"
+      ]
+    ]
+  },
+  "predefined_outcomes": {
+    "artifact_success": "PPTX opens; required text and slide bounds pass; PDF and every slide PNG exist; no unintended overlap, overflow, unresolved placeholder, or stale post-mutation evidence",
+    "verification_count": "number of covered structural, render, and pixel verification invocations",
+    "generated_output_tokens": "authoritative gateway completion-token total",
+    "covered_local_tool_calls": "authoritative hook ledger count",
+    "wall_seconds": "monotonic launcher elapsed time",
+    "failure_mode": [
+      "generation",
+      "structure",
+      "render",
+      "pixel",
+      "stale_evidence",
+      "budget",
+      "infrastructure"
+    ]
+  },
+  "statistics": {
+    "unit": "task",
+    "primary_contrast": "cegar_h_minus_direct_artifact_success",
+    "secondary_contrasts": [
+      "cegar_h_minus_always_verify_artifact_success",
+      "cegar_h_minus_evidence_only_artifact_success"
+    ],
+    "success_test": "two-sided exact McNemar",
+    "uncertainty": "paired bootstrap 95% confidence interval over tasks",
+    "cost_test": "paired permutation test conditional on equal artifact success",
+    "multiple_comparison": "Holm over three success contrasts",
+    "missing_cell_rule": "exclude the entire task from paired inference and report the infrastructure-invalid cell; never impute"
+  },
+  "required_artifacts_per_cell": [
+    "pptx",
+    "pdf",
+    "slide_pngs",
+    "structural_report",
+    "pixel_audit",
+    "trace",
+    "usage_ledger",
+    "timing"
+  ],
+  "claim_boundary": "Protocol readiness is not causal evidence; all 48 cells and preregistered paired statistics are required."
+}

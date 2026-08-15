@@ -1,0 +1,44 @@
+[
+  {
+    "task": "3-003",
+    "prompt": "?? tasks\\3-003",
+    "run": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\xiaopuharness\\.xiaopu\\runs\\20260813T215628Z-1a70a85a",
+    "output": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\xiaopuharness\\tasks\\3-003\\output\\final.pptx",
+    "slides": 45,
+    "semantic_assertion": true,
+    "tool_started_count": 7,
+    "tools": [
+      "ppt_inspect",
+      "ppt_inspect",
+      "ppt_inspect",
+      "ppt_edit_text",
+      "ppt_save",
+      "ppt_check",
+      "finish"
+    ],
+    "source_sha256": "09e8416ae3498f7aa83cfc968fe7015ce62d8b5ab1e068644d5fbf57369dc6a8",
+    "output_sha256": "36bca928e94cb00e7a75ad3623115462216a7aee8d052389b567fc51ea1f478e"
+  },
+  {
+    "task": "3-002",
+    "prompt": "?? tasks\\3-002",
+    "run": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\xiaopuharness\\.xiaopu\\runs\\20260813T215504Z-4fc14449",
+    "output": "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\agent_workspaces\\full13\\xiaopuharness\\tasks\\3-002\\output\\final.pptx",
+    "slides": 45,
+    "semantic_assertion": true,
+    "tool_started_count": 9,
+    "tools": [
+      "ppt_inspect",
+      "ppt_inspect",
+      "ppt_inspect",
+      "ppt_inspect",
+      "ppt_inspect",
+      "ppt_edit_text",
+      "ppt_save",
+      "ppt_check",
+      "finish"
+    ],
+    "source_sha256": "09e8416ae3498f7aa83cfc968fe7015ce62d8b5ab1e068644d5fbf57369dc6a8",
+    "output_sha256": "dd6b71aba1a2a550e2516a3bef0e5a706944b2d5984d5420470345c0123af733"
+  }
+]

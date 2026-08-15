@@ -1,0 +1,13 @@
+{
+  "baseline_id": "official_swe_flash_pilot",
+  "baseline_kind": "reproduced_official_pilot",
+  "path": "xiaopu-deepseek-v4-flash.xiaopu_astropy_12907_flash_20260810.json",
+  "task": "SWE-bench Verified agent patch evaluation",
+  "dataset": "SWE-bench/SWE-bench_Verified test",
+  "primary_metric": "resolved_instance_rate",
+  "metrics_summary": {"resolved_instance_rate": 1.0, "resolved": 1, "total": 1},
+  "environment": {"docker": "Docker Desktop 29.5.3", "model": "deepseek-v4-flash"},
+  "source": {"runner": "benchmarks/run_official_swe_local.py", "scorer": "official SWE-bench evaluator"},
+  "summary": "One-instance score-eligible pilot; not a full SWE-bench Verified score.",
+  "verification": "score_eligible_one_instance_pilot"
+}

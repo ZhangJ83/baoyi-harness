@@ -1,0 +1,4 @@
+[
+  "echo 'Hello, world!' > /app/hello.txt",
+  "cat /app/hello.txt"
+]

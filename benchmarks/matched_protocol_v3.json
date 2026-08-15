@@ -1,0 +1,58 @@
+{
+  "schema": "matched-terminal-protocol-v3-preregistered",
+  "status": "prospective_not_run",
+  "registered_at": "2026-08-11T04:33:00+08:00",
+  "prior_protocol": "benchmarks/official_matched_protocol.json",
+  "anti_harking_boundary": "No v2 pilot outcome is eligible for v3 confirmatory statistics.",
+  "benchmark": {
+    "name": "terminal-bench",
+    "commit": "d28711d",
+    "task_manifest": "research/matched_terminal_slice_v1.json",
+    "n_tasks": 18,
+    "attempts": 1,
+    "concurrency": 1,
+    "temperature": 0.0,
+    "scorer": "official pinned scorer"
+  },
+  "systems": ["xiaopu", "claude_code", "codex"],
+  "shared_model": "deepseek-v4-flash",
+  "hard_envelope": {
+    "max_cumulative_output_tokens": 4500,
+    "max_covered_local_tool_calls": 60,
+    "max_agent_wall_seconds": 180,
+    "tool_hook": "agent/tool_budget_hook.py",
+    "hook_config": "benchmarks/hooks/local_tool_budget_hooks.json",
+    "gateway": "agent/generation_budget_proxy.py",
+    "covered_tool_surface": "local PreToolUse events only; hosted/specialized tools disabled",
+    "overshoot_policy": "invalidate the entire affected system run; never drop only unfavorable tasks"
+  },
+  "audit_outcomes": [
+    "input_tokens",
+    "output_tokens",
+    "covered_tool_calls_allowed",
+    "covered_tool_calls_denied",
+    "wall_seconds",
+    "estimated_cost",
+    "latency",
+    "system-specific step events when observable"
+  ],
+  "statistics": {
+    "primary_unit": "task",
+    "primary_metric": "resolved_task_rate",
+    "paired_bootstrap_confidence": 0.95,
+    "exact_test": "two-sided McNemar",
+    "alpha": 0.05,
+    "minimum_n": 18,
+    "superiority_rule": "both comparator deltas have paired lower 95% CI > 0 and exact p < 0.05"
+  },
+  "readiness_gates": {
+    "tool_hook_unit_tests": true,
+    "tool_hook_live_smoke": false,
+    "gateway_accounting_core_unit_tests": true,
+    "gateway_unit_tests": true,
+    "gateway_live_smoke": false,
+    "provider_credential_current_process": false,
+    "ready_for_confirmatory_run": false
+  },
+  "claim_boundary": "Protocol readiness only; contains no performance evidence."
+}

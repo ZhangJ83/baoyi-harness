@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xiaopu"
+version = "0.2.0"
+description = "Provider-neutral coding and PowerPoint agent harness."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "zhangjianning" }
+]
+
+dependencies = [
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "python-pptx>=1.0.0",
+    "rich>=13.0.0",
+    "prompt_toolkit>=3.0.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.scripts]
+xiaopu = "agent.main:main"
+agent-gui = "agent.gui:main"
+xiaopu-bench = "agent.benchmark:main"
+xiaopu-doctor = "agent.doctor:main"
+xiaopu-validate-run = "benchmarks.validate_run_bundle:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agent*", "benchmarks*"]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.package-data]
+agent = ["builtin_skills/*/SKILL.md"]
+

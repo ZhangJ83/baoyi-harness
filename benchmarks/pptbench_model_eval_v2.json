@@ -1,0 +1,421 @@
+{
+  "schema": "pptbench-model-eval-protocol-v2",
+  "status": "prospective_not_run",
+  "registered_at": "2026-08-11T05:35:00+08:00",
+  "amended_at": "2026-08-13T00:00:00+08:00",
+  "amendment_boundary": "before any model deck generation or reviewer score existed, the Xiaopu runtime was upgraded to the CEGAR-H native artifact architecture, preflight ContentIR intake, and automatic provenance binding; the locally installed Claude Code version is 2.1.228. Runtime hashes were refreshed prospectively; tasks, budgets, outcomes, and statistics are unchanged.",
+  "anti_harking_boundary": "The five deterministic v1 fixtures and controlled four-slide demo are excluded from model-evaluation statistics.",
+  "systems": [
+    "xiaopu",
+    "claude_code",
+    "codex"
+  ],
+  "model": "deepseek-v4-flash",
+  "n_tasks": 12,
+  "expected_decks": 36,
+  "attempts": 1,
+  "temperature": 0.0,
+  "budget": {
+    "max_generated_output_tokens": 4500,
+    "max_covered_local_tool_calls": 60,
+    "max_agent_wall_seconds": 300
+  },
+  "execution": {
+    "runner": {
+      "path": "benchmarks/run_pptbench_model_eval_v2.py",
+      "sha256": "f2ff0f60b4e7ed4e74b9a3877d447ca442de71eeb876fb7f41917ca7613a17fb"
+    },
+    "result_validator": {
+      "path": "benchmarks/validate_model_generated_ppt_eval.py",
+      "sha256": "0e6693786250a36cb54074506652c8301f315479cfa15fcf8160985e601b352c"
+    },
+    "xiaopu_ppt_tools": {
+      "path": "agent/tools/ppt_tools.py",
+      "sha256": "3e7099fec8eb23442d8629e262823398b866af553691b2dcd5af9b53d6a26daa"
+    },
+    "cli_versions": {
+      "xiaopu": "repository-runtime",
+      "claude_code": "2.1.228 (Claude Code)",
+      "codex": "codex-cli 0.146.1"
+    },
+    "resumable_fail_closed": true,
+    "independent_artifact_recompute": true
+  },
+  "presentation_contract": {
+    "minimum_font_points": {
+      "deck_title": 50,
+      "slide_title": 35,
+      "subheading": 24,
+      "body": 16
+    },
+    "one_primary_claim_per_slide": true,
+    "planning_notes_forbidden_in_visible_copy": true,
+    "sources_block_required_in_speaker_notes": true,
+    "source_label_for_inline_packets": "[Sources] Internal evaluation task packet",
+    "unintended_overlap_forbidden": true,
+    "one_line_titles_must_not_wrap": true
+  },
+  "rendering": {
+    "same_renderer_for_all_systems": true,
+    "required_outputs_per_deck": [
+      "pptx",
+      "pdf",
+      "slide_pngs",
+      "montage",
+      "structural_report",
+      "pixel_audit"
+    ],
+    "reject_if": [
+      "cannot_open",
+      "missing_slide_png",
+      "unintended_overlap",
+      "overflow",
+      "unresolved_placeholder",
+      "stale_post_mutation_evidence"
+    ]
+  },
+  "blind_review": {
+    "required": true,
+    "n_reviewers": 2,
+    "scale": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "dimensions": [
+      "content_fidelity",
+      "narrative_hierarchy",
+      "layout",
+      "typography",
+      "visual_consistency",
+      "density",
+      "edit_fidelity"
+    ],
+    "primary_score": "mean of dimension scores per deck, then paired task mean",
+    "agreement": [
+      "quadratic_weighted_kappa_per_dimension",
+      "ICC_2_1_overall"
+    ],
+    "reviewers_receive_system_identity": false,
+    "anonymous_public_bundles_required": true,
+    "visible_system_identity_fails_packaging": true,
+    "reviewer_attestations": [
+      "independent_from_generation",
+      "reviewer_non_author",
+      "conflicts_declared"
+    ],
+    "adjudication_scores_excluded_from_primary_analysis": true
+  },
+  "statistics": {
+    "unit": "task",
+    "paired_bootstrap_confidence": 0.95,
+    "exact_test": "two-sided paired permutation test",
+    "multiple_comparison": "Holm across two Xiaopu comparator contrasts",
+    "claim_boundary": "Completeness of this 12-task evaluation does not by itself establish broad aesthetic superiority."
+  },
+  "tasks": [
+    {
+      "id": "create-launch-decision",
+      "kind": "create",
+      "audience": "product leadership",
+      "deck_job": "choose a launch path",
+      "prompt": "Create a 5-slide decision deck for product leadership. Recommend a phased launch using only the supplied facts. Use a restrained navy/coral editorial style, one claim per slide, and finish with the decision and owners.",
+      "facts": [
+        "Pilot activation: 62%",
+        "Pilot week-4 retention: 41%",
+        "Support tickets: 18 per 1,000 users",
+        "Option A cost: $120k",
+        "Option B cost: $70k",
+        "Decision: phased launch",
+        "Owner: Product Operations"
+      ],
+      "min_slides": 5,
+      "max_slides": 5,
+      "required_text": [
+        "62%",
+        "41%",
+        "$120k",
+        "$70k",
+        "phased launch",
+        "Product Operations"
+      ],
+      "input": null
+    },
+    {
+      "id": "create-quarterly-review",
+      "kind": "create",
+      "audience": "finance committee",
+      "deck_job": "explain variance and approve corrective action",
+      "prompt": "Create a 4-slide quarterly review. Show the variance clearly, explain the driver, and request one corrective action. Use a sober finance style; charts must use the supplied numbers without invention.",
+      "facts": [
+        "Plan revenue: $8.4M",
+        "Actual revenue: $7.9M",
+        "Plan gross margin: 58%",
+        "Actual gross margin: 54%",
+        "Primary driver: expedited freight",
+        "Requested action: approve supplier consolidation"
+      ],
+      "min_slides": 4,
+      "max_slides": 4,
+      "required_text": [
+        "$8.4M",
+        "$7.9M",
+        "58%",
+        "54%",
+        "expedited freight",
+        "supplier consolidation"
+      ],
+      "input": null
+    },
+    {
+      "id": "create-system-architecture",
+      "kind": "create",
+      "audience": "engineering review board",
+      "deck_job": "approve a reliability architecture",
+      "prompt": "Create a 5-slide technical review deck. Explain the failure path, proposed architecture, verification loop, trade-offs, and approval request. Use native shapes only for the simple flow and keep connectors behind nodes.",
+      "facts": [
+        "Current stale-evidence rate: 7.2%",
+        "Target stale-evidence rate: below 1%",
+        "Components: mutation ledger, structural verifier, renderer, pixel audit",
+        "Trade-off: median latency +18 seconds",
+        "Approval request: two-week canary"
+      ],
+      "min_slides": 5,
+      "max_slides": 5,
+      "required_text": [
+        "7.2%",
+        "below 1%",
+        "mutation ledger",
+        "pixel audit",
+        "+18 seconds",
+        "two-week canary"
+      ],
+      "input": null
+    },
+    {
+      "id": "create-bilingual-program",
+      "kind": "typography",
+      "audience": "English-Chinese program steering group",
+      "deck_job": "align the group on status and next decision",
+      "prompt": "Create a 4-slide bilingual English-Chinese program update. Every slide must present matched English and Chinese audience-facing copy with consistent hierarchy. Use a clean teal/ink style and close with the next decision.",
+      "facts": [
+        "On track / 进展正常",
+        "Completed: 8 of 10 milestones / 已完成：10个里程碑中的8个",
+        "Risk: reviewer availability / 风险：评审人员时间",
+        "Next decision: approve pilot / 下一决策：批准试点"
+      ],
+      "min_slides": 4,
+      "max_slides": 4,
+      "required_text": [
+        "On track",
+        "进展正常",
+        "8 of 10",
+        "10个里程碑中的8个",
+        "approve pilot",
+        "批准试点"
+      ],
+      "input": null
+    },
+    {
+      "id": "create-scientific-result",
+      "kind": "create",
+      "audience": "research lab meeting",
+      "deck_job": "interpret a bounded experiment",
+      "prompt": "Create a 4-slide lab-meeting deck that separates observation, interpretation, limitation, and next experiment. Do not imply significance beyond the supplied interval. Use a quiet scientific style.",
+      "facts": [
+        "Treatment mean: 0.71",
+        "Control mean: 0.65",
+        "Paired delta: 0.06",
+        "95% CI: [-0.01, 0.13]",
+        "Sample size: 18 paired tasks",
+        "Limitation: interval crosses zero",
+        "Next experiment: increase paired sample"
+      ],
+      "min_slides": 4,
+      "max_slides": 4,
+      "required_text": [
+        "0.71",
+        "0.65",
+        "0.06",
+        "[-0.01, 0.13]",
+        "18 paired tasks",
+        "crosses zero"
+      ],
+      "input": null
+    },
+    {
+      "id": "create-training-workshop",
+      "kind": "create",
+      "audience": "new operations analysts",
+      "deck_job": "enable correct incident triage",
+      "prompt": "Create a 5-slide training deck: context, three-step workflow, worked example, common mistakes, and checklist. Use a warm instructional style with low density and no invented policy.",
+      "facts": [
+        "Step 1: classify impact",
+        "Step 2: preserve evidence",
+        "Step 3: escalate by severity",
+        "Example severity: S2",
+        "Do not paste credentials into tickets",
+        "Escalation owner: Incident Commander"
+      ],
+      "min_slides": 5,
+      "max_slides": 5,
+      "required_text": [
+        "classify impact",
+        "preserve evidence",
+        "escalate by severity",
+        "S2",
+        "Do not paste credentials",
+        "Incident Commander"
+      ],
+      "input": null
+    },
+    {
+      "id": "edit-harness-story",
+      "kind": "modify",
+      "audience": "technical interview panel",
+      "deck_job": "explain the harness design in five minutes",
+      "prompt": "Edit the supplied harness deck in place. Preserve its topic and core workflow, strengthen the title hierarchy, reduce repeated copy, and make the final slide an explicit evidence-boundary conclusion. Do not add unsupported benchmark claims.",
+      "facts": [
+        "Preserve: Evidence-Aware PPT Harness",
+        "Preserve: inspect, plan, mutate, render, verify",
+        "Conclusion must distinguish controlled demo from model evaluation"
+      ],
+      "min_slides": 4,
+      "max_slides": 5,
+      "required_text": [
+        "Evidence-Aware PPT Harness",
+        "Inspect",
+        "Render",
+        "controlled"
+      ],
+      "input": {
+        "path": "workspace/results/ppt_harness_demo/ppt-harness-demo.pptx",
+        "sha256": "f932794aa768d3779849107896e2617def4a8f7b9fb41b146ebf7416acb8dfd0"
+      }
+    },
+    {
+      "id": "edit-coffee-comparison",
+      "kind": "modify",
+      "audience": "home coffee workshop",
+      "deck_job": "help beginners choose a brewing method",
+      "prompt": "Transform the supplied rough coffee deck into a polished 3-slide workshop deck: minimal cover, fair espresso-versus-pour-over comparison, and a decision checklist. Preserve both brewing methods and do not invent performance data.",
+      "facts": [
+        "Methods: espresso and pour-over",
+        "Decision factors: equipment, time, flavor preference"
+      ],
+      "min_slides": 3,
+      "max_slides": 3,
+      "required_text": [
+        "coffee",
+        "espresso",
+        "pour-over",
+        "equipment",
+        "time"
+      ],
+      "input": {
+        "path": "workspace/results/one_hour_ppt_fixtures/ppt-create-001.pptx",
+        "sha256": "36503b025297ca94a9164a617e86b3901b521ad380a883e9ec06b18bb0f4ed1e"
+      }
+    },
+    {
+      "id": "repair-executive-summary",
+      "kind": "repair",
+      "audience": "executive sponsor",
+      "deck_job": "scan three priorities in under a minute",
+      "prompt": "Repair the supplied one-slide rough summary. Produce one balanced executive-summary slide with three clearly aligned priorities, consistent typography, no overflow, and an audience-facing takeaway title.",
+      "facts": [
+        "Priorities: reliability, adoption, cost",
+        "Takeaway: reliability gates the next launch"
+      ],
+      "min_slides": 1,
+      "max_slides": 1,
+      "required_text": [
+        "reliability",
+        "adoption",
+        "cost",
+        "launch"
+      ],
+      "input": {
+        "path": "workspace/results/one_hour_ppt_fixtures/ppt-layout-001.pptx",
+        "sha256": "ecae10d893ed7b3e5c3047481af5452cc8c51e12b6b920bb02f4024a64ba1827"
+      }
+    },
+    {
+      "id": "repair-dense-benchmark",
+      "kind": "repair",
+      "audience": "benchmark steering committee",
+      "deck_job": "understand result and limitation",
+      "prompt": "Repair the supplied dense two-slide deck. Use the supplied facts to produce exactly two readable slides: result and limitation/next step. Remove production instructions from visible copy.",
+      "facts": [
+        "Resolved: 3 of 3 pilot tasks",
+        "Coverage: 3 of 241 tasks",
+        "Paired interval includes zero",
+        "Next step: frozen 18-task run"
+      ],
+      "min_slides": 2,
+      "max_slides": 2,
+      "required_text": [
+        "3 of 3",
+        "3 of 241",
+        "includes zero",
+        "18-task"
+      ],
+      "input": {
+        "path": "workspace/results/one_hour_ppt_fixtures/ppt-dense-001.pptx",
+        "sha256": "3c5eb3c1a0ecd070ceba7f2437c0c36e23fbd6e667de6a5fbb94870b37ee7b7b"
+      }
+    },
+    {
+      "id": "repair-bilingual-overview",
+      "kind": "typography",
+      "audience": "bilingual project team",
+      "deck_job": "understand process and limitations",
+      "prompt": "Repair the supplied bilingual deck into three slides with matched English-Chinese hierarchy: overview, process, limitations. Fix broken or inconsistent typography and keep all visible copy audience-facing.",
+      "facts": [
+        "Overview / 项目概览",
+        "Process / 流程",
+        "Limitations / 限制",
+        "Render after every material edit / 每次重要修改后都要渲染"
+      ],
+      "min_slides": 3,
+      "max_slides": 3,
+      "required_text": [
+        "Overview",
+        "项目概览",
+        "Process",
+        "流程",
+        "Limitations",
+        "限制"
+      ],
+      "input": {
+        "path": "workspace/results/one_hour_ppt_fixtures/ppt-bilingual-001.pptx",
+        "sha256": "aaee8c407264467c4dc78a157cea5e1754c3a7245895bc44e5b11af6531335a8"
+      }
+    },
+    {
+      "id": "edit-title-to-decision",
+      "kind": "modify",
+      "audience": "project sponsor",
+      "deck_job": "turn a rough title slide into a decision brief",
+      "prompt": "Edit the supplied rough deck into a 2-slide sponsor brief. Keep the existing topic, improve the title hierarchy, and add a decision slide using only the supplied facts. No planning notes may remain visible.",
+      "facts": [
+        "Decision: approve a two-week pilot",
+        "Owner: Project Lead",
+        "Success threshold: 90% verified outputs"
+      ],
+      "min_slides": 2,
+      "max_slides": 2,
+      "required_text": [
+        "two-week pilot",
+        "Project Lead",
+        "90% verified outputs"
+      ],
+      "input": {
+        "path": "workspace/results/one_hour_ppt_fixtures/ppt-edit-001.pptx",
+        "sha256": "10fe8679e29f674680b7609adf9acb25c38b4ee746ff53ad3117a2d1655308fc"
+      }
+    }
+  ]
+}

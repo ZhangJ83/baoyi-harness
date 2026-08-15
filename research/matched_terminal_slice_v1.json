@@ -1,0 +1,28 @@
+{
+  "kind": "preregistered_terminal_bench_matched_slice",
+  "dataset": "..\\official_refs\\terminal-bench\\original-tasks",
+  "seed": "xiaopu-matched-v1",
+  "n": 18,
+  "task_ids": [
+    "3d-model-format-legacy",
+    "add-benchmark-lm-eval-harness",
+    "catch-me-if-you-can",
+    "count-dataset-tokens",
+    "cpp-compatibility",
+    "fix-ocaml-gc",
+    "get-bitcoin-nodes",
+    "hf-model-inference",
+    "interactive-maze-game",
+    "intrusion-detection",
+    "mcmc-sampling-stan",
+    "nginx-request-logging",
+    "predicate-pushdown-bench",
+    "recover-accuracy-log",
+    "reshard-c4-data",
+    "sha-puzzle",
+    "torch-pipeline-parallelism",
+    "train-bpe-tokenizer"
+  ],
+  "selection_rule": "lowest SHA-256(seed + ':' + task_id) ranks",
+  "claim_scope": "paired pilot slice only; not the full benchmark score"
+}

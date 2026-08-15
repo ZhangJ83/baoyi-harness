@@ -1,0 +1,33 @@
+{
+  "version": "cegarh-h-claim-map-v1",
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "Epoch-scoped fresh evidence excludes certificates created before a mutation, assuming complete instrumentation.",
+      "status": "bounded_supported",
+      "evidence": ["research/THEORY.md", "workspace/results/theory_bound_check.json", "workspace/results/exhaustive_theory_check.json"],
+      "caveat": "Finite-grid and randomized checks are consistency checks, not a substitute for a formal proof or complete instrumentation audit."
+    },
+    {
+      "id": "C2",
+      "claim": "Adaptive evidence/computation allocation improves a synthetic objective under heterogeneous benefit and held-out calibration.",
+      "status": "synthetic_plus_descriptive_trace",
+      "evidence": ["workspace/results/cegarh_ablation_20seed.json", "workspace/results/heldout_calibration_metrics.json", "workspace/results/offline_budget_sensitivity_20260811.json"],
+      "caveat": "The real traces show aggregate-budget sensitivity but are offline, non-randomized, and missing token ledgers for truncated trials; no real-task causal controller or external cost/latency validation."
+    },
+    {
+      "id": "C3",
+      "claim": "Xiaopu is superior to Claude Code, Codex, or OpenCode on official benchmarks.",
+      "status": "unsupported",
+      "evidence": ["workspace/results/official_tb_matched_summary.json", "workspace/results/claims_gate_current.json", "workspace/results/budget_parity_current.json", "workspace/results/competitor_stream_observability.json", "workspace/results/matched_protocol_v3_validation.json"],
+      "caveat": "Three-task Terminal-Bench pilot; paired 95% intervals are [0,1], exact McNemar p=1.0, and strict v2 budget parity fails because all historical task-system pairs lack per-task ledgers. A prospective v3 protocol is valid but not live-ready and its results may not be pooled with v2. SWE evidence is one instance."
+    },
+    {
+      "id": "C4",
+      "claim": "The harness transfers to PPT generation and layout repair.",
+      "status": "protocol_ready_not_run",
+      "evidence": ["research/paper_experiment_matrix.json", "benchmarks/pptbench_model_eval_v2.json", "workspace/results/pptbench_model_eval_v2_validation.json"],
+      "caveat": "The 12-task/3-system protocol and six input hashes validate, but no 36-deck model output set, common render bundle, or locked two-reviewer scores exist. The controlled demo is excluded."
+    }
+  ]
+}

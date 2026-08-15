@@ -1,0 +1,61 @@
+{
+  "version": "official-matched-v2",
+  "benchmark": "terminal-bench",
+  "benchmark_commit": "d28711d",
+  "dataset": "official_refs/terminal-bench/original-tasks",
+  "task_ids": ["hello-world", "fix-permissions", "extract-safely"],
+  "fixed": {
+    "n_concurrent": 1,
+    "n_attempts": 1,
+    "temperature": 0.0,
+    "no_rebuild": true,
+    "cleanup": true,
+    "upload_results": false,
+    "model": "openai/deepseek-v4-flash"
+  },
+  "systems": {
+    "xiaopu": "agent.terminal_bench_adapter:XiaopuTerminalAgent",
+    "claude_code": "official Terminal-Bench agent=claude-code",
+    "codex": "official Terminal-Bench agent=codex"
+  },
+  "primary_unit": "task",
+  "primary_metric": "resolved_task_rate",
+  "statistics": {
+    "paired_task_bootstrap": "benchmarks/paired_stats.py",
+    "confidence_level": 0.95,
+    "minimum_claimable_scope": "same finalized task IDs, same scorer, same provider/model and budget"
+  },
+  "budget_enforcement": {
+    "xiaopu": "hard caps passed to XiaopuTerminalAgent",
+    "claude_code": "not exposed by the pinned official Terminal-Bench adapter",
+    "codex": "not exposed by the pinned official Terminal-Bench adapter",
+    "budget_parity_verified": false,
+    "verifier": "benchmarks/verify_budget_parity.py",
+    "current_report": "workspace/results/budget_parity_current.json",
+    "required_per_task_fields": [
+      "result input/output tokens",
+      "ledger input/output tokens",
+      "tool calls",
+      "steps",
+      "declared caps",
+      "within-budget flag",
+      "agent wall time"
+    ],
+    "cross_system_requirements": ["identical task IDs", "no duplicate task IDs"],
+    "stream_observability_audit": "workspace/results/competitor_stream_observability.json",
+    "cli_versions_audited": {
+      "claude_code": "2.1.224",
+      "codex": "0.146.1"
+    },
+    "step_observability": {
+      "claude_code": "assistant usage-bearing stream events are observable",
+      "codex": "exec --json exposes cumulative turn usage but no equivalent model-response count",
+      "decision": "fail closed; do not infer a hidden Codex step count"
+    }
+  },
+  "claims": {
+    "official_full_score": false,
+    "competitor_superiority": false,
+    "reason": "Task/scorer parity is defined, but strict token/tool/step budget parity is not yet enforceable for the pinned Claude Code and Codex adapters."
+  }
+}

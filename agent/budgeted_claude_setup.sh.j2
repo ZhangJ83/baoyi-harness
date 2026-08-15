@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+apt-get update
+apt-get install -y curl python3
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
+source "$HOME/.nvm/nvm.sh"
+nvm install 22
+npm install -g @anthropic-ai/claude-code@{{ version }}
+mkdir -p /installed-agent/agent "$HOME/.claude"
+echo '{{ init_b64 }}' | base64 -d > /installed-agent/agent/__init__.py
+echo '{{ generation_budget_gateway_b64 }}' | base64 -d > /installed-agent/agent/generation_budget_gateway.py
+echo '{{ generation_budget_proxy_b64 }}' | base64 -d > /installed-agent/agent/generation_budget_proxy.py
+echo '{{ budgeted_cli_runner_b64 }}' | base64 -d > /installed-agent/agent/budgeted_cli_runner.py
+echo '{{ tool_budget_hook_b64 }}' | base64 -d > /installed-agent/agent/tool_budget_hook.py
+echo '{{ hook_config_b64 }}' | base64 -d > "$HOME/.claude/settings.json"

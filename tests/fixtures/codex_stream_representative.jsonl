@@ -1,0 +1,4 @@
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"1","type":"command_execution","command":"echo ok"}}
+{"type":"item.completed","item":{"id":"1","type":"command_execution","status":"completed"}}
+{"type":"turn.completed","usage":{"input_tokens":23,"cached_input_tokens":4,"output_tokens":6}}

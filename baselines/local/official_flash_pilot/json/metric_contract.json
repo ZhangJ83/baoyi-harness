@@ -1,0 +1,19 @@
+{
+  "baseline_id": "official_flash_pilot",
+  "dataset": "Terminal-Bench official checkout d28711d",
+  "split": "three-task predeclared pilot",
+  "primary_metric": "resolved_task_rate",
+  "metrics": {
+    "resolved_task_rate": {
+      "description": "fraction of task IDs with is_resolved=true",
+      "origin_path": "workspace/results/official_tb_xiaopu/xiaopu_flash_20260810/results.json",
+      "source_ref": "official Terminal-Bench scorer"
+    }
+  },
+  "task_ids": ["hello-world", "fix-permissions", "extract-safely"],
+  "model": "openai/deepseek-v4-flash",
+  "temperature": 0.0,
+  "n_concurrent": 1,
+  "n_attempts": 1,
+  "trust": "partially_verified_pilot"
+}

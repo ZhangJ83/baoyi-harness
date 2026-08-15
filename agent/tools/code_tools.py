@@ -1,0 +1,146 @@
+"""Code-focused tools (aliases over the fs sandbox) — kept for interview clarity."""
+from typing import Any
+
+from .. import memory
+from ..state import Status, TaskItem
+
+
+def _make(name, description, params, required, fn):
+    return (
+        {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": description,
+                "parameters": {"type": "object", "properties": params, "required": required},
+            },
+        },
+        fn,
+    )
+
+
+def _note(h, text: str):
+    memory.append_note(text)
+    return "note appended to session memory."
+
+
+def _finish(h, summary: str):
+    if not summary.strip():
+        raise ValueError("finish summary cannot be empty")
+    # Action tasks may not be completed by an empty finish: a task that asks
+    # for a mutation must show changed files / a saved final artifact / fresh
+    # verification evidence. Read-only or question-answering turns remain free.
+    current_task = getattr(h, "current_task", "")
+    read_only_task = "do not modify" in current_task.lower() or "read-only" in current_task.lower()
+    if current_task and not read_only_task and not getattr(h, "_done", None):
+        try:
+            if h._requires_action(current_task) and not h._has_completion_evidence(current_task):
+                raise ValueError(
+                    "cannot finish: this action task has no completed mutation, saved artifact, "
+                    "or fresh verification evidence yet. Perform the required change, save it, "
+                    "and rerun the affected check before finishing."
+                )
+        except AttributeError:
+            pass
+    if h.state.changed_files and not h.state.fresh_evidence():
+        raise ValueError(f"cannot finish: no passing verification evidence for current mutation epoch {h.state.mutation_epoch}")
+    ppt_changed = any(path.startswith("deck:") or path.lower().endswith(".pptx") for path in h.state.changed_files)
+    if ppt_changed:
+        evidence_kinds = {record.kind for record in h.state.fresh_evidence()}
+        if "ppt_structural" not in evidence_kinds:
+            raise ValueError("cannot finish PPT task: fresh ppt_structural evidence is required after the last mutation")
+        if getattr(h.state, "unresolved_checks", set()):
+            raise ValueError("cannot finish PPT task: unresolved verification defects: " + ", ".join(sorted(h.state.unresolved_checks)))
+        recorder = getattr(h, "recorder", None)
+        artifacts = getattr(recorder, "manifest", {}).get("artifacts", []) if recorder else []
+        final_rows = [row for row in artifacts if row.get("role") == "final-pptx"]
+        if not final_rows:
+            # A model may compose a valid deck but forget the explicit save.
+            # finish owns persistence + rendering lifecycle, so auto-save the
+            # in-memory deck to the contract output instead of stranding a
+            # valid artifact behind a "no saved file" error.
+            from .ppt_tools import _save
+            try:
+                _save(h, h.state.facts.get("required_output_pptx"))
+                artifacts = getattr(recorder, "manifest", {}).get("artifacts", []) if recorder else []
+                final_rows = [row for row in artifacts if row.get("role") == "final-pptx"]
+            except Exception:
+                final_rows = []
+        if not final_rows:
+            raise ValueError(
+                "cannot finish PPT task: this run has no saved final-pptx artifact; "
+                "call save_deck for the required output path, then verify and finish"
+            )
+        if h.state.facts.get("official_evaluator_present") == "true" and "task_evaluator" not in evidence_kinds:
+            from .lifecycle_tools import _run_task_evaluator
+            _run_task_evaluator(h)
+            evidence_kinds = {record.kind for record in h.state.fresh_evidence()}
+            if "task_evaluator" not in evidence_kinds:
+                raise ValueError("cannot finish PPT task: official task evaluator did not pass")
+        # Rendering is a harness lifecycle responsibility, not another prompt
+        # instruction.  Automatically buy fresh visual evidence before finish
+        # whenever a real final artifact and recorder are available.
+        if not {"ppt_render", "ppt_visual"}.issubset(evidence_kinds):
+            from .ppt_tools import _inspect_rendered, _render
+            final_path = final_rows[-1]["path"]
+            render_dir = str(recorder.evidence / "final_render")
+            try:
+                _render(h, final_path, render_dir)
+                _inspect_rendered(h, render_dir)
+            except Exception as exc:
+                diagnostic = f"{type(exc).__name__}: {exc}"
+                h.state.record_fact("ppt_renderer_unavailable", diagnostic)
+                recorder.check("ppt_render", False, diagnostic)
+                summary = summary.rstrip() + f"\n\n渲染验证未执行：{diagnostic}"
+            else:
+                evidence_kinds = {record.kind for record in h.state.fresh_evidence()}
+                if not {"ppt_render", "ppt_visual"}.issubset(evidence_kinds):
+                    raise ValueError("cannot finish PPT task: automatic render did not produce fresh render and visual evidence")
+    elif h.state.changed_files:
+        from ..certificate import require_finish_certificates
+        require_finish_certificates(h.state)
+    h._done = summary.strip()
+    h.state.final_summary = h._done
+    if getattr(h, "recorder", None):
+        h.recorder.finish(h._done, h.state)
+    return "task marked complete"
+
+
+def _tasks(h, items: list[dict]):
+    parsed = []
+    for item in items:
+        try:
+            status = Status(item.get("status", "pending"))
+        except ValueError as exc:
+            raise ValueError(f"invalid task status: {item.get('status')}") from exc
+        parsed.append(TaskItem(id=str(item["id"]), content=str(item["content"]), status=status, evidence=list(item.get("evidence") or [])))
+    active = sum(item.status is Status.IN_PROGRESS for item in parsed)
+    if active > 1:
+        raise ValueError("at most one task may be in_progress")
+    h.state.tasks = parsed
+    return h.state.compact()
+
+
+code_tools = [
+    _make(
+        "update_tasks",
+        "Replace the structured task list. Use for work with 3+ meaningful steps; keep at most one item in_progress.",
+        {"items": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "content": {"type": "string"}, "status": {"type": "string", "enum": ["pending", "in_progress", "completed", "blocked"]}, "evidence": {"type": "array", "items": {"type": "string"}}}, "required": ["id", "content", "status"]}}},
+        ["items"],
+        lambda h, **kw: _tasks(h, kw["items"]),
+    ),
+    _make(
+        "remember",
+        "Append a short note to persistent session memory (styles, user preferences, decisions).",
+        {"text": {"type": "string"}},
+        ["text"],
+        lambda h, **kw: _note(h, kw["text"]),
+    ),
+    _make(
+        "finish",
+        "Declare the task complete. Provide the final summary for the user.",
+        {"summary": {"type": "string"}},
+        ["summary"],
+        lambda h, **kw: _finish(h, kw["summary"]),
+    ),
+]

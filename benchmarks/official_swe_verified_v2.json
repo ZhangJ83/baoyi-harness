@@ -1,0 +1,37 @@
+{
+  "schema": "official-swe-verified-protocol-v2",
+  "source": "SWE-bench/SWE-bench_Verified",
+  "split": "test",
+  "frozen_at": "2026-08-11T05:50:00+08:00",
+  "amended_at": "2026-08-11T07:35:00+08:00",
+  "amendment_boundary": "The resumable patch-generation, official-evaluation, image-preparation, streamed checkout extraction, model, budget, and runtime hash contract was finalized before any new 12-instance v2 model run.",
+  "selection_rule": "dataset order; at most two instances per repository until n=12",
+  "minimum_score_eligible_reports": 10,
+  "model": "deepseek-v4-flash",
+  "budget": {"max_generated_output_tokens": 4500, "max_covered_local_tool_calls": 60, "max_agent_wall_seconds": 300},
+  "evaluator": "pinned official_refs/swe-bench local Docker evaluator",
+  "execution": {
+    "runner": {"path": "benchmarks/run_official_swe_verified_v2.py", "sha256": "b48c63ff0ce339c97fd86d029b19acfcf61f2ed10859d28dff5978f10dd0ca46"},
+    "image_builder": {"path": "benchmarks/prepare_official_swe_v2_images.py", "sha256": "d496066175177f59ef6e7c4814de0457bfec7017ff6d4350cf7679e2adf851aa"},
+    "official_launcher": {"path": "benchmarks/run_official_swe_local.py", "sha256": "d6c37c0165e12cdfdfdd778824eddad7b4d9dfac8c9e5447025856917a1e531d"},
+    "official_evaluator_commit": "cd37836ffec01d01a0d699a80a039d84ff2cebfe",
+    "dataset_arrow_sha256": "0d119efe73413554335bd410a04d82fd4a586bfd312cee677ee40af5de2ac46e",
+    "resumable_fail_closed": true,
+    "gold_patch_excluded_from_model_prompt": true
+  },
+  "claim_rule": "protocol readiness is not model success; only official score-eligible reports count",
+  "instances": [
+    {"instance_id":"astropy__astropy-12907","repo":"astropy/astropy","base_commit":"d16bfe05a744909de4b27f5875fe0d4ed41ce607"},
+    {"instance_id":"astropy__astropy-13033","repo":"astropy/astropy","base_commit":"298ccb478e6bf092953bca67a3d29dc6c35f6752"},
+    {"instance_id":"django__django-10097","repo":"django/django","base_commit":"b9cf764be62e77b4777b3a75ec256f6209a57671"},
+    {"instance_id":"django__django-10554","repo":"django/django","base_commit":"14d026cccb144c6877294ba4cd4e03ebf0842498"},
+    {"instance_id":"matplotlib__matplotlib-13989","repo":"matplotlib/matplotlib","base_commit":"a3e2897bfaf9eaac1d6649da535c4e721c89fa69"},
+    {"instance_id":"matplotlib__matplotlib-14623","repo":"matplotlib/matplotlib","base_commit":"d65c9ca20ddf81ef91199e6d819f9d3506ef477c"},
+    {"instance_id":"mwaskom__seaborn-3069","repo":"mwaskom/seaborn","base_commit":"54cab15bdacfaa05a88fbc5502a5b322d99f148e"},
+    {"instance_id":"mwaskom__seaborn-3187","repo":"mwaskom/seaborn","base_commit":"22cdfb0c93f8ec78492d87edb810f10cb7f57a31"},
+    {"instance_id":"pallets__flask-5014","repo":"pallets/flask","base_commit":"7ee9ceb71e868944a46e1ff00b506772a53a4f1d"},
+    {"instance_id":"psf__requests-1142","repo":"psf/requests","base_commit":"22623bd8c265b78b161542663ee980738441c307"},
+    {"instance_id":"psf__requests-1724","repo":"psf/requests","base_commit":"1ba83c47ce7b177efe90d5f51f7760680f72eda0"},
+    {"instance_id":"pydata__xarray-2905","repo":"pydata/xarray","base_commit":"7c4e2ac83f7b4306296ff9b7b51aaf016e5ad614"}
+  ]
+}

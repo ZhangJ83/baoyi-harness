@@ -1,0 +1,36 @@
+{
+  "version": "official-matched-12-v1",
+  "benchmark": "terminal-bench",
+  "commit": "d28711d",
+  "task_ids": [
+    "hello-world",
+    "fix-permissions",
+    "extract-safely",
+    "broken-python",
+    "csv-to-parquet",
+    "analyze-access-logs",
+    "deterministic-tarball",
+    "fix-code-vulnerability",
+    "count-call-stack",
+    "filter-js-from-html",
+    "fibonacci-server",
+    "financial-document-processor"
+  ],
+  "strata": {
+    "easy_file_and_safety": ["hello-world", "fix-permissions", "extract-safely"],
+    "debug_and_data": ["broken-python", "csv-to-parquet", "analyze-access-logs"],
+    "reproducibility_and_security": ["deterministic-tarball", "fix-code-vulnerability", "count-call-stack"],
+    "program_and_document": ["filter-js-from-html", "fibonacci-server", "financial-document-processor"]
+  },
+  "fixed_protocol": {
+    "n_concurrent": 1,
+    "n_attempts": 1,
+    "temperature": 0.0,
+    "model": "deepseek-v4-flash",
+    "provider": "DeepSeek",
+    "task_unit": "task",
+    "claim_gate": "benchmarks/claim_gate.py"
+  },
+  "status": "predeclared_not_yet_run",
+  "purpose": "power-sized follow-up slice; pilot results must not be mixed with this manifest"
+}

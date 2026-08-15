@@ -1,0 +1,13 @@
+{
+  "baseline_id": "official_flash_pilot",
+  "baseline_kind": "reproduced_official_pilot",
+  "path": "workspace/results/official_tb_xiaopu/xiaopu_flash_20260810/results.json",
+  "task": "Terminal-Bench harness comparison",
+  "dataset": "official Terminal-Bench d28711d",
+  "primary_metric": "resolved_task_rate",
+  "metrics_summary": {"resolved_task_rate": 1.0, "resolved": 3, "total": 3},
+  "environment": {"docker": "Docker Desktop 29.5.3", "provider": "DeepSeek", "model": "deepseek-v4-flash"},
+  "source": {"runner": "benchmarks/official_terminal_protocol.ps1", "scorer": "official Terminal-Bench"},
+  "summary": "Verified three-task pilot; not a full leaderboard score.",
+  "verification": "partially_verified_pilot"
+}

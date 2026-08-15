@@ -1,0 +1,26 @@
+# secrets / local environment
+.env
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+
+# generated / test / runtime artifacts
+workspace/
+.tmp/
+.pytest_cache/
+.pytest*/
+.smoke/
+.test_runs/
+*.log
+logs/
+build/
+*.egg-info/
+.xiaopu/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store

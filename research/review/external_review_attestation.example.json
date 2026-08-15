@@ -1,0 +1,9 @@
+{
+  "schema": "independent-external-review-attestation-v1",
+  "independent": true,
+  "reviewer_non_author": true,
+  "conflicts_declared": true,
+  "review_date": "YYYY-MM-DD",
+  "report_path": "research/review/external_review_RETURNED.md",
+  "report_sha256": "REPLACE_WITH_LOWERCASE_SHA256"
+}

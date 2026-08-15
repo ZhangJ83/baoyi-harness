@@ -1,0 +1,46 @@
+{
+  "version": "pptbench-fixed-v1",
+  "protocol": {
+    "same_model": true,
+    "temperature": 0,
+    "deterministic_checks": ["opens", "min_slides", "required_text"],
+    "human_review": "blinded_pairwise_optional"
+  },
+  "tasks": [
+    {
+      "id": "ppt-create-001",
+      "kind": "create",
+      "prompt": "Create a 3-slide presentation about coffee: cover, two-column comparison of espresso and pour-over, and one KPI slide. Save and verify it.",
+      "min_slides": 3,
+      "required_text": ["coffee", "espresso", "pour-over"]
+    },
+    {
+      "id": "ppt-edit-001",
+      "kind": "modify",
+      "prompt": "Open the existing deck, improve the title slide hierarchy without changing its topic, save it, and verify it.",
+      "min_slides": 1,
+      "required_text": []
+    },
+    {
+      "id": "ppt-layout-001",
+      "kind": "restyle",
+      "prompt": "Create a one-slide executive summary with three aligned cards, consistent typography, and no overflow. Save and verify it.",
+      "min_slides": 1,
+      "required_text": ["summary"]
+    },
+    {
+      "id": "ppt-dense-001",
+      "kind": "repair",
+      "prompt": "Create a concise two-slide benchmark summary from dense notes, preserving the key numbers and avoiding text overflow. Save and verify it.",
+      "min_slides": 2,
+      "required_text": ["benchmark"]
+    },
+    {
+      "id": "ppt-bilingual-001",
+      "kind": "typography",
+      "prompt": "Create a bilingual English-Chinese project overview with a title, process, and limitations slide. Keep hierarchy and typography consistent. Save and verify it.",
+      "min_slides": 3,
+      "required_text": ["project", "限制"]
+    }
+  ]
+}

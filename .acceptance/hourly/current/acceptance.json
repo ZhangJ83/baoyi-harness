@@ -1,0 +1,209 @@
+{
+  "schema": "xiaopu.hour-acceptance.v1",
+  "generated_at": "2026-08-13T22:36:58.800580+00:00",
+  "status": "passed",
+  "summary": {
+    "passed": 8,
+    "total": 8
+  },
+  "environment": {
+    "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "free_bytes": {
+      "C": 20992372736,
+      "E": 51051134976
+    }
+  },
+  "cases": [
+    {
+      "name": "transaction_success",
+      "status": "passed",
+      "evidence": {
+        "transaction_id": "accept-success",
+        "phases": [
+          "permission_checked",
+          "checkpoint_started",
+          "checkpoint_created",
+          "execute_started",
+          "execute_completed",
+          "postcondition_started",
+          "postcondition_passed",
+          "commit_started",
+          "committed"
+        ],
+        "state": {
+          "value": "after",
+          "committed": true
+        }
+      }
+    },
+    {
+      "name": "transaction_scope_denied",
+      "status": "passed",
+      "evidence": {
+        "expected_exception": "ScopeViolation",
+        "callbacks": [],
+        "phases": [
+          "permission_denied"
+        ]
+      }
+    },
+    {
+      "name": "transaction_execute_rollback",
+      "status": "passed",
+      "evidence": {
+        "expected_exception": "ValueError",
+        "phases": [
+          "permission_checked",
+          "checkpoint_started",
+          "checkpoint_created",
+          "execute_started",
+          "failed",
+          "rollback_started",
+          "rolled_back"
+        ],
+        "state": [
+          "before"
+        ]
+      }
+    },
+    {
+      "name": "transaction_validation_rollback",
+      "status": "passed",
+      "evidence": {
+        "expected_exception": "PostconditionFailed",
+        "phases": [
+          "permission_checked",
+          "checkpoint_started",
+          "checkpoint_created",
+          "execute_started",
+          "execute_completed",
+          "postcondition_started",
+          "failed",
+          "rollback_started",
+          "rolled_back"
+        ],
+        "state": {
+          "value": 1
+        }
+      }
+    },
+    {
+      "name": "transaction_cancel_rollback",
+      "status": "passed",
+      "evidence": {
+        "expected_exception": "TransactionCancelled",
+        "phases": [
+          "permission_checked",
+          "checkpoint_started",
+          "checkpoint_created",
+          "execute_started",
+          "execute_completed",
+          "cancelled",
+          "rollback_started",
+          "rolled_back"
+        ],
+        "state": [
+          "before"
+        ]
+      }
+    },
+    {
+      "name": "ordinary_file_atomic_edit",
+      "status": "passed",
+      "evidence": {
+        "tool": "apply_edits",
+        "result": "atomic edits applied:\nfirst.md: 1 replacement(s)\nsecond.md: 1 replacement(s)",
+        "mutation_epoch": 1,
+        "changed_paths": [
+          "first.md",
+          "second.md"
+        ],
+        "workspace_escape": {
+          "blocked": true,
+          "error": "path escapes workspace sandbox: ../outside.txt"
+        }
+      }
+    },
+    {
+      "name": "ppt_xmind_from_outline",
+      "status": "passed",
+      "evidence": {
+        "path": "E:\\project\\agent\\xiaopu\\.smoke\\complex_facades\\from_outline\\community_sustainability_workshop_deck.pptx",
+        "bytes": 66235,
+        "sha256": "ff6f1dd76e41afca27be4a5720bee6647d3791a2173d8020b913a8f293f01100",
+        "zip_members": 60,
+        "slide_relationships_resolved": 17,
+        "slides": 8,
+        "semantic_assertions": [
+          "community theme",
+          "30-day commitment",
+          "privacy boundary",
+          "1-8 page markers"
+        ],
+        "source_hashes_observed_now": {
+          "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\workbuddy\\xmind-screenshot-template-ppt\\input\\template\\community_workshop_green_template.pptx": "576005b0ca48a3ffdb2afff98b2807894334522537114b139b631bc0380781b9",
+          "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\workbuddy\\xmind-screenshot-template-ppt\\input\\source\\community_sustainability_workshop.xmind": "06679233d1ca3ea102d251e28d59e3779c0d39d6ed55d0486feb488682e9fa3c",
+          "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\workbuddy\\xmind-screenshot-template-ppt\\input\\reference\\mindmap_screenshot_style_reference.png": "becf6065f0fbcf82ce222ef0a63e386894e985f78e8629245333fb6ba44701c8"
+        },
+        "historical_run_evidence": {
+          "case": "xmind-template/from_outline",
+          "output": "E:\\project\\agent\\xiaopu\\.smoke\\complex_facades\\from_outline\\community_sustainability_workshop_deck.pptx",
+          "slides": 8,
+          "mutation_epoch": 1,
+          "source_unchanged": true,
+          "compose": "generated 8 slides from 8 template layouts in one atomic operation; final deck has 8 slides",
+          "check": {
+            "structural": "Verification: no structural issues found; no blocking structural issues. Historical warnings retained: 80."
+          }
+        },
+        "visual_gate": "not asserted: no trustworthy PNG render exists in this session"
+      }
+    },
+    {
+      "name": "ppt_governance_batch_update",
+      "status": "passed",
+      "evidence": {
+        "path": "E:\\project\\agent\\xiaopu\\.smoke\\complex_facades\\batch_updates\\quarterly_governance_board_deck_partial_smoke.pptx",
+        "bytes": 29164,
+        "sha256": "23a2ce8d6aaa1126251406b72a5a3e43e3e6149353229bbd2fc97de2f0349b71",
+        "zip_members": 33,
+        "slide_relationships_resolved": 11,
+        "slides": 11,
+        "semantic_assertions": [
+          "slides 1/9 updated",
+          "slides 10/11 preserved",
+          "11-slide count retained"
+        ],
+        "source_hashes_observed_now": {
+          "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\workbuddy\\board-material-update-timeline-excel\\input\\quarterly_governance_board_deck.pptx": "8defe37524d71352c3fc40ad1212dcf4599c833ff7bd1595d546d91c1c774d91",
+          "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\workbuddy\\board-material-update-timeline-excel\\input\\program_milestone_update_register.xlsx": "28c44ac0d059fd3c194bd7537a13ab655794ba9a16c675503c57385085826fda"
+        },
+        "historical_run_evidence": {
+          "case": "governance/batch_updates-representative",
+          "scope_note": "representative facade smoke, not the full task submission",
+          "output": "E:\\project\\agent\\xiaopu\\.smoke\\complex_facades\\batch_updates\\quarterly_governance_board_deck_partial_smoke.pptx",
+          "slides": 11,
+          "mutation_epoch": 1,
+          "affected_slides": [
+            1,
+            9
+          ],
+          "source_unchanged": true,
+          "edit": "applied 4 updates atomically across 2 slide(s): replaced 2 occurrence(s) in 2 shape(s): 1:4, 1:901; replaced 1 occurrence(s) in 1 shape(s): 1:901; replaced 2 occurrence(s) in 2 shape(s): 9:3, 9:909; replaced 2 occurrence(s) in 2 shape(s): 9:4, 9:909",
+          "check": {
+            "structural": "Verification: no structural issues found; no blocking structural issues. Historical warnings retained: 15."
+          }
+        },
+        "scope_note": "representative facade smoke; not a full benchmark submission",
+        "visual_gate": "not asserted: no trustworthy PNG render exists in this session"
+      }
+    }
+  ],
+  "limitations": [
+    "The two PPT checks reopen existing real benchmark smokes; they do not rerun a model trajectory.",
+    "These historical XMind/governance checks do not claim fresh PNG rendering. A separate two-case PPT transaction smoke has artifact-tool PNG evidence under .acceptance/hourly/transaction-smoke/.",
+    "The governance PPT is explicitly a representative batch-transaction smoke, not the full task submission.",
+    "Historical source_unchanged and structural-gate claims are imported from the frozen smoke manifest; current source hashes are recorded separately."
+  ]
+}

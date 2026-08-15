@@ -1,0 +1,12 @@
+{
+  "source": "SWE-bench/SWE-bench_Verified",
+  "split": "test",
+  "instances": [
+    {"instance_id": "astropy__astropy-12907", "repo": "astropy/astropy", "base_commit": "d16bfe05a744909de4b27f5875fe0d4ed41ce607"},
+    {"instance_id": "astropy__astropy-13033", "repo": "astropy/astropy", "base_commit": "298ccb478e6bf092953bca67a3d29dc6c35f6752"},
+    {"instance_id": "astropy__astropy-13236", "repo": "astropy/astropy", "base_commit": "6ed769d58d89380ebaa1ef52b300691eefda8928"},
+    {"instance_id": "astropy__astropy-13398", "repo": "astropy/astropy", "base_commit": "6500928dc0e57be8f06d1162eacc3ba5e2eff692"},
+    {"instance_id": "astropy__astropy-13453", "repo": "astropy/astropy", "base_commit": "19cc80471739bcb67b7e8099246b391c355023ee"}
+  ],
+  "status": "metadata-only; official checkout/scoring pending"
+}

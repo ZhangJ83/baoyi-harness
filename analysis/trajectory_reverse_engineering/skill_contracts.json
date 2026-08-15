@@ -1,0 +1,568 @@
+{
+  "schema": "xiaopu.skill-contracts.v1",
+  "skills": {
+    "ppt.atomic_edit": {
+      "skill": "ppt.atomic_edit",
+      "evidence_runs": 18,
+      "task_ids": [
+        "3-002",
+        "3-003",
+        "Accounting Equation-004"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_edit_text",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "mutate",
+        "save",
+        "check",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "START > READ > INSPECT > EDIT > SAVE > RENDER > VERIFY",
+          "count": 3
+        },
+        {
+          "sequence": "START > READ > EDIT > SAVE > CHECK > RENDER",
+          "count": 3
+        },
+        {
+          "sequence": "READ > PLAN > EDIT > RENDER",
+          "count": 2
+        },
+        {
+          "sequence": "READ > RENDER > INSPECT > REPAIR > EDIT > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > INSPECT > EDIT > REPAIR > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.atomic_style": {
+      "skill": "ppt.atomic_style",
+      "evidence_runs": 12,
+      "task_ids": [
+        "3-006",
+        "4._Pre-Colonial_Filipino_Culture-001"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_style",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "mutate",
+        "save",
+        "check",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "START > READ > INSPECT > EDIT > SAVE > RENDER > VERIFY",
+          "count": 2
+        },
+        {
+          "sequence": "START > READ > EDIT > SAVE > CHECK > RENDER",
+          "count": 2
+        },
+        {
+          "sequence": "READ > INSPECT > EDIT > VERIFY > REPAIR > RENDER > CHECK > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > INSPECT > EDIT > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > RENDER",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.compose_from_slides": {
+      "skill": "ppt.compose_from_slides",
+      "evidence_runs": 6,
+      "task_ids": [
+        "4._Pre-Colonial_Filipino_Culture-005"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_compose",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "compose",
+        "save",
+        "render_check",
+        "repair_once",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural",
+        "ppt_render",
+        "ppt_visual"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "READ > INSPECT > EDIT > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > RENDER > VERIFY > CHECK",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > SAVE > CHECK > REPAIR > RENDER > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > RENDER > SAVE > EXTRACT > RENDER > READ > CHECK",
+          "count": 1
+        },
+        {
+          "sequence": "START > READ > INSPECT > EDIT > SAVE > RENDER > VERIFY",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.content_and_layout": {
+      "skill": "ppt.content_and_layout",
+      "evidence_runs": 6,
+      "task_ids": [
+        "Aircraft_surface-004"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_edit_text",
+        "ppt_arrange",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "compose",
+        "save",
+        "render_check",
+        "repair_once",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural",
+        "ppt_render",
+        "ppt_visual"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "READ > INSPECT > RENDER > EDIT > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > EDIT > RENDER",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > EDIT > CHECK > REPAIR > RENDER > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > CHECK > EDIT > SAVE > EXTRACT > RENDER > READ > CHECK",
+          "count": 1
+        },
+        {
+          "sequence": "START > READ > INSPECT > EDIT > SAVE > RENDER > VERIFY",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.diagram_composition": {
+      "skill": "ppt.diagram_composition",
+      "evidence_runs": 6,
+      "task_ids": [
+        "Accounting Equation-045"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_compose",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "compose",
+        "save",
+        "render_check",
+        "repair_once",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural",
+        "ppt_render",
+        "ppt_visual"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "READ > INSPECT > RENDER > EDIT > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > RENDER",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > COMPOSE > INSPECT > RENDER > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > SAVE > RENDER > READ > REPAIR > SAVE > READ > REPAIR > RENDER > READ > CHECK",
+          "count": 1
+        },
+        {
+          "sequence": "START > READ > INSPECT > EDIT > SAVE > RENDER > VERIFY",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.element_creation": {
+      "skill": "ppt.element_creation",
+      "evidence_runs": 6,
+      "task_ids": [
+        "HSC Careers and Expo FINAL COM MOD-008"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_compose",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "compose",
+        "save",
+        "render_check",
+        "repair_once",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural",
+        "ppt_render",
+        "ppt_visual"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "READ > INSPECT > EDIT > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > RENDER",
+          "count": 1
+        },
+        {
+          "sequence": "READ > COMPOSE > SAVE > EXTRACT > RENDER > READ > CHECK",
+          "count": 1
+        },
+        {
+          "sequence": "START > READ > EDIT > SAVE > CHECK > RENDER",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.layout_reflow": {
+      "skill": "ppt.layout_reflow",
+      "evidence_runs": 6,
+      "task_ids": [
+        "HSC Careers and Expo FINAL COM MOD-038"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_arrange",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "compose",
+        "save",
+        "render_check",
+        "repair_once",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural",
+        "ppt_render",
+        "ppt_visual"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "READ > INSPECT > EDIT > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > RENDER",
+          "count": 1
+        },
+        {
+          "sequence": "READ > CHECK > EDIT > VERIFY > CHECK > RENDER > READ > RENDER",
+          "count": 1
+        },
+        {
+          "sequence": "START > READ > EXTRACT > EDIT > SAVE > CHECK > RENDER",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.source_grounded_build": {
+      "skill": "ppt.source_grounded_build",
+      "evidence_runs": 6,
+      "task_ids": [
+        "html-report-quadrant-ppt"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_compose",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "compose",
+        "save",
+        "render_check",
+        "repair_once",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural",
+        "ppt_render",
+        "ppt_visual"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "READ > REPAIR > READ > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > SAVE > PLAN > RENDER > SAVE",
+          "count": 1
+        },
+        {
+          "sequence": "READ > REPAIR > EDIT > SAVE > CHECK > REPAIR > RENDER",
+          "count": 1
+        },
+        {
+          "sequence": "START > READ > SAVE > RENDER",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.source_sync": {
+      "skill": "ppt.source_sync",
+      "evidence_runs": 6,
+      "task_ids": [
+        "board-material-update-timeline-excel"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_edit_text",
+        "ppt_style",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "compose",
+        "save",
+        "render_check",
+        "repair_once",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural",
+        "ppt_render",
+        "ppt_visual"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "READ > REPAIR > READ > INSPECT > EDIT > VERIFY > RENDER > REPAIR > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > SAVE > PLAN > EDIT > RENDER > SAVE",
+          "count": 1
+        },
+        {
+          "sequence": "READ > PLAN > EDIT > CHECK > REPAIR > CHECK > READ > REPAIR > CHECK > RENDER > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > EDIT > INSPECT > SAVE > CHECK > REPAIR > RENDER",
+          "count": 1
+        },
+        {
+          "sequence": "START > READ > INSPECT > EDIT > SAVE > RENDER > VERIFY",
+          "count": 1
+        }
+      ]
+    },
+    "ppt.template_build": {
+      "skill": "ppt.template_build",
+      "evidence_runs": 6,
+      "task_ids": [
+        "xmind-screenshot-template-ppt"
+      ],
+      "visible_tools": [
+        "ppt_open",
+        "ppt_inspect",
+        "ppt_compose",
+        "ppt_save",
+        "ppt_check",
+        "finish"
+      ],
+      "canonical_stages": [
+        "resolve",
+        "inspect",
+        "compose",
+        "save",
+        "render_check",
+        "repair_once",
+        "finish"
+      ],
+      "verification": [
+        "ppt_structural",
+        "ppt_render",
+        "ppt_visual"
+      ],
+      "max_repairs": 1,
+      "failure_policy": {
+        "missing_input": "return deterministic task-local candidates; never guess filenames",
+        "same_error_family": "retry once with changed strategy, then stop",
+        "verification_failure": "repair only cited slide/shape once, then reverify"
+      },
+      "stop_condition": "saved final artifact and fresh required evidence",
+      "common_sequences": [
+        {
+          "sequence": "READ > REPAIR > READ > RENDER > VERIFY > RENDER > RECORD > STOP",
+          "count": 1
+        },
+        {
+          "sequence": "READ > SAVE > READ > PLAN > EDIT > RENDER > SAVE",
+          "count": 1
+        },
+        {
+          "sequence": "READ > COMPOSE > EDIT > REPAIR > SAVE > CHECK > RENDER",
+          "count": 1
+        },
+        {
+          "sequence": "START > READ > SAVE > RENDER",
+          "count": 1
+        }
+      ]
+    }
+  }
+}

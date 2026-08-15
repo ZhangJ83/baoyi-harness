@@ -1,0 +1,16 @@
+{
+  "baseline_id": "official_swe_flash_pilot",
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "split": "test",
+  "primary_metric": "resolved_instance_rate",
+  "metrics": {
+    "resolved_instance_rate": {
+      "description": "official evaluator resolved instances divided by submitted instances",
+      "origin_path": "xiaopu-deepseek-v4-flash.xiaopu_astropy_12907_flash_20260810.json",
+      "source_ref": "official SWE-bench evaluator"
+    }
+  },
+  "instance_ids": ["astropy__astropy-12907"],
+  "model": "xiaopu-deepseek-v4-flash",
+  "trust": "score_eligible_one_instance_pilot"
+}

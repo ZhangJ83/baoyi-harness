@@ -1,0 +1,1231 @@
+===== PAGE 1 =====
+DESIGN · HARNESS · VALIDATION
+PPT Generator Harness
+开发复盘
+本文档记录的是一个可运行的 PPT Agent Harness 搭建的全过程。让
+模型端到端地输出一个 PPT 几乎是不可能的事情，应该把生成、检查、
+修复、局部修改和真实 PowerPoint 验收做成闭环。
+完整文档导出版 · 2026-08-11
+
+===== PAGE 2 =====
+第 2 页PPT Generator Harness · 开发复盘
+目录
+1. 全景展示
+2. 竞品分析
+2.1 Gamma：先确定内
+容和叙事，再生成卡片
+2.2 Cursor：Harness
+是上下文、工具和反馈
+循环
+2.3 三者放在一起看
+3. 设计思路
+3.1 先确认大纲，避免把
+返工推到最后
+3.2 模型负责语义判断，
+Harness 负责可验证的
+边界
+3.3 视觉方案和视觉实现
+拆成两次调用
+3.4 HTML/CSS 是中间
+视觉语言，DeckIR 是状
+态真相
+3.5 视觉保真和
+PowerPoint 可编辑性同
+时保留
+4. 整体架构
+4.1 关键数据对象
+4.2 代码分层
+5. 核心 Harness 怎么工作
+5.1 大纲 Harness
+逻辑审查自己也要过
+Harness
+有界地重写并复审
+5.2 Browser Harness
+5.3 素材 Harness
+5.4 PowerPoint
+Harness
+5.5 进度、局部重试和
+AI Edit
+5.5.1 逐页、流式的进
+度模型
+5.5.2 Checkpoint 与
+局部重试
+5.5.3 AI Edit：从用
+户参考到结构化操作
+5.5.4 AI Edit 后为什
+么还要重新跑视觉流
+程
+6. 当前关键参数
+7. 开发过程遇到过的问题
+7.1 从线性生成器变成
+Agent Loop
+7.2 CSS 怎么修都不好
+的页面，其实是 HTML
+结构错了
+7.3 浏览器看起来正常，
+PowerPoint 仍然溢出或
+错位
+7.4 文字和图形错位、文
+字压住图片
+7.5 图片都有，但被统一
+塞到右下角
+7.6 一页失败拖垮整份
+PPT
+8. 结果怎么评价
+9. 当前边界和下一步
+参考资料
+Gamma 官方
+Cursor 官方
+附录 A：Prompt 清单与
+原文
+A.1 Prompt 全景索引
+A.2 大纲与文案 Prompt
+A.2.1
+OUTLINE_SYSTEM_
+PROMPT
+A.2.2
+OUTLINE_REPAIR_S
+YSTEM_PROMPT
+A.2.3
+OUTLINE_LOGIC_RE
+VIEW_SYSTEM_PRO
+MPT
+A.2.4
+OUTLINE_LOGIC_RE
+PAIR_SYSTEM_PRO
+MPT
+A.2.5
+EXPANSION_SYSTE
+M_PROMPT
+A.3 模板理解与版式分
+配 Prompt
+A.3.1
+TEMPLATE_STYLE_S
+YSTEM_PROMPT
+A.3.2
+TEMPLATE_SLIDE_P
+ERCEPTION_SYSTE
+M_PROMPT
+A.3.3
+TEMPLATE_PATTER
+N_SYSTEM_PROMP
+T
+A.3.4
+TEMPLATE_ARCHET
+YPE_SYSTEM_PROM
+PT
+A.3.5
+TEMPLATE_SYNTHE
+SIS_SYSTEM_PROM
+PT
+A.3.6
+TEMPLATE_QUALIT
+Y_SYSTEM_PROMPT
+A.3.7
+TEMPLATE_LAYOUT
+_ASSIGNMENT_SYS
+TEM_PROMPT
+A.4 逐页视觉设计与修
+复 Prompt
+A.4.1
+VISUAL_LANGUAGE
+_PLAN_SYSTEM_PR
+OMPT
+A.4.2
+VISUAL_DESIGN_SY
+STEM_PROMPT
+A.4.3
+VISUAL_REPAIR_SYS
+TEM_PROMPT
+A.4.4
+VISUAL_REDESIGN_
+SYSTEM_PROMPT
+A.4.5
+VISUAL_POWERPOI
+NT_REPAIR_SYSTEM
+_PROMPT
+A.5 素材审核 Prompt
+A.5.1
+ASSET_REVIEW_SYS
+TEM_PROMPT
+A.6 AI Edit Prompt
+A.6.1
+AI_EDIT_SYSTEM_PR
+OMPT
+A.7 动态 User Prompt
+模板
+A.7.1 大纲生成
+A.7.2 模板分析与版式
+分配
+A.7.3 逐页视觉方案
+A.7.4 HTML/CSS 视
+觉实现
+A.7.5 Browser /
+PowerPoint Repair
+A.7.6 素材视觉审核
+A.7.7 AI Edit 结构化
+规划
+A.8 PromptRecord 与
+可追踪性
+
+===== PAGE 3 =====
+第 3 页PPT Generator Harness · 开发复盘
+1. 全景展示
+本地工作台： - 用户先确认大纲，系统逐页做视觉方案和 HTML/CSS，实现后分别经过浏览器和 Microsoft
+PowerPoint 验证；
+失败可以局部修复、单页重试或定向重设计，最后输出仍然可编辑的 PPTX。
+
+
+===== PAGE 4 =====
+第 4 页PPT Generator Harness · 开发复盘
+2. 竞品分析
+Gamma 的部分是根据公开产品流程和帮助文档总结，不代表知道它的内部代码；Cursor 的部分来自官方
+Agent 文档和公开的 Harness 能力说明。
+2.1 Gamma：先确定内容和叙事，再生成卡片
+Gamma 公开的产品流程大致是：
+多种入口（ Generate / Paste / Import / Agent ）
+  -> 提供资料并回答澄清问题
+  -> 与  Agent 一起整理大纲
+  -> 选择  deck style / workspace theme
+  -> 生成  slides/cards
+  -> 单页或整份  AI Edit
+  -> 手工调整布局、图片和主题
+几个值得借鉴的点：
+输入支持多元输入，包括粘贴文本、文件、网页和已有演示文稿。
+Agent 模式把大纲放在生成前，让用户先参与叙事结构。
+Slide/Card 是局部编辑单元；AI 编辑可以作用到一页，部分版本也支持整份修改。
+Style 不只是换颜色，还会影响排版和写作语气；图片位置、overlay、对齐方式是显式控制项。
+Gamma 的 card 可以随内容动态伸缩，这很适合网页展示；但导出固定 16:9 PowerPoint 时，仍需要更
+严格的尺寸约束。
+2.2 Cursor：Harness 是上下文、工具和反馈循环
+Cursor 不负责生成 PPT，但它的 Agent Harness 思路很有参考价值：
+用户目标
+  -> 读取相关上下文
+  -> Plan / Todo
+  -> 调用搜索、编辑、终端等工具
+  -> 检查实际结果
+  -> 修错并继续
+  -> Checkpoint / Review
+我主要借鉴了这些能力：
+Rules 保存长期、可复用的约束；Skills 按任务动态加载流程，避免所有信息一直塞进上下文。
+Plan/Todo 把长任务拆开，并实时显示当前进度。
+
+===== PAGE 5 =====
+第 5 页PPT Generator Harness · 开发复盘
+Agent 可以调用工具获取真实状态，并非只靠静态上下文猜测。
+Checkpoint 支持失败恢复；修改应该有明确作用域，能够撤销。
+验证是 Agent Loop 的一部分。
+2.3 三者放在一起看
+产品流程借鉴 Gamma，Agent Loop 借鉴 Cursor，但 PPT 的结构、排版和 PowerPoint 字体度量必须自己
+做领域 Harness。
+维度 Gamma Cursor 本项目
+主要对象 Presentation / Slide(Card) Repo / File / Tool Outline / Slide / Element /
+Asset
+规划 与 Agent 协作大纲 Plan、Todo、上下文收集 大纲草案 + 逻辑审查 + 用户
+确认 + 逐页视觉方案
+执行 生成和编辑卡片 搜索、编辑、终端、MCP 模型生成结构化方案与
+HTML/CSS，确定性代码编
+译 PPTX
+局部修改 单页、整份 AI Edit 文件级或任务级编辑 用户多选页面，自然语言转
+结构化 Patch，只重做选中页
+验证 以产品预览和用户调整为主 测试、终端、Review Chromium Harness +
+PowerPoint COM 实测双层
+验证
+恢复 卡片编辑、历史能力 Checkpoint 不可变版本 + 逐页
+checkpoint + 单页重试
+最强项 产品体验和视觉基线成熟 通用 Agent Harness 完整 PPT 领域约束、可观测性、
+真实 PowerPoint 验收
+当前短板 内部实现不可见，难做同口
+径评测
+不是 PPT 专用系统 视觉基线和模板生态仍弱于
+Gamma，COM 不适合高并
+发服务
+
+===== PAGE 6 =====
+第 6 页PPT Generator Harness · 开发复盘
+3. 设计思路
+3.1 先确认大纲，避免把返工推到最后
+如果模型直接生成六页 PPT，用户最后才发现叙事顺序不对，所有视觉和排版都要重做。因此入口统一变
+成：
+主题  / 任意文本  / 空输入
+  -> 可编辑大纲
+  -> 结构契约与逻辑审查
+  -> 用户明确确认
+  -> 才允许生成  PPT
+空输入也会得到可编辑大纲；已有材料则尽量忠实提炼。divergence 控制事实之外可以发散多少，
+content_richness 单独控制正文要点数量和解释深度，避免“想让内容更丰富”被误解成“可以编更多事
+实”。
+这一块由于会将全部内容传给 LLM 进行规划，因此材料文本的形式可以很多样，用户可以在材料里面记录零
+零散散的想法，最终会汇总成结构化的大纲。
+
+
+===== PAGE 7 =====
+第 7 页PPT Generator Harness · 开发复盘
+3.2 模型负责语义判断，Harness 负责可验证的边界
+模型适合做：传播目标、叙事结构、视觉隐喻、内容重写、是否需要图片。
+确定性代码适合做：页数、ID、确认门、HTML 安全、文本是否丢失、坐标越界、字号下限、文件版本、
+PPTX 编译和重试上限。
+这条分工很关键：如果让模型自己判断“我生成的页面是否合法”，它很容易在同一个错误上反复改；如果全
+部写成固定模板，又失去了 AI 的表达能力。
+3.3 视觉方案和视觉实现拆成两次调用
+早期只让模型直接写 HTML/CSS，页面虽然能渲染，但经常没有明确的图形语言，也不会主动申请图片。后
+来拆成两阶段：
+1. VisualLanguagePlan：先回答这一页要传达什么、用什么构图、图形、色彩、素材和跨页承接。
+2. VisualSlideDesign：再按已经批准的方案生成 HTML/CSS。
+视觉方案的核心字段包括：
+communication_goal
+visual_thesis
+layout_family
+composition
+information_hierarchy
+graphic_elements
+asset_strategy / asset_requests
+color_strategy / typography_strategy
+continuity / avoid
+这样 UI 能在 HTML 还没写完时先显示“模型准备怎么做”，也能判断后续 HTML 有没有偏离原方案。
+这样能让用户溯源，判断模型设计是否合理，也方便精细地微调。
+
+===== PAGE 8 =====
+第 8 页PPT Generator Harness · 开发复盘
+3.4 HTML/CSS 是中间视觉语言，DeckIR 是状态真相
+模型擅长写 HTML/CSS，也容易表达不规则构图、渐变、遮罩和 SVG。Chromium 又能给出真实 DOM 边
+界，所以 HTML/CSS 很适合作为视觉草稿语言。
+但不能把 HTML 当唯一状态。系统仍用 DeckIR 保存页面、元素、稳定 ID、内容、视觉方案、素材、版本和
+验证结果。局部修改走 PatchSet。
+3.5 视觉保真和 PowerPoint 可编辑性同时保留
+最终转换采用混合策略：
+HTML 的非文本视觉层渲染为背景，保留复杂视觉效果。
+带 data-ppt-kind="text" 和唯一 data-role 的语义文本转换成 PowerPoint 原生文本框。
+data-ppt-source-id 把视觉节点映射回大纲锁定内容。
+
+===== PAGE 9 =====
+第 9 页PPT Generator Harness · 开发复盘
+4. 整体架构
+flowchart TD
+    U[" 用户输入：主题  / 材料  / 受众  / 页数  / 风格 "] --> O["OutlineRequest"]
+    O --> OP["AI 大纲提案 "]
+    OP --> OC[" 结构契约检查 "]
+    OC --> OR[" 独立逻辑  Review / Repair"]
+    OR --> HC{" 用户确认？ "}
+    HC -- 否  --> OE[" 编辑大纲 "] --> OC
+    HC -- 是  --> CE[" 受限内容展开 "]
+    CE --> D["DeckIR + 稳定  ID"]
+    D --> VP[" 逐页  VisualLanguagePlan"]
+    VP --> AR[" 素材搜索、许可过滤、安全 / 相关性审核 "]
+    AR --> VH["AI 生成  HTML/CSS"]
+    VH --> BH["Browser Harness"]
+    BH --> HP["HTML Contract Patch"]
+    HP --> CP[" 局部  CSS Patch / AI Redesign"]
+    CP --> DC["DOM -> 可编辑文本  + 视觉背景 "]
+    DC --> PX["PPTX 编译 "]
+    PX --> PP["Microsoft PowerPoint 渲染  PNG/PDF 并测量 "]
+    PP --> EV{"Geometry / Text 验证 "}
+    EV -- 失败  --> PR["PowerPoint CSS / AI / DeckIR 有界修复 "] --> PX
+    EV -- 通过  --> OUT[" 版本化  PPTX + Preview + Trace"]
+4.1 关键数据对象
+对象 作用 为什么需要
+OutlineDraft 保存大纲 revision、确认状态、页面任
+务和逻辑审查
+把“先确认什么”变成硬门槛
+DeckIR 保存整份 PPT 的结构化状态 生成、修改、恢复和验证共用同一真相
+VisualLanguagePlan 保存制作前视觉决策与素材需求 防止模型边写 HTML 边临时改主意
+VisualDesignState 保存 HTML、CSS、渲染路径、Patch
+次数和 fallback 原因
+让每页设计可复现、可调试
+PatchSet 用稳定 slide/element ID 描述局部修改 保证未选页面不受影响
+ValidationReport / TraceEvent 保存问题、测量和各阶段事件 让失败能定位
+DeckBuildCheckpoint 保存已完成页面和失败页 支持只重试一页并继续整体验收
+
+===== PAGE 10 =====
+第 10 页PPT Generator Harness · 开发复盘
+4.2 代码分层
+文件 职责
+models.py Pydantic 数据契约、DeckIR、Patch、Issue、Trace
+outline_workflow.py 大纲生成、逻辑审查、确认、内容展开、checkpoint 与单页重
+试
+visual_design.py 视觉方案、HTML/CSS、Browser Harness、HTML/CSS
+Patch、DOM 转换
+asset_resolver.py Openverse/Iconify/Unsplash/Pexels/用户素材、下载、许可
+与视觉审核
+patching.py 自然语言 AI Edit -> 结构化操作 -> 局部 Patch
+service.py PPTX 编译、PowerPoint 验证和总 Harness Loop
+repair.py 根据实测问题做有界 DeckIR 几何修复
+renderers/powerpoint.py 调用本机 PowerPoint 导出并读取文本边界
+web_ui.py 进度、局部预览、Prompt/Trace、AI Edit、素材替换与重试
+入口
+
+===== PAGE 11 =====
+第 11 页PPT Generator Harness · 开发复盘
+5. 核心 Harness 怎么工作
+5.1 大纲 Harness
+这一层主要用于评估“六页内容连起来是不是一个完整故事”。 在实际使用中容易发现 LLM 在生成大纲的时
+候不同页之间的逻辑联系有时候比较混乱。 普通结构校验只能发现少页、缺封面之类的硬错误；因此这里额
+外做了一套独立的全局叙事逻辑审查，在用户确认大纲前先检查传播任务、相邻页承接和结论是否成立。
+整个流程是：
+用户需求
+  -> AI 生成  OutlineProposal
+  -> 确定性结构契约
+  -> 独立  AI Logic Reviewer
+       -> 通过：把审查报告和大纲一起展示给用户
+       -> 不通过：按  revision_brief 重写完整大纲
+                    -> 再过结构契约
+                    -> 再做一轮  Logic Review
+  -> 用户编辑、复审和确认
+这里有三道不同性质的控制：
+1. 生成 Prompt 和 Pydantic Schema：要求模型返回标题、传播任务以及逐页的 semantic_type / title
+/ purpose / key_points，先把自由文本收敛成可检查对象。
+2. 确定性结构契约：检查目标页数、第一页必须是封面、最后一页必须是总结，以及中间页类型是否合法。
+这些规则不交给模型判断；进入可编辑草稿后再分配稳定 ID，后续内容扩写必须原样返回这些 ID，不能
+偷偷增删或调换页面。
+3. 独立逻辑 Review：使用另一个 Prompt 和输出 Schema 阅读整份大纲，而不是让生成模型顺手评价自
+己。它必须回答下面五类问题：
+评分维度 实际检查的问题
+narrative_arc 整份内容是否围绕传播任务形成“背景/问题 -> 判断 -> 方法/
+证据 -> 行动”的推进，而不是页面并列堆砌？
+adjacent_continuity 第 1->2、2->3 等每一对相邻页面是否有明确承接，有没有突
+然换话题？
+audience_alignment 标题、论据和行动建议是否适合目标受众，而不是一套泛化文
+案？
+redundancy_control 页面之间是否重复表达同一个观点，或者某一页没有独立叙事
+任务？
+conclusion_support 总结和行动建议是否由前文支撑，而不是最后突然喊口号？
+
+===== PAGE 12 =====
+第 12 页PPT Generator Harness · 开发复盘
+Review 返回每项分数、每一对相邻页的承接判断、带页码和严重级别的问题、修改建议，以及可直接交给整
+改模型的 revision_brief。当前默认通过策略比较严格：总分至少 75；五项中任何一项不得低于 60；所有
+相邻页都必须判定为连贯；不能存在 warning/error 级阻塞问题。
+逻辑审查自己也要过 Harness
+模型有可能漏评某一对页面，或者给了高分却同时报告严重问题，因此不能直接相信 Reviewer 的一个
+passed。代码会再次确定性检查评审结果：
+五个必需维度是否全部给分；
+是否恰好覆盖 1->2 ... N-1->N 的全部相邻关系；
+是否出现重复关系、越界页码或重复 rule_id；
+分数、相邻页判断和问题严重级别是否同时满足通过策略。
+只有这些条件共同成立，状态才会变成 passed 或 passed_with_suggestions。否则统一进入
+needs_revision，避免模型用一个好看的总分绕过具体问题。
+有界地重写并复审
+未达标时，Repair Prompt 会拿到原始需求、当前完整大纲和结构化审查报告，返回一份完整的
+OutlineProposal。整改稿必须保持页数、封面/总结边界和允许的中间页类型；原有逐页视觉要求也会保
+留。若结构契约被破坏，自动整改立即停止，不会把错误大纲继续传给后续 PPT 流程。
+默认最多整改 2 轮，也就是最多经历 3 次审查。下一轮会带上上一轮结果，并通过稳定 rule_id 计算
+revision_delta：哪些问题已经解决、哪些仍存在、哪些是本轮新引入的，以及总分变化。这样能看出整改
+是否真正收敛，而不是只看到“又生成了一版”。所有 Review/Repair Prompt、结构化输出、轮次、错误和
+耗时也都进入 Prompt 历史与实时进度日志。
+
+===== PAGE 13 =====
+第 13 页PPT Generator Harness · 开发复盘
+5.2 Browser Harness
+HTML/CSS 返回后，先检查源代码，再在 1600x900 Chromium 画布中实测：
+禁止 script、iframe、表单、事件处理器、外部 URL 和 CSS import。
+每个可见文本必须是受管节点，并有唯一 role。
+标题和大纲锁定内容不能丢失或被改写。
+检查字号、越界、scroll overflow、文本互相重叠、文本压住图片且没有可读性保护。
+图形容器、素材引用和 data-ppt-source-id 必须满足契约。
+
+===== PAGE 14 =====
+第 14 页PPT Generator Harness · 开发复盘
+修复顺序刻意从“最局部”到“最昂贵”：
+flowchart LR
+    A["HTML/CSS 初稿 "] --> B[" 确定性  HTML Contract Patch"]
+    B --> C["Chromium 实测 "]
+    C -- 通过  --> D["DOM 转  DeckIR"]
+    C -- 几何 / 字号问题  --> E["role 级  CSS Patch ，最多  3 轮 "] --> C
+    C -- 结构问题或  Patch 不收敛  --> F["AI Repair / Redesign ，最多  3 轮 "] --> C
+    C -- 仍失败  --> G["auto 模式才允许整页  fallback ； ai 模式直接报错 "]
+这里不把 fallback 当普通路径。保留原视觉页优先，只有确定性 Patch 和有限 AI 重设计都失败时才降级。
+5.3 素材 Harness
+视觉规划器可以请求 photo、illustration、texture 或 icon。系统随后：
+1. 从用户素材库、Openverse、Unsplash、Pexels 或 Iconify 搜索候选。
+2. 先用标题和标签敏感词做元数据拦截。
+3. 下载到本地，检查格式、大小、许可和来源。
+4. 视觉模型判断内容安全性与页面相关性。
+5. 审核不可用时默认禁止采用；用户只能显式点击“跳过视觉审核并采用（风险自担）”。
+6. 记录 provider、作者、来源、许可和审核原因，并写入 speaker notes。
+人工换图不再重新请求模型写一遍 HTML。只要原页面保留了素材 slot，就复用 HTML/CSS 和可编辑文字几
+何，替换本地图片后重渲染受影响页，再验收整份 PPT。
+
+===== PAGE 15 =====
+第 15 页PPT Generator Harness · 开发复盘
+5.4 PowerPoint Harness
+浏览器通过不等于 PPT 通过。Chrome 和 PowerPoint 的字体度量、换行、TextFrame margin 和组合对象
+行为并不一致，所以还要：
+生成  PPTX
+  -> Microsoft PowerPoint COM 导出  PNG/PDF
+  -> 读取真实文本边界
+  -> 验证重叠、越界、 overflow
+  -> 首轮优先翻译为局部  CSS Patch
+  -> 必要时  AI 根据  PowerPoint 测量重设计
+  -> 最后做有界、单调的  DeckIR 几何修复
+  -> 重新编译与复验
+一旦 DeckIR 已经按 PowerPoint 测量扩过文本框，就不再从 HTML 重建这批几何，避免“HTML 修一次、
+PPT 又还原一次”的振荡。
+5.5 进度、局部重试和 AI Edit
+本项目把构建过程建模为后台 Progress Job，核心服务持续发送结构化事件，界面据此显示 phase、
+status、percent、当前页、已完成页数、总页数以及本阶段的细节数据。进度事件只是可观测层，即使浏
+览器连接短暂中断，也不会反过来使 PPT 构建失败。
+
+===== PAGE 16 =====
+第 16 页PPT Generator Harness · 开发复盘
+5.5.1 逐页、流式的进度模型
+视觉方案和 HTML/CSS 生成允许最多三页并行，但 Browser Harness 保持单消费者。任意一批 HTML/CSS
+返回后就进入 Harness 就绪队列，不再等待所有页面的模型调用全部结束。这样在后续页面仍由 LLM 生成
+时，先返回的页面已经可以执行 HTML Contract Patch、浏览器渲染、局部 CSS Patch 和预览发布。
+P1/P2/P3 并行请求  HTML/CSS
+  ├─ P1 先返回  -> 保存  HTML 调试预览  -> Contract Patch -> Browser Harness
+  ├─ P2 继续由  LLM 生成
+  └─ P3 返回后进入  Harness 等待队列
+P1 Harness 通过
+  -> 保存  P1 checkpoint
+  -> 发布  P1 实时预览
+  -> 单消费者继续检查已经就绪的  P3 或  P2
+5.5.2 Checkpoint 与局部重试
+每当视觉方案、HTML/CSS 或完整页面形成可复用结果时，系统都会更新构建 checkpoint，保存：
+DeckIR 当前版本和已经通过 Harness 的页面 ID。
+已经返回、但尚未完成 Harness 的视觉方案与 HTML/CSS。
+失败页 ID、页码、标题、失败阶段、错误原因和重试次数。
+已完成页面的预览路径，以及未完成页面可以复用的模型结果。
+某页失败时，服务抛出带恢复信息的单页错误，用户点击“重试该页”后，流程为：
+载入  checkpoint
+  -> 保留已通过页面的内容、 HTML/CSS 、 DeckIR 几何和预览
+  -> 复用或按需更新失败页的视觉方案，并强制重新请求该页  HTML/CSS
+  -> 复用其他未完成页中已经返回的模型结果
+  -> 继续剩余页面的  Contract Patch 与  Browser Harness
+  -> 所有页面就绪后重新编译整份  PPTX
+  -> 再跑整份  PowerPoint 渲染与验收
+因此“局部重试”只缩小重新生成的范围，不会降低最终验收范围。已经完成的页面不会因为第三页失败而重
+新请求 LLM；但是修好的第三页加入 DeckIR 后，整份 PPT 仍要重新检查跨页结构、PowerPoint 文本边
+界、重叠和越界。这样既避免全部重做，也避免“单页看起来没问题，但合回整份 PPT 后出错”。
+5.5.3 AI Edit：从用户参考到结构化操作
+AI Edit 的入口要求用户先多选允许修改的页面，再输入自然语言要求。
+AI Edit 规划模型会同时看到：
+用户的自然语言修改要求。
+整份 PPT 的标题、目标受众、传播任务和页面顺序。
+
+===== PAGE 17 =====
+第 17 页PPT Generator Harness · 开发复盘
+所选页的现有文案、语义类型、单页 visual_brief 和当前结构化视觉方案。
+模型支持视觉输入时，所选页面的当前 PPT 预览图。
+规划模型此时只负责把要求翻译为稳定的结构化操作，不直接输出 HTML/CSS。支持的主要操作包括：
+操作 修改对象 对后续视觉生成的影响
+enrich_slide_content 扩写正文、要点或 takeaway 更新锁定内容，要求新 HTML 完整承载
+扩写后的文案
+rewrite_slide_content 重写表达但保持事实和叙事任务 替换所选内容字段并重新设计文本层级
+simplify_slide_content 压缩低价值内容 重新生成更适合当前信息密度的构图
+replace_text 修改标题 更新稳定 source ID 对应的标题，并使
+旧视觉层失效
+replace_layout 在受支持的语义布局间切换 重新选择内容或对比页面的结构
+add_visual_assets 增加照片、插画、图标或纹理需求 把素材用途、位置和禁用项写入最高优
+先级视觉指令，再走素材 Harness
+remove_visual_assets 移除或禁止某类素材 更新素材限制，并重新规划不依赖该素
+材的构图
+update_visual_brief 更新该页视觉要求 把用户的颜色、图形、构图和风格参考
+传给视觉规划器
+redesign_slide 内容不变、整页重设计 让视觉规划器和 HTML/CSS 模型重新实
+现页面
+一个页面可以同时包含多个操作。例如用户勾选第三页并输入“内容再充实一些，加入有表达作用的 icons，
+改成更清晰的四项对比”，AI Edit 可以形成：
+P3 enrich_slide_content
+P3 add_visual_assets
+P3 update_visual_brief
+P3 redesign_slide
+5.5.4 AI Edit 后为什么还要重新跑视觉流程
+结构化 PatchSet 应用到 DeckIR 后，所选页原有的 visual_design 会被主动置为无效。原因是旧
+HTML/CSS、背景图和可编辑文本几何仍然对应旧文案与旧视觉要求，直接在 PowerPoint 最后一步挪几个
+文本框不能可靠地完成“内容丰富、增加素材、改变构图”这类修改。
+因此 AI Edit 的实际执行链是：
+
+===== PAGE 18 =====
+第 18 页PPT Generator Harness · 开发复盘
+用户选择页面并提供参考要求
+  -> AI Edit LLM 生成受限  PatchSet
+  -> PatchEngine 更新所选页内容  / visual_brief / 素材指令
+  -> 只使所选页旧视觉层失效
+  -> 视觉规划  LLM 根据新内容、用户参考和当前上下文重新制定方案
+  -> 素材搜索、许可过滤和视觉审核
+  -> HTML/CSS LLM 根据新方案重新生成或重写所选页  HTML/CSS
+  -> HTML Contract Patch
+  -> Browser Harness + CSS Patch + 必要时  AI Repair/Redesign
+  -> DOM 转  DeckIR ，发布所选页新预览
+  -> 合并未修改页面，重新编译整份可编辑  PPTX
+  -> Microsoft PowerPoint 实测和整份最终验收
+人工素材替换是一个刻意保留的例外：如果页面已经有稳定的素材 slot，用户只是换一张图，则复用原
+HTML/CSS 和可编辑文字几何，只替换本地素材并重渲染页面，不需要再次调用 LLM 重写整页。
+
+===== PAGE 19 =====
+第 19 页PPT Generator Harness · 开发复盘
+6. 当前关键参数
+以下是当前演示配置中最重要的 Harness 参数。
+模块 参数 当前值 作用
+Outline 页数 3-20 控制大纲结构边界
+Outline Review 总分 / 单项最低分 75 / 60 低于门槛自动整改
+Outline Review 最大整改轮次 2 防止 Critic/Rewrite 无限循
+环
+Visual 画布 1600x900 固定 16:9 浏览器测量基准
+Visual 并行页数 3 降低逐页等待时间
+Visual CSS Patch / AI Repair 3 / 3 轮 局部修复优先，模型重写有
+界
+Typography 封面标题 / 普通标题 / 正文 67 / 47 / 22 px 禁止靠无限缩字通过校验
+Assets 单页最多素材 / 每请求候选 3 / 4 控制噪音和下载成本
+Assets 许可白名单 PDM、CC0、BY、BY-SA 保留可追踪来源
+Assets 安全 / 相关性阈值 85 / 60 低于阈值不自动采用
+Repair PowerPoint 总修复预算 3 保证 Harness 能停机
+Planner 普通调用超时 / 尝试次数 90s / 2 结构化调用的通用容错
+Visual Model 初稿 / 修复超时 120s / 60s 初稿允许更长输出，修复保
+持有界
+这些参数并非“越大越好”。例如把修复轮次无限加大，只会让坏 HTML 在同一局部振荡；真正需要的是识
+别问题类型，然后切换到 HTML Contract Patch 或整页 Redesign。
+
+===== PAGE 20 =====
+第 20 页PPT Generator Harness · 开发复盘
+7. 开发过程遇到过的问题
+7.1 从线性生成器变成 Agent Loop
+第一版思路接近：输入 -> 大纲 -> 固定布局 -> PPTX -> 验证。它能跑，但用户无法在关键节点介入，失败
+也不知道发生在哪。
+后续逐步增加了：大纲确认门、独立逻辑审查、逐页视觉方案、Prompt 历史、Trace、Browser Harness、
+PowerPoint 实测、checkpoint 和局部编辑。系统才从“生成脚本”变成 Harness。
+7.2 CSS 怎么修都不好的页面，其实是 HTML 结构错了
+典型错误包括 missing_locked_text 和 missing_graphic_container。CSS 只能调整已有节点的样式，不能
+凭空恢复丢失的锁定文本，也不应该猜哪个外层容器才是真正图形容器。
+修复方式：
+增加确定性 HTML Contract Patch，补唯一 role、锁定标题契约、素材 slot 和 graphic 标注。
+CSS 多轮不收敛时，把 issue history 交给 redesign_slide，明确丢弃旧 DOM 与几何，但保留锁定内
+容、素材和主题。
+增加回归测试，防止模型修复后再次破坏 HTML 契约。
+7.3 浏览器看起来正常，PowerPoint 仍然溢出或错位
+一开始验证器固定扣除一段假想的文本框空间，导致本来没溢出的内容被误报；同时 PowerPoint 的真实
+TextFrame margin、中文换行和字体基线又确实和浏览器不同。
+修复方式：
+移除固定扣除 8pt 的逻辑，读取真实 TextFrame margin。
+优先扩展文本框到安全空白，而不是持续缩小字体。
+标题框因 PowerPoint 字体度量需要增高时，如果顶部有空间，就向上扩展并保持下边界不动，避免把下
+面整组内容推离背景。
+圆形编号使用与背景圆圈完全一致的 DOM 视觉盒做水平/垂直居中，不再靠经验值额外上提。
+这里最后还暴露过一个很典型的“双层几何”问题：修复器为了避开标题，把副标题和后面 10 个可编辑文本
+框整体下移了约 0.11in，但圆圈属于已经栅格化的背景，没有一起移动，于是第 6 页的数字跑出了圆心。此
+时不应该继续给数字加偏移量，而应该让标题框向上扩展，从源头避免移动时间线。这个例子也说明，
+PowerPoint 修复不能只看文本框是否合法，还要检查它是否仍与背景视觉单元对齐。
+
+===== PAGE 21 =====
+第 21 页PPT Generator Harness · 开发复盘
+7.4 文字和图形错位、文字压住图片
+修复前曾出现文字不在图形中间、文本与图片重叠、边框过浅等问题：
+对应的 Harness 改进包括：
+Flex row 转 PowerPoint 时保留父容器分配的完整宽度。
+有 padding 的 badge/button 使用完整视觉盒，而不是只取字形内部宽度。
+检查 semantic_text_overlap、unapproved_text_graphic_overlap 和 low_border_contrast。
+CSS Patch 只命中具体 role，避免一处修复影响整页。
+7.5 图片都有，但被统一塞到右下角
+早期素材 Contract Patch 只保证“图片被插入”，没有理解 placement，所以不同页面的图片都变成右下角
+缩略图：
+
+===== PAGE 22 =====
+第 22 页PPT Generator Harness · 开发复盘
+后来改成 placement-aware：优先把素材放进与用途和 graphic role 匹配的容器；全出血、左右分栏、卡
+片、背景纹理分别采用不同插入策略。人工上传也只做确定性素材替换，不再重新请求模型生成 HTML。
+7.6 一页失败拖垮整份 PPT
+早期任何一页超时或 Harness 失败，任务直接结束；用户只能从头再跑，而且之前完成的预览也会消失。
+修复方式：每页完成即 checkpoint；失败响应带失败页、阶段、已完成页和 checkpoint ID；UI 保留
+partial preview，并提供“只重试失败页”。重试时已完成页不重新请求模型，最终只重新做整份
+PowerPoint 验收。
+
+===== PAGE 23 =====
+第 23 页PPT Generator Harness · 开发复盘
+8. 结果怎么评价
+一次成功的PPT渲染如下：
+和竞品相比，我认为结论要诚实一些：
+Gamma 的默认视觉质量、模板数量和商业化交互明显更成熟，本项目还有许多细节值得打磨。
+本项目更适合证明 Harness 能力：Prompt、结构化输出、每轮 Patch、素材审核、HTML 预览、
+PowerPoint 测量和失败恢复全部可见。
+相比只输出图片的方案，本项目保留了可编辑语义文本，并用本机 PowerPoint 做最终验收。
+相比通用 Cursor Agent，本项目工具更少，但每个工具和 Validator 都围绕 PPT 的固定尺寸、内容锁
+定、字体度量和局部修改设计。
+当前效果证明“这条链路能闭环”，还不能证明在大规模、多主题评测上优于竞品。要做强结论，需要同
+输入、同页数、人工盲评和导出后可编辑性测试。
+
+===== PAGE 24 =====
+第 24 页PPT Generator Harness · 开发复盘
+9. 当前边界和下一步
+多模态接口兼容性仍依赖具体供应商。当前选择 fail-closed 是安全的，但会增加人工确认成本。
+参考模板已经支持 style/layout/strict 三档，但模板检索和视觉模式库还需要更多真实 PPTX 数据。
+目前回归测试覆盖结构、局部性、素材、浏览器 Harness 和 PowerPoint 修复；下一步应加入固定视觉基
+准图。
+
+===== PAGE 25 =====
+第 25 页PPT Generator Harness · 开发复盘
+参考资料
+Gamma 官方
+Create with Agent：资料、澄清问题、大纲协作与 deck styles
+Generate / Paste / Import 三种创建入口
+Slides 的生成、布局和动态尺寸
+Slide styling：图片位置、overlay、颜色与对齐
+Cursor 官方
+Agent Modes
+Rules
+Planning 与消息队列
+Checkpoints
+Agent Tools
+Agent best practices：Rules、Skills、Hooks 和长循环
+
+===== PAGE 26 =====
+第 26 页PPT Generator Harness · 开发复盘
+附录 A：Prompt 清单与原文
+本附录记录当前代码版本使用的 Prompt。运行时以源码为唯一事实来源；如果后续修改 Prompt，应同步更
+新本附录。静态 System Prompt 完整收录，动态 User Prompt 因为会注入用户材料、页面内容、视觉方
+案、素材候选和 Harness 测量结果，采用“字段模板 + 典型结构”的方式记录。每次实际调用的完整
+system prompt、user prompt、response schema、结构化输出、尝试次数、调用模式和错误仍以界面的
+Prompt 历史及持久化 PromptRecord 为准。
+A.1 Prompt 全景索引
+分组 Stage System Prompt 结构化输出 主要触发条件
+大纲 outline_generation OUTLINE_SYSTEM_PROM
+PT
+OutlineProposal 首次生成可编辑大纲
+大纲 outline_contract_re
+pair
+OUTLINE_REPAIR_SYST
+EM_PROMPT
+OutlineProposal 页数、首尾页面或类
+型契约不满足
+大纲 outline_logic_revie
+w
+OUTLINE_LOGIC_REVIE
+W_SYSTEM_PROMPT
+OutlineLogicAssessm
+ent
+启用全局叙事逻辑审
+查
+大纲 outline_logic_repai
+r
+OUTLINE_LOGIC_REPAI
+R_SYSTEM_PROMPT
+OutlineProposal 逻辑审查未过门槛且
+仍有整改预算
+文案 confirmed_outline_e
+xpansion
+EXPANSION_SYSTEM_PR
+OMPT
+ExpandedDeckContent 用户确认大纲后扩写
+逐页正文
+模板 template_style_anal
+ysis
+TEMPLATE_STYLE_SYST
+EM_PROMPT
+TemplateStyleAnalys
+is
+模板入库时提取全局
+视觉身份
+模板 template_slide_perc
+eption_batch_*
+TEMPLATE_SLIDE_PERC
+EPTION_SYSTEM_PROMP
+T
+TemplateSlidePercep
+tion
+分批理解模板页面
+模板 template_pattern_mi
+ning
+TEMPLATE_PATTERN_SY
+STEM_PROMPT
+TemplatePatternAnal
+ysis
+挖掘可复用视觉模式
+模板 template_archetype_
+clustering
+TEMPLATE_ARCHETYPE_
+SYSTEM_PROMPT
+TemplateArchetypeAn
+alysis
+聚类开放式页面原型
+模板 template_profile_sy
+nthesis_v2
+TEMPLATE_SYNTHESIS_
+SYSTEM_PROMPT
+TemplateSynthesis 综合模板画像
+
+===== PAGE 27 =====
+第 27 页PPT Generator Harness · 开发复盘
+分组 Stage System Prompt 结构化输出 主要触发条件
+模板 template_quality_re
+view
+TEMPLATE_QUALITY_SY
+STEM_PROMPT
+TemplateQualityRevi
+ew
+复核模板分析事实冲
+突
+模板 template_layout_ass
+ignment
+TEMPLATE_LAYOUT_ASS
+IGNMENT_SYSTEM_PROMP
+T
+DeckTemplatePlan 为整份 PPT 统一分配
+候选版式与模式
+视觉 visual_language_pla
+n
+VISUAL_LANGUAGE_PLA
+N_SYSTEM_PROMPT
+VisualLanguagePlan 制作页面前规划视觉
+语言和素材
+视觉 visual_design VISUAL_DESIGN_SYSTE
+M_PROMPT
+VisualSlideDesign 把批准的视觉方案实
+现为 HTML/CSS
+视觉 visual_design_repai
+r
+VISUAL_REPAIR_SYSTE
+M_PROMPT
+VisualSlideDesign Browser Harness 局
+部修复未通过
+视觉 visual_design_redes
+ign
+VISUAL_REDESIGN_SYS
+TEM_PROMPT
+VisualSlideDesign 多轮局部 Patch 不收
+敛，整页换结构
+视觉 visual_design_power
+point_repair
+VISUAL_POWERPOINT_R
+EPAIR_SYSTEM_PROMPT
+VisualSlideDesign 浏览器通过但
+PowerPoint 实测失败
+素材 visual_asset_review ASSET_REVIEW_SYSTEM
+_PROMPT
+AssetVisionReviewBa
+tch
+下载候选后做视觉安
+全与相关性审核
+编辑 ai_edit_plan AI_EDIT_SYSTEM_PROM
+PT
+AIEditPlan 把选中页面的自然语
+言修改转成 PatchSet
+A.2 大纲与文案 Prompt
+A.2.1 OUTLINE_SYSTEM_PROMPT
+你是专业演示文稿的内容架构师。你的任务只是生成供用户确认的大纲，不能生成  PPTX 。
+先定义传播任务和叙事主线，再给出逐页大纲。每页只承担一个叙事任务，标题应表达结论或问题，而不是空泛栏目名。
+第一页必须是  cover ，最后一页必须是  summary ；中间页使用  content 或  comparison 。严格输出指定页数。
+用户材料可以是  Markdown 、散文、会议纪要、零散句子或空白。材料存在时必须提炼其真实内容；禁止编造精确数据、人物、引用或
+来源。
+发散度越低，越要忠实保留材料的事实、顺序和措辞；发散度越高，越可以重组叙事、提出新角度和补充通用框架，但仍不能虚构事
+实。
+内容丰富度与发散度是两个独立维度：丰富度只控制正文要点数量、解释深度和具体程度，不授权虚构新事实。必须遵循输入中的 
+content_richness_guidance 。
+输出将先展示给用户编辑确认，因此  purpose 要说明该页在故事中的作用。每条  key_point 应是完整、可直接扩写的观点；较高丰
+富度要补足原因、关系、意义、例证类型或行动含义，而不是堆砌同义句。
+封面保持简洁；正文和对比页按  richness 对应的目标范围组织高价值要点。内容过多时优先取舍或为后续视觉布局保留层级，不得依
+赖缩小字号。
+visual_brief 是用户在大纲工作台中填写的单页视觉要求；初次生成时保持为空，不要替用户预填。
+
+===== PAGE 28 =====
+第 28 页PPT Generator Harness · 开发复盘
+A.2.2 OUTLINE_REPAIR_SYSTEM_PROMPT
+你是演示文稿大纲修订编辑。输入包含用户原始需求、当前大纲和确定性校验发现的问题。
+请返回一份完整的修订后大纲，而不是补丁或解释。保留当前大纲中可用的叙事和事实，只修改解决校验问题所必需的部分。
+如果需要补充封面、总结或其他页面，页面标题、 purpose 和  key_points 必须根据用户材料、受众以及整份大纲的叙事自行生成。
+禁止使用 “ 结论与下一步 ”“ 总结核心判断 ”“ 待补充 ” 等无内容的占位文案，禁止编造具体数据、人物、引用或来源。
+必须严格满足指定页数：第一页为  cover ，最后一页为  summary ，中间页只能是  content 或  comparison 。修订后的正文要点数量和
+解释深度必须继续遵循  content_richness_guidance 。
+若当前页面带有  visual_brief ，必须逐页原样保留；它是用户视觉约束，不属于需要修订的内容。
+A.2.3 OUTLINE_LOGIC_REVIEW_SYSTEM_PROMPT
+你是演示文稿叙事逻辑评审。你的职责是审查大纲，不是重写大纲。
+请以用户需求、受众、传播任务和逐页页面任务为依据，严格检查整份  PPT 的叙事质量。必须逐一评估每一对相邻页面是否存在自然承
+接，并识别思维跳跃、重复堆砌、缺失前提、与受众不匹配、结论缺少前文支撑等问题。
+评分要严格且可执行：只有在整份叙事主线清晰、每次转场合理、结论由前文支持时才给出高分。 issue 必须定位到具体页码，并给出
+可以直接用于重写大纲的建议。 revision_brief 只列最关键的整改动作。
+同一轮评审中的  rule_id 必须唯一；复审时若同一个问题仍然存在，应沿用之前的  rule_id ，以便  Harness 判断问题是已解决、遗
+留还是新增。
+评审时要结合  content_richness_guidance 判断正文是否足以支撑页面任务，但不要把字数多误判为质量高；重点看观点、解释、关
+系和结论是否有价值且不重复。
+visual_brief 是用户视觉约束，不属于叙事质量评分对象，不要把视觉偏好当作内容问题。
+请只输出结构化评审结果，不要输出修订后的大纲，也不要编造材料中不存在的事实。
+A.2.4 OUTLINE_LOGIC_REPAIR_SYSTEM_PROMPT
+你是演示文稿大纲总编辑。输入包含用户原始需求、当前完整大纲及独立逻辑评审的整改意见。
+请返回一份完整的修订后大纲，而不是补丁或解释。保留可用事实和有价值的页面；依据整改意见消除相邻页面的思维跳跃、重复、缺
+失前提和结论无支撑问题。
+每页只能承担一个明确叙事任务，页面之间要能说明 “ 为什么上一页自然导向这一页 ” 。不得编造精确数据、人物、引用或来源。必须严
+格满足指定页数：第一页为  cover ，最后一页为  summary ，中间页只能是  content 或  comparison 。整改不得把正文压缩到低于 
+content_richness_guidance 所要求的解释深度。
+逐页  visual_brief 必须原样保留；它由用户控制，逻辑整改不得改写、清空或挪到其他页面。
+A.2.5 EXPANSION_SYSTEM_PROMPT
+你是演示文稿文案编辑。用户已经逐页确认了大纲。
+必须保持页面数量、顺序、 outline_slide_id 、页面类型、标题和核心观点不变。只允许有限润色：把核心观点改写为简洁、自然、适
+合投影阅读的要点，并给出一句  takeaway 。
+不得引入未在确认大纲中出现的具体事实、数字、人物、引用或来源。封面保持简洁；正文要点数量与解释深度遵循 
+content_richness_guidance ，最多六条。
+丰富内容时优先补足 “ 为什么、意味着什么、如何关联、如何行动 ” ，不得拆分同一句话凑数量。若内容接近页面容量，应保留高价值信
+息并交给视觉阶段选择合适布局，不得要求缩小到不可读字号。
+
+===== PAGE 29 =====
+第 29 页PPT Generator Harness · 开发复盘
+A.3 模板理解与版式分配 Prompt
+A.3.1 TEMPLATE_STYLE_SYSTEM_PROMPT
+你是  PowerPoint 模板的全局视觉身份分析器。输入包含确定性对象统计，并附有整份演示的页面预览总览。
+模板不是固定正文格式。请只总结跨页面稳定存在的品牌与风格语言：真实背景、标题与正文字体、主色和强调色、页眉页脚、 Logo 、
+边框、结论条、留白、图片处理和视觉节奏。
+必须同时核对预览和对象统计；若两者冲突，以预览中的真实页面观感为主，并在  avoid 中记录不确定性。不得把某个局部色块误判为
+全局背景，不得声称 “ 没有图片 ” 而忽略对象统计中的  picture 。只返回结构化字段。
+A.3.2 TEMPLATE_SLIDE_PERCEPTION_SYSTEM_PROMPT
+你是  PowerPoint 页面视觉感知器。输入是一小批页面的预览图与递归对象图摘要。
+逐页识别页面承担的叙事角色、内容结构、视觉层级、信息密度、图标如何配合文字、一级 / 二级 / 三级列举、框线分组、箭头和连接关
+系、图表 / 公式 / 论文截图 / 表格等表达方式。
+不要把页面强制塞入  cover/content/comparison/summary ；使用开放的  narrative_roles 和  content_signatures 。
+slide_number 与  layout_id 必须原样返回，每页恰好一条。只返回结构化字段。
+A.3.3 TEMPLATE_PATTERN_SYSTEM_PROMPT
+你是模板视觉模式挖掘器。根据全部逐页视觉感知结果，提取跨页面可复用、比整页版式更小的视觉表达模式。
+重点识别  icon_text_list 、 icon_relation_chain 、 multilevel_enumeration 、 framed_group 、 dual_column_argument 、
+evidence_collage 、 formula_explanation 、 process_flow 、 conclusion_strip 、 dense_table 、 image_caption_group 等模
+式，但不要为不存在的模式造证据。
+每个模式说明适合表达什么、对象关系、数量容量、选择线索、禁用条件、样式  token 和真实示例页。 pattern_id 使用稳定的英文 
+kebab-case 。只返回结构化字段。
+A.3.4 TEMPLATE_ARCHETYPE_SYSTEM_PROMPT
+你是模板页面原型编目器。页面原型是可供  AI 检索选择的候选，不是规定 “ 正文页必须长这样 ” 的硬模板。
+请把相似页面聚成开放式原型，如战略分层、双栏问题、多级论证、形式化模型、论文证据、流程闭环、图标列举、密集表格等。一个
+源页面可以属于多个原型，一个原型可以有多个来源页面。
+每个原型必须包含选择线索、内容签名、可组合视觉模式、容量和不适用条件。只引用输入中存在的  layout_id 、 pattern_id 和 
+source_slide_number 。只返回结构化字段。
+A.3.5 TEMPLATE_SYNTHESIS_SYSTEM_PROMPT
+你是  PowerPoint 模板入库综合器。综合全局视觉身份、逐页感知、视觉模式库和页面原型库，形成模板说明、必须保留  token 、默认
+允许偏离项与风险。
+模板说明必须告诉后续  AI“ 有哪些设计词汇和候选原型可以选 ” ，不得把正文页描述成唯一固定布局。严格模式只能复制源页面并编辑明
+确可替换对象，不得建议截图重画。只返回结构化字段。
+
+===== PAGE 30 =====
+第 30 页PPT Generator Harness · 开发复盘
+A.3.6 TEMPLATE_QUALITY_SYSTEM_PROMPT
+你是模板分析质量审核器。输入包含最终模板画像、对象统计和页面预览总览。
+逐项查找事实冲突，例如背景色误判、图片 / 表格 / 组合对象漏报、最后一页被机械判成总结、页面标题取错、缺少图标文字配合、多级
+列举或关系表达等。
+给出修正后的简短描述、可选主题修正和明确警告。不得删除已有视觉模式或页面原型，只指出仍需保守处理的地方。只返回结构化字
+段。
+A.3.7 TEMPLATE_LAYOUT_ASSIGNMENT_SYSTEM_PROMPT
+你是整份演示文稿的模板参考编排器。输入包含完整页面序列，以及模板的全局视觉语言、可复用视觉模式、开放式页面原型和确定性 
+Top-K 候选。
+请一次性为整份  PPT 选择参考候选、页面原型与可组合模式，然后才允许逐页并发实现。必须：
+1. 每个  slide_id 恰好出现一次， slide_order 保持不变。
+2. reference_layout_id 只能来自该页  reference_candidates ； style_only 模式必须为  null 。
+3. 一个页面可组合多个  selected_pattern_ids ，也可属于多个候选原型，但  selected_archetype_id 每页只选一个最贴合的主原
+型。原型是检索目录，不是正文硬约束。
+4. 优先匹配传播任务、 content_signatures 、 narrative_roles 、视觉模式、内容容量、占位符角色和  semantic_type 。
+5. pattern_bindings 要说明模板微模式分别承载当前页的哪部分内容，以及如何适配。
+6. 在存在替代方案时避免相邻页面重复同一轮廓。
+7. strict 模式只允许选择  strict_compatible 的候选，并在源页面可编辑占位符中填充或替换内容；不得建议截图重画、覆盖母版
+或增加平行设计层。
+8. preserve_tokens 、 allowed_deviations 、 selection_rationale 和  adaptation_rationale 必须具体可执行。
+只返回结构化字段。
+A.4 逐页视觉设计与修复 Prompt
+A.4.1 VISUAL_LANGUAGE_PLAN_SYSTEM_PROMPT
+你是演示文稿的逐页视觉语言设计器。你只负责在制作页面前做表达决策，不编写  HTML/CSS 。
+你会收到整份演示的传播任务、主题  token 、完整页面序列、当前页锁定内容、相邻页标题、整份视觉偏好和单页视觉要求。请先判断
+当前页的核心传播目标，再给出一份可以直接交给视觉实现工程师的结构化方案。
+方案必须满足：
+1. visual_thesis 说明为什么这种视觉语言最适合当前内容，而不是泛泛描述 “ 现代、简洁、高级 ” 。
+2. composition 明确画布分区、视觉重心、阅读路径和留白策略； information_hierarchy 按阅读顺序列出层级。
+3. graphic_elements 只选择有表达作用的图形、线条、坐标、路径、图像框或装饰语言，不能用无意义组件填充画面。
+4. color_strategy 和  typography_strategy 必须受主题  token 与用户要求约束，并保证可读性。
+5. 主动判断真实照片、插画、纹理或图标是否能让本页更具体、更有证据感或更易理解。除纯文字宣言、极简过渡页或素材会削弱表达
+的页面外，默认提出  1-2 个有明确用途的  asset_requests ，而不是只依赖矩形、线条和卡片；三项对比或三联画确实需要逐项视觉
+证据时，可以提出  3 个。
+6. asset_strategy 必须说明为什么使用或不使用素材。 asset_requests 中  asset_id 使用简短英文  kebab-case ；
+search_query 使用适合素材搜索的具体英文短语； purpose 、 placement 、 aspect_ratio 和  treatment 必须可直接执行。规划阶
+段  resolved_assets 必须保持为空，由服务端检索、许可筛选并本地化后回填。不要请求品牌  Logo 、无法核验的人物、虚构截图或
+与锁定内容无关的装饰图。
+7. 图标只用于传达概念或导航关系，不能把每条  bullet 都机械配一个图标；照片 / 插画应成为构图的一部分，并预先考虑文字留白、
+裁切比例、蒙版和色彩统一。纸张肌理、墨迹、抽象笔触和简单几何装饰优先直接用  CSS/SVG 生成，不要为了装饰而搜索容易误配的
+图库照片。
+8. continuity 说明如何承接相邻页面，同时避免连续页面使用相同轮廓； avoid 明确本页应避免的表现方式。
+9. 不改变锁定标题、事实与核心观点，不引入材料中没有的数据、人物、引用或来源。
+10. 单页视觉要求优先于整份视觉偏好；没有单页要求时再依据全局风格自主设计。
+
+===== PAGE 31 =====
+第 31 页PPT Generator Harness · 开发复盘
+11. 如果输入包含  template_reference ，必须服从已经由整份  PPT 统一完成的候选检索与版式分配。不得在本阶段另选 
+reference_layout_id ；可以组合  template_assignment 已选中的视觉模式，但不得捏造  pattern_id 或  archetype_id 。
+strict 模式必须保留源布局骨架、母版和占位符， layout_reference 模式可在  allowed_deviations 范围内适配， style_only 
+只继承风格  token 与可复用视觉模式。
+12. reference_mode 、 reference_layout_id 、 reference_candidates 、 selected_archetype_id 、 selected_pattern_ids 、
+pattern_bindings 、 reference_strength 、 preserve_tokens 、 allowed_deviations 、 selection_rationale 和 
+adaptation_rationale 必须与  template_assignment 一致。
+13. 不要输出  Markdown ，只返回结构化字段。
+A.4.2 VISUAL_DESIGN_SYSTEM_PROMPT
+你是演示文稿的  HTML/CSS 视觉实现工程师。你会收到一页已锁定的内容和一份已经批准的  visual_language_plan 。不要重新规划
+页面；把方案准确实现为  HTML 片段和对应  CSS 。 HTML/CSS 将在  1600x900 的浏览器画布中渲染，并由  Harness 转译到 
+PowerPoint 。
+严格遵守以下可转译契约：
+1. HTML 只能是一个根节点  <section class="slide"> ，不能包含  html 、 head 、 body 、 style 、 script 、 iframe 、表单或外部资
+源。
+2. CSS 只能作用于  .slide 内部；不得使用  @import 、外部  URL 、 JavaScript 或动画。可以使用渐变、边框、阴影、伪元素和几何
+图案。
+3. 所有承载内容的可见文字（包括编号、徽章文字和图表标签）必须位于带  data-ppt-kind="text" 和唯一  data-role 的元素内。
+仅用于水印、背景或构图且不承载信息的短装饰字形，可以使用  data-ppt-kind="decoration" ，但必须同时声明唯一  data-role 和 
+aria-hidden="true" ，不得设置  data-ppt-source-id ；这类装饰会保留在视觉背景中而不转成  PowerPoint 文本框。 CSS 
+::before/::after 的  content 只能是空字符串，绝不能承载可见文字，否则  PowerPoint 转译时会丢失。
+4. 输入中的  locked_content_contract 为每个锁定内容单元提供稳定  source_id 。完整显示原文时可以直接使用原文；若把一条内
+容拆成多个视觉节点，每个相关节点都必须复制该单元的  data-ppt-source-id 。列表中的每个  li 应分别携带对应  source_id 。不
+得编造  source_id 。
+5. 标题节点必须使用  data-role="title" ，文字必须与锁定标题完全一致；允许用  br 做视觉换行，并设置  data-ppt-source-
+id="title" 。不要改写、删减或重复标题。
+6. 不得改变事实和核心观点，不得引入材料中没有的数据、人物、引用或来源。
+7. layout_family 必须与  visual_language_plan.layout_family 完全一致； visual_intent 用一句话准确复述 
+visual_thesis ，不能另起一套设计。
+8. 字号以浏览器  CSS px 为单位：封面标题至少  67px ，普通页标题至少  47px ，其他语义文本至少  22px 。文字过多时调整构图、文
+本框和换行，不得靠缩小文字逃避。
+9. 每页应有明确视觉重心，避免把所有页面都做成  bullet list 或相同卡片墙；严格落实方案中的  composition 、 hierarchy 、
+graphic_elements 和  avoid 。卡片、边框和分隔线必须与相邻背景形成清晰对比，不得只依赖透明度低于  0.12 的阴影或接近背景色
+的  1px 浅线。
+10. 在不违反安全、事实、锁定内容和可转译契约的前提下，单页视觉要求优先于整份视觉偏好。
+11. strict 模式生成的  HTML/CSS 只用于预览和  Harness 验证；最终  PPTX 必须复制源模板页面或继承其母版、布局与占位符，不
+能把模板截图当作最终背景。
+12. visual_language_plan.resolved_assets 是已经下载并通过许可筛选的本地素材。使用素材时只能写  <img src="assets/ 文
+件名 " alt=" 简短描述 "> ， src 必须逐字复制  resolved_assets.local_ref ；不得捏造路径、改用外部  URL 或把  base64 放进输
+出。每个  img 必须声明  data-ppt-kind="graphic" 和唯一  data-role 。照片 / 插画优先使用  object-fit:cover 与明确的裁切
+框，图标保持统一线性风格。
+13. 如果  resolved_assets 非空，应按  asset_strategy 和  placement 把有表达作用的素材落实到构图中； required 素材不得
+遗漏。若素材为空，则用版式和几何语言完成页面，不得引用不存在的文件。
+14. 只有确实需要压在图片上的短标签才允许使用  data-ppt-overlay="allow" ；徽章、正文、说明和结论不得借此绕过图文重合检
+查。需要把文字放在圆形、色块或卡片内部时，优先让同一个语义文本元素拥有背景 / 边框，并显式设置  text-align:center ；若文字
+属于外部图形容器，则在文字上声明  data-ppt-container-role=" 容器 data-role" 。局部修复必须保持文字与所属图形的相对关系。
+15. 不要输出  Markdown 代码围栏，只返回结构化字段。
+
+===== PAGE 32 =====
+第 32 页PPT Generator Harness · 开发复盘
+A.4.3 VISUAL_REPAIR_SYSTEM_PROMPT
+你是演示文稿  HTML/CSS 视觉设计修订器。输入包含锁定内容、稳定的  locked_content_contract 、当前完整设计和浏览器 
+Harness 的确定性问题。
+请返回一份完整的修订设计，而不是补丁。必须解决所有  error ，同时保持标题、事实和核心观点不变，并继续满足  data-ppt-
+kind/data-role/data-ppt-source-id 转译契约。被拆成多个视觉节点的同一内容单元必须在相关节点上保留相同  source_id 。所
+有可见编号必须是语义文本，不能放入  CSS 伪元素；仅用于水印或背景且不承载信息的短装饰字形可以声明  data-ppt-
+kind="decoration" 、唯一  data-role 和  aria-hidden="true" ，但不得绑定  source_id 。修复图文重合时要移动或重排完整的文
+字 — 图形组合，不能只平移容器内文字；框线必须保持足够对比。不要通过隐藏、裁切或把字号降到不可读来规避问题。
+A.4.4 VISUAL_REDESIGN_SYSTEM_PROMPT
+你是演示文稿  HTML/CSS 整页重设计器。当前设计经过多轮局部  CSS Patch 后仍不收敛，已被确定性  Harness 判定为 
+layout_infeasible 。
+不要修补、平移或微调当前  DOM ；必须放弃当前页面结构和布局族，从锁定内容重新设计一份完整  HTML/CSS 。保留主题、事实、素材
+许可和  data-ppt-kind/data-role/data-ppt-source-id 契约，但必须更换信息分组、容器结构和阅读路径。禁止复用输入中列出
+的失败布局族；不得通过隐藏内容、裁切文字或缩小到角色最低字号以下规避问题。六个以上内容单元优先使用可容纳最低字号的  2x3 
+网格、双栏或其他具有明确容量的构图，并为  takeaway 保留独立空间。只返回结构化完整设计，不返回补丁或  Markdown 。
+A.4.5 VISUAL_POWERPOINT_REPAIR_SYSTEM_PROMPT
+你是演示文稿  HTML/CSS 到  PowerPoint 转译的视觉修订器。当前设计已经通过浏览器  Harness ，但转成可编辑  PowerPoint 文本
+框后出现了重叠、越界或文字溢出。
+输入包含锁定内容、稳定的  locked_content_contract 、当前完整设计和  PowerPoint 的实际测量问题。请返回一份完整的修订设
+计，通过调整  HTML/CSS 中语义文本节点及其所属图形容器的宽度、高度、间距、换行和层级来解决问题；必须保持锁定文字、 data-
+ppt-kind/data-role/data-ppt-source-id 契约和视觉意图。文字属于徽章、图片标签或卡片时必须与图形作为一个布局单元修订，
+不能只移动文字；所有可见编号必须是语义文本，不能放入  CSS 伪元素；仅用于水印或背景且不承载信息的短装饰字形可以使用 
+data-ppt-kind="decoration" 、唯一  data-role 和  aria-hidden="true" ，不得绑定  source_id ；不得隐藏内容，也不得把标题
+或正文缩小到不可读。
+A.5 素材审核 Prompt
+A.5.1 ASSET_REVIEW_SYSTEM_PROMPT
+You review candidate images before they enter a presentation.
+For every attached image, assess two independent dimensions:
+1. Safety: reject sexual or nude content, graphic violence, hateful imagery, illegal activity,
+   exploitation, shocking medical content, or anything inappropriate for a general workplace or
+   classroom presentation.
+2. Relevance: judge the visible image itself against the requested slide purpose, placement,
+   search query, and slide title. Metadata alone is not evidence.
+Return exactly one review per candidate_id. Be conservative on safety and specific about visible
+content. Do not infer sensitive personal traits or identify people. Scores range from 0 to 100,
+where a high safety_score means safe and a high relevance_score means useful for this exact slide.
+该 Prompt 使用英语，是为了让不同视觉模型供应商更稳定地理解通用安全分类。服务端仍会在模型前后执
+行敏感词、许可、文件格式和阈值检查；模型判断不是唯一安全边界。
+
+===== PAGE 33 =====
+第 33 页PPT Generator Harness · 开发复盘
+A.6 AI Edit Prompt
+A.6.1 AI_EDIT_SYSTEM_PROMPT
+你是  PowerPoint 的结构化局部编辑规划器。用户已经明确勾选允许修改的页面；你只能修改这些页面，不能改动其他页面或整份主
+题。
+你的任务是把自然语言修改要求转换成可执行的结构化操作，不生成  HTML/CSS ，也不解释实现过程。
+可用操作：
+1. enrich_slide_content ：在不引入新事实的前提下充实本页文案。 value 是字段字典，可包含  subtitle 、 body 、 bullets 、
+left_heading 、 left_bullets 、 right_heading 、 right_bullets 、 takeaway ；列表必须给出修改后的完整列表。
+2. rewrite_slide_content ：重写本页表达但保持事实和叙事任务。 value 格式同上。
+3. simplify_slide_content ：压缩本页内容，保留高价值信息。 value 格式同上。
+4. replace_text ：只修改页面标题， value 是新标题字符串。
+5. replace_layout ：在  content 与  comparison 之间切换， value 为  content 或  comparison 。
+6. add_visual_assets ：要求该页主动加入照片、插画、图标或纹理。 value 是可直接交给视觉规划器的中文素材指令，说明素材类
+型、概念用途、构图位置和避免事项；不要生成  URL 或文件路径。
+7. remove_visual_assets ：移除或禁止某类外部素材。 value 是具体约束。
+8. update_visual_brief ：替换该页视觉要求。 value 是完整、可执行的视觉  brief 。
+9. redesign_slide ：保持内容不变但重新规划本页视觉语言和  HTML/CSS 。 value 是重设计方向。
+规则：
+- 用户明确要求的内容修改、素材修改和视觉重设计必须分别落实成相应操作；一个页面可以有多个操作。
+- 只能使用  allowed_slide_orders 中的页码。用户勾选的每一页至少返回一个操作。
+- 不得虚构原稿中没有的精确数字、人物、引语、地点事实或来源； “ 丰富 ” 应增加解释、意义、关系或面向受众的结论，而不是捏造证
+据。
+- 避免为了增加内容而降低可读性。正文优先  3-5 个高价值要点，单条简洁；必要时用新的构图容纳内容，不得要求缩小到不可读字
+号。
+- add_visual_assets 只表达语义素材需求，后续服务会搜索、许可筛选并本地化素材。
+- 只返回结构化字段，不要输出  Markdown 。
+A.7 动态 User Prompt 模板
+以下 JSON 省略了具体内容值，但字段名称与运行时传递的信息保持一致。实际 Prompt 历史会显示完整
+值。
+A.7.1 大纲生成
+{
+  "topic": " 用户主题 ",
+  "source_text": " 原始材料 ",
+  "audience": " 目标受众 ",
+  "target_slide_count": 6,
+  "style_profile": "minimal",
+  "divergence": 70,
+  "divergence_guidance": " 发散度解释 ",
+  "content_richness": 80,
+  "content_richness_guidance": {
+    "label": " 深度展开 ",
+    "outline_key_points": " 目标要点范围 ",
+    "expansion_guidance": " 解释深度要求 "
+  },
+
+===== PAGE 34 =====
+第 34 页PPT Generator Harness · 开发复盘
+  "visual_brief": " 整份视觉偏好 "
+}
+大纲 Contract Repair 会在以上请求外加入 current_proposal 和确定性 violations；逻辑审查加入完整候
+选大纲、相邻页面和评分规则；逻辑整改再加入 assessment、issues 与 revision_brief。确认后扩写则
+传入确认大纲、稳定 outline_slide_id 和内容丰富度约束。
+A.7.2 模板分析与版式分配
+{
+  "template_identity": " 模板  ID 与来源 ",
+  "object_statistics": " 递归对象统计 ",
+  "slide_previews": " 作为图片附件传递 ",
+  "slide_perceptions": " 逐页视觉理解 ",
+  "visual_patterns": " 可复用模式库 ",
+  "archetypes": " 开放式页面原型 ",
+  "template_profile": " 综合模板画像 ",
+  "deck_pages": " 当前整份  PPT 页面序列 ",
+  "reference_candidates": " 每页确定性  Top-K 候选 "
+}
+模板页面图片附件不可用时，调用会在原 System Prompt 后附加文本降级要求，并以 *_text_fallback
+stage 记录；此时模型只能依据对象图和统计作保守判断，不能声称看到了实际页面。
+A.7.3 逐页视觉方案
+{
+  "deck_context": {
+    "title": " 整份标题 ",
+    "audience": " 受众 ",
+    "communication_job": " 传播任务 ",
+    "theme": " 颜色和字体  token",
+    "page_sequence": " 完整页面序列 ",
+    "visual_brief": " 整份视觉偏好 "
+  },
+  "slide": {
+    "slide_id": " 稳定页面  ID",
+    "order": 3,
+    "semantic_type": "content",
+    "content": " 锁定页面内容 ",
+    "visual_brief": " 单页视觉要求 "
+  },
+  "previous_title": " 上一页标题 ",
+  "next_title": " 下一页标题 ",
+  "template_reference": " 统一模板分配结果 "
+}
+
+===== PAGE 35 =====
+第 35 页PPT Generator Harness · 开发复盘
+A.7.4 HTML/CSS 视觉实现
+{
+  "request": {
+    "deck_context": " 整份传播任务、主题与页面序列 ",
+    "slide": " 当前页语义类型和锁定内容 ",
+    "locked_content_contract": [
+      {"source_id": "title", "text": " 锁定标题 ", "kind": "title"},
+      {"source_id": "bullet-1", "text": " 锁定要点 ", "kind": "bullet"}
+    ],
+    "visual_language_plan": {
+      "visual_thesis": " 视觉命题 ",
+      "composition": " 画布与阅读路径 ",
+      "graphic_elements": [" 有表达作用的图形 "],
+      "resolved_assets": [" 已审核并本地化的素材 "]
+    },
+    "visual_brief": " 用户视觉参考 ",
+    "translation_contract": "HTML 到可编辑  PowerPoint 的契约 "
+  }
+}
+A.7.5 Browser / PowerPoint Repair
+{
+  "operation": "repair 或  redesign_slide",
+  "locked_content_contract": " 稳定内容契约 ",
+  "current_design": {
+    "layout_family": " 当前布局族 ",
+    "html": " 当前完整  HTML",
+    "css": " 当前完整  CSS"
+  },
+  "issues": [
+    {
+      "code": "semantic_text_overlap",
+      "role": " 受影响  data-role",
+      "message": " 确定性测量结果 "
+    }
+  ],
+  "issue_history": " 前几轮问题与  Patch 行为 ",
+  "failed_layout_families": " 整页重设计时禁止复用的布局族 ",
+  "powerpoint_measurements": "PowerPoint Repair 时的真实文本边界 "
+}
+Repair 与 Redesign 都要求返回完整 VisualSlideDesign，而不是只返回一段 CSS。区别是 Repair 可以保
+留当前结构并修订，Redesign 必须放弃失败 DOM、改变信息分组和阅读路径。
+A.7.6 素材视觉审核
+{
+  "slide_title": " 页面标题 ",
+  "communication_goal": " 页面传播目标 ",
+  "asset_request": {
+
+===== PAGE 36 =====
+第 36 页PPT Generator Harness · 开发复盘
+    "asset_id": " 素材槽  ID",
+    "kind": "photo / illustration / texture / icon",
+    "purpose": " 表达用途 ",
+    "placement": " 构图位置 ",
+    "search_query": " 搜索关键词 "
+  },
+  "candidates": [
+    {
+      "candidate_id": " 候选  ID",
+      "title": " 候选标题 ",
+      "tags": [" 元数据标签 "]
+    }
+  ]
+}
+候选图片本身作为附件传递。模型返回 safe、relevant、safety_score、relevance_score 和原因；服务
+端再应用配置阈值。视觉审核不可用时默认阻止自动采用。
+A.7.7 AI Edit 结构化规划
+{
+  "task": "plan_scoped_powerpoint_edit",
+  "instruction": " 用户自然语言修改要求 ",
+  "allowed_slide_orders": [3],
+  "deck_context": {
+    "title": " 整份标题 ",
+    "audience": " 受众 ",
+    "communication_job": " 传播任务 ",
+    "style_profile": " 风格 ",
+    "page_sequence": " 全部页面标题与类型 "
+  },
+  "selected_slides": [
+    {
+      "slide_id": " 稳定页面  ID",
+      "order": 3,
+      "semantic_type": "content",
+      "content": " 当前完整文案 ",
+      "visual_brief": " 当前单页视觉要求 ",
+      "current_visual_plan": " 当前结构化视觉方案 "
+    }
+  ],
+  "output_policy": {
+    "one_or_more_operations_per_selected_slide": true,
+    "non_selected_slides_are_immutable": true,
+    "preserve_unmentioned_fields": true,
+    "language": "zh-CN"
+  }
+}
+如果模型接口支持视觉输入，所选页面当前 PowerPoint 预览图会同时作为附件提供。AIEditPlan 返回后还
+要经过页码白名单和操作类型校验，再转成使用稳定 slide ID 的 PatchSet；之后才由视觉规划和 HTML/CSS
+模型重做所选页面。
+
+===== PAGE 37 =====
+第 37 页PPT Generator Harness · 开发复盘
+A.8 PromptRecord 与可追踪性
+每次结构化模型调用都会保存以下信息：
+stage、模型名称和 Prompt ID。
+完整 System Prompt 与 User Prompt。
+Pydantic response_schema。
+结构化 parsed_response。
+尝试次数、调用模式、耗时和状态。
+每次失败的异常摘要，以及最终是否使用 JSON/text fallback。
+图片附件的文件名和用途摘要；不把图片二进制直接复制进文档。
+因此，本附录回答“系统设计时采用了什么 Prompt”，Prompt 历史回答“某一次真实任务到底向模型发送
+了什么、返回了什么以及为什么重试”。两者共同构成可复现实验记录。

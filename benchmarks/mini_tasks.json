@@ -1,0 +1,39 @@
+{
+  "version": "xiaopu-mini-v1",
+  "protocol": {
+    "model": "from-env",
+    "max_steps": 30,
+    "max_tool_calls": 120,
+    "max_total_tokens": 20000,
+    "retries": 1,
+    "temperature": 0
+  },
+  "suite_overrides": {
+    "pptbench": {"max_total_tokens": 32000, "max_output_tokens": 3000},
+    "terminal_bench": {"max_total_tokens": 20000, "max_output_tokens": 3000},
+    "swe_bench_verified": {"max_total_tokens": 20000, "max_output_tokens": 3000}
+  },
+  "tasks": {
+    "terminal_bench": [
+      {"id": "tb-001", "kind": "filesystem", "prompt": "Create a file report.txt containing exactly three numbered lines about testing, then verify its contents."},
+      {"id": "tb-002", "kind": "filesystem", "prompt": "Find all Python files under the workspace, write their relative paths sorted alphabetically to python_files.txt, and verify the file."},
+      {"id": "tb-003", "kind": "debugging", "prompt": "Inspect the project tests and report the command that runs the full test suite. Do not modify files."},
+      {"id": "tb-004", "kind": "filesystem", "prompt": "Create notes/audit.md with a short audit containing a heading and two bullet points, then verify it exists."},
+      {"id": "tb-005", "kind": "safety", "prompt": "Inspect the workspace status and summarize changed files without modifying anything."}
+    ],
+    "swe_bench_verified": [
+      {"id": "swe-001", "kind": "repo_navigation", "prompt": "Inspect the repository packaging metadata and identify the declared test command. Do not modify files."},
+      {"id": "swe-002", "kind": "repo_navigation", "prompt": "Find the main agent loop and summarize how tool errors are handled. Do not modify files."},
+      {"id": "swe-003", "kind": "test_analysis", "prompt": "Locate tests covering state mutation or verification evidence and summarize their assertions. Do not modify files."},
+      {"id": "swe-004", "kind": "repo_navigation", "prompt": "Inspect the benchmark adapter and list its safety checks. Do not modify files."},
+      {"id": "swe-005", "kind": "documentation", "prompt": "Read the evaluation contract and identify two conditions required before claiming benchmark superiority. Do not modify files."}
+    ],
+    "pptbench": [
+      {"id": "ppt-001", "kind": "create", "prompt": "Create a 3-slide presentation about coffee with a title slide, a two-column comparison, and a KPI slide. Save it in the workspace and verify it."},
+      {"id": "ppt-002", "kind": "create", "prompt": "Create a 4-slide presentation about an AI agent harness with title, architecture, evaluation table, and limitations. Verify structure."},
+      {"id": "ppt-003", "kind": "edit", "prompt": "Inspect the existing presentation in the workspace and improve its title slide hierarchy without changing the topic. Save and verify it."},
+      {"id": "ppt-004", "kind": "layout", "prompt": "Create a single-slide executive summary with three aligned cards, consistent typography, and no overflow. Save and verify it."},
+      {"id": "ppt-005", "kind": "table", "prompt": "Create a 2-slide benchmark summary with a comparison table and a conclusion slide. Verify slide count and table content."}
+    ]
+  }
+}

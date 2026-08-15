@@ -1,0 +1,5 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY workspace/testdeps /opt/testdeps
+COPY benchmarks/offline_uv_shim /usr/local/bin/uv
+RUN chmod +x /usr/local/bin/uv && printf '%s\n' 'export PYTHONPATH=/opt/testdeps' > /root/.local_env

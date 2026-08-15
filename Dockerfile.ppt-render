@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libreoffice-impress fonts-noto-cjk poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml README.md ./
+COPY agent ./agent
+COPY experiments ./experiments
+COPY benchmarks ./benchmarks
+RUN pip install --no-cache-dir openai anthropic python-dotenv pydantic python-pptx rich pillow
+ENV PYTHONUNBUFFERED=1
+ENTRYPOINT ["python", "-m", "benchmarks.run_mini"]

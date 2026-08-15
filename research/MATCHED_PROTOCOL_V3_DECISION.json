@@ -1,0 +1,37 @@
+{
+  "schema": "research-route-decision-v1",
+  "decision_id": "matched-budget-v3-20260811",
+  "verdict": "neutral",
+  "action": "iterate",
+  "question": "How can Xiaopu, Claude Code, and Codex be compared under the same enforceable and observable budget without inventing vendor-internal counters?",
+  "incumbent": "v2 token/tool/step/wall contract",
+  "frontier": [
+    "retain v2 and wait for an authoritative Codex model-step event",
+    "replace model steps with a shared local-tool PreToolUse cap and gateway-controlled cumulative output-token cap",
+    "use wall time only and report all other compute as outcomes"
+  ],
+  "selected": "prospective v3 shared output-token, covered-local-tool, and wall-time envelope",
+  "reason": "The v2 model-step field is observable in Claude assistant events but not in Codex exec JSON. Both current CLIs support a blocking PreToolUse surface for covered local tools, while a provider gateway can cap cumulative generated output. Wall-time-only matching leaves a large compute confound; inferring Codex steps is asymmetric.",
+  "evidence": [
+    "workspace/results/competitor_stream_observability.json",
+    "research/COMPETITOR_STREAM_OBSERVABILITY.md",
+    "agent/tool_budget_hook.py",
+    "tests/test_tool_budget_hook.py",
+    "https://learn.chatgpt.com/docs/hooks",
+    "https://code.claude.com/docs/en/hooks"
+  ],
+  "anti_harking_boundary": "v3 was defined after inspecting the three-task v2 pilot; v2 outcomes must not be pooled into v3 confirmatory statistics",
+  "audit_only_not_hard_caps": [
+    "input tokens",
+    "vendor-internal model steps",
+    "reasoning tokens",
+    "monetary cost"
+  ],
+  "residual_risks": [
+    "Codex documents that hosted and specialized tools may bypass the local hook path",
+    "the shared provider gateway has only an offline fake-upstream test and is not live-validated",
+    "a live hook smoke test still requires an authenticated model call"
+  ],
+  "next_stage": "experiment",
+  "next_action": "install the gateway and shared hook into isolated comparator containers, then run one authenticated non-scored live smoke per CLI before spending on the 18-task slice"
+}

@@ -1,0 +1,484 @@
+﻿{
+    "schema":  "xiaopu.real-ppt-transaction-smoke.v1",
+    "status":  "passed",
+    "cases":  {
+                  "aircraft":  {
+                                   "source":  "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\ppt-eval\\data\\files\\PowerPoint\\Aircraft_surface.pptx",
+                                   "source_sha256":  "b9f19d9f2d7db738b5e7496823a4260508505ae8cf90b645128a1844b90d69a8",
+                                   "output":  "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\outputs\\aircraft_transaction.pptx",
+                                   "output_sha256":  "4a386c783df5a8433fac515291c9d59f85ad6d7601a1399c5a94ebcf641cb093",
+                                   "edit":  "appended peer bullet on slide 2 shape 3",
+                                   "geometry_repairs":  [
+                                                            "moved/resized slide 2 shape 3 -\u003e (0.50,1.75,4.55,4.95)",
+                                                            "moved/resized slide 2 shape 5 -\u003e (5.35,2.15,3.88,3.50)"
+                                                        ],
+                                   "geometry_before":  {
+                                                           "content":  {
+                                                                           "x":  0.5,
+                                                                           "y":  1.75,
+                                                                           "w":  9.0,
+                                                                           "h":  4.95
+                                                                       },
+                                                           "main_picture":  {
+                                                                                "x":  2.667,
+                                                                                "y":  2.167,
+                                                                                "w":  5.083,
+                                                                                "h":  4.583
+                                                                            },
+                                                           "overlap_area_sq_in":  23.041
+                                                       },
+                                   "geometry_after":  {
+                                                          "content":  {
+                                                                          "x":  0.5,
+                                                                          "y":  1.75,
+                                                                          "w":  4.55,
+                                                                          "h":  4.95
+                                                                      },
+                                                          "main_picture":  {
+                                                                               "x":  5.35,
+                                                                               "y":  2.15,
+                                                                               "w":  3.88,
+                                                                               "h":  3.5
+                                                                           },
+                                                          "overlap_area_sq_in":  0.0,
+                                                          "column_gutter_in":  0.3
+                                                      },
+                                   "check":  {
+                                                 "structural":  "Verification: no structural issues found; no blocking structural issues. Historical warnings retained: 2."
+                                             },
+                                   "save":  "saved 19 slides -\u003e aircraft_transaction.pptx",
+                                   "certificates":  [
+                                                        {
+                                                            "schema":  "xiaopu-ppt-scope-certificate-v1",
+                                                            "transaction_id":  "17deb1431f514212b395f1ad561d67d4",
+                                                            "allowed_slides":  [
+                                                                                   2
+                                                                               ],
+                                                            "requested_slides":  [
+                                                                                     2
+                                                                                 ],
+                                                            "slide_count_before":  19,
+                                                            "slide_count_after":  19,
+                                                            "changed_slides":  [
+                                                                                   2
+                                                                               ],
+                                                            "unchanged_slides":  [
+                                                                                     1,
+                                                                                     3,
+                                                                                     4,
+                                                                                     5,
+                                                                                     6,
+                                                                                     7,
+                                                                                     8,
+                                                                                     9,
+                                                                                     10,
+                                                                                     11,
+                                                                                     12,
+                                                                                     13,
+                                                                                     14,
+                                                                                     15,
+                                                                                     16,
+                                                                                     17,
+                                                                                     18,
+                                                                                     19
+                                                                                 ],
+                                                            "unexpected_changed_slides":  [
+
+                                                                                          ],
+                                                            "before_slide_hashes":  {
+                                                                                        "1":  "923f95b2e0733994a934f5e38e85348cc71155fc3fb82556a0800397ad9cfbf5",
+                                                                                        "2":  "429fc501c97ba675dffb38e695a4632f93c34aea2aa62b63ac887d23369a4d1a",
+                                                                                        "3":  "fba2a8ac881733ac1d13b7f8bdc3fd8f39840e5baaf56415dc7f58b7924bc5ab",
+                                                                                        "4":  "a45115bb5005882cadec94143e99ff70eab04ac949ef21e3862b2be9c3253f70",
+                                                                                        "5":  "8331314e7d86898ec6913a9d8b0ffd3870ce50014cf30e820b12bd7d6eb704dd",
+                                                                                        "6":  "2b28fad3e37317657b668e54fcb8c89463e34468c851416801ff126a7fd80df3",
+                                                                                        "7":  "5728e4978ba5e0206a7f6315ec916e905ecaddf422f2bb29d683b9ff75897fad",
+                                                                                        "8":  "ca4c934a80c5b21407007f717f35f83cf82533031a0f4d445c8954e2140ddc63",
+                                                                                        "9":  "d864f46f198b8c05984c57874d82069f6eb937af53e8895e6569b7b9d20bc001",
+                                                                                        "10":  "c8b4e617e3066d46739206fc5ba2c3178db199e5df746ade88744dfb52ae427e",
+                                                                                        "11":  "36114529f3bb8e3a6ecfa30c426767c5e982f6623fee26841606e0f98062252b",
+                                                                                        "12":  "8fa41ade260b7c8904c96baaa9d012030f14190f1df4254931ae08493d85b158",
+                                                                                        "13":  "797042a194b3ca0766e1dae21d03deb315764c96d6f405cd3c7127bc299b5f60",
+                                                                                        "14":  "acfeb1119ffdf6859bc1fe3ab97af9a1233a8773a1a261c011cf3f21c740d41a",
+                                                                                        "15":  "5916e1b3f11370c7ea2632bfb853d36b2815318512f6feedc03a9c8cc86e7e17",
+                                                                                        "16":  "3bff7e0ad28826463f47011774d4a07efb25543a0b594d32016e310fc41346dd",
+                                                                                        "17":  "4022591c4bb0577d3579d6a5b064d8e11662eabf0b8b8e13e95b8dd1d163814d",
+                                                                                        "18":  "ab9d96b0eeeba6f6295a052c47d87e6b2072ada80b104130239ea9a98a30e070",
+                                                                                        "19":  "234bbe7545cbb1f7b4d9e6af2b76765cb89d4d94513bad9e3d8e517a073caea3"
+                                                                                    },
+                                                            "after_slide_hashes":  {
+                                                                                       "1":  "923f95b2e0733994a934f5e38e85348cc71155fc3fb82556a0800397ad9cfbf5",
+                                                                                       "2":  "010b84c7a7e058275e5fd7d4a295fc94e39f4ee811fd41d29938ea09a2d52f34",
+                                                                                       "3":  "fba2a8ac881733ac1d13b7f8bdc3fd8f39840e5baaf56415dc7f58b7924bc5ab",
+                                                                                       "4":  "a45115bb5005882cadec94143e99ff70eab04ac949ef21e3862b2be9c3253f70",
+                                                                                       "5":  "8331314e7d86898ec6913a9d8b0ffd3870ce50014cf30e820b12bd7d6eb704dd",
+                                                                                       "6":  "2b28fad3e37317657b668e54fcb8c89463e34468c851416801ff126a7fd80df3",
+                                                                                       "7":  "5728e4978ba5e0206a7f6315ec916e905ecaddf422f2bb29d683b9ff75897fad",
+                                                                                       "8":  "ca4c934a80c5b21407007f717f35f83cf82533031a0f4d445c8954e2140ddc63",
+                                                                                       "9":  "d864f46f198b8c05984c57874d82069f6eb937af53e8895e6569b7b9d20bc001",
+                                                                                       "10":  "c8b4e617e3066d46739206fc5ba2c3178db199e5df746ade88744dfb52ae427e",
+                                                                                       "11":  "36114529f3bb8e3a6ecfa30c426767c5e982f6623fee26841606e0f98062252b",
+                                                                                       "12":  "8fa41ade260b7c8904c96baaa9d012030f14190f1df4254931ae08493d85b158",
+                                                                                       "13":  "797042a194b3ca0766e1dae21d03deb315764c96d6f405cd3c7127bc299b5f60",
+                                                                                       "14":  "acfeb1119ffdf6859bc1fe3ab97af9a1233a8773a1a261c011cf3f21c740d41a",
+                                                                                       "15":  "5916e1b3f11370c7ea2632bfb853d36b2815318512f6feedc03a9c8cc86e7e17",
+                                                                                       "16":  "3bff7e0ad28826463f47011774d4a07efb25543a0b594d32016e310fc41346dd",
+                                                                                       "17":  "4022591c4bb0577d3579d6a5b064d8e11662eabf0b8b8e13e95b8dd1d163814d",
+                                                                                       "18":  "ab9d96b0eeeba6f6295a052c47d87e6b2072ada80b104130239ea9a98a30e070",
+                                                                                       "19":  "234bbe7545cbb1f7b4d9e6af2b76765cb89d4d94513bad9e3d8e517a073caea3"
+                                                                                   },
+                                                            "checkpoint_sha256":  "442b129ae8315590e83adbae945db677e6f6a61829f29d386082b7d73bb1f92a",
+                                                            "committed_deck_sha256":  "82ba87a05f705afd2570cb098c3cb65a72586f52f46eb9a631fc5dfc2aeb100c",
+                                                            "source_path":  "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\Aircraft_surface.pptx",
+                                                            "source_sha256":  "b9f19d9f2d7db738b5e7496823a4260508505ae8cf90b645128a1844b90d69a8",
+                                                            "source_preserved":  true,
+                                                            "passed":  true
+                                                        },
+                                                        {
+                                                            "schema":  "xiaopu-ppt-scope-certificate-v1",
+                                                            "transaction_id":  "68946acb49174e1f8a933d44c29770ae",
+                                                            "allowed_slides":  [
+                                                                                   2
+                                                                               ],
+                                                            "requested_slides":  [
+                                                                                     2
+                                                                                 ],
+                                                            "slide_count_before":  19,
+                                                            "slide_count_after":  19,
+                                                            "changed_slides":  [
+                                                                                   2
+                                                                               ],
+                                                            "unchanged_slides":  [
+                                                                                     1,
+                                                                                     3,
+                                                                                     4,
+                                                                                     5,
+                                                                                     6,
+                                                                                     7,
+                                                                                     8,
+                                                                                     9,
+                                                                                     10,
+                                                                                     11,
+                                                                                     12,
+                                                                                     13,
+                                                                                     14,
+                                                                                     15,
+                                                                                     16,
+                                                                                     17,
+                                                                                     18,
+                                                                                     19
+                                                                                 ],
+                                                            "unexpected_changed_slides":  [
+
+                                                                                          ],
+                                                            "before_slide_hashes":  {
+                                                                                        "1":  "923f95b2e0733994a934f5e38e85348cc71155fc3fb82556a0800397ad9cfbf5",
+                                                                                        "2":  "010b84c7a7e058275e5fd7d4a295fc94e39f4ee811fd41d29938ea09a2d52f34",
+                                                                                        "3":  "fba2a8ac881733ac1d13b7f8bdc3fd8f39840e5baaf56415dc7f58b7924bc5ab",
+                                                                                        "4":  "a45115bb5005882cadec94143e99ff70eab04ac949ef21e3862b2be9c3253f70",
+                                                                                        "5":  "8331314e7d86898ec6913a9d8b0ffd3870ce50014cf30e820b12bd7d6eb704dd",
+                                                                                        "6":  "2b28fad3e37317657b668e54fcb8c89463e34468c851416801ff126a7fd80df3",
+                                                                                        "7":  "5728e4978ba5e0206a7f6315ec916e905ecaddf422f2bb29d683b9ff75897fad",
+                                                                                        "8":  "ca4c934a80c5b21407007f717f35f83cf82533031a0f4d445c8954e2140ddc63",
+                                                                                        "9":  "d864f46f198b8c05984c57874d82069f6eb937af53e8895e6569b7b9d20bc001",
+                                                                                        "10":  "c8b4e617e3066d46739206fc5ba2c3178db199e5df746ade88744dfb52ae427e",
+                                                                                        "11":  "36114529f3bb8e3a6ecfa30c426767c5e982f6623fee26841606e0f98062252b",
+                                                                                        "12":  "8fa41ade260b7c8904c96baaa9d012030f14190f1df4254931ae08493d85b158",
+                                                                                        "13":  "797042a194b3ca0766e1dae21d03deb315764c96d6f405cd3c7127bc299b5f60",
+                                                                                        "14":  "acfeb1119ffdf6859bc1fe3ab97af9a1233a8773a1a261c011cf3f21c740d41a",
+                                                                                        "15":  "5916e1b3f11370c7ea2632bfb853d36b2815318512f6feedc03a9c8cc86e7e17",
+                                                                                        "16":  "3bff7e0ad28826463f47011774d4a07efb25543a0b594d32016e310fc41346dd",
+                                                                                        "17":  "4022591c4bb0577d3579d6a5b064d8e11662eabf0b8b8e13e95b8dd1d163814d",
+                                                                                        "18":  "ab9d96b0eeeba6f6295a052c47d87e6b2072ada80b104130239ea9a98a30e070",
+                                                                                        "19":  "234bbe7545cbb1f7b4d9e6af2b76765cb89d4d94513bad9e3d8e517a073caea3"
+                                                                                    },
+                                                            "after_slide_hashes":  {
+                                                                                       "1":  "923f95b2e0733994a934f5e38e85348cc71155fc3fb82556a0800397ad9cfbf5",
+                                                                                       "2":  "fd15e1eb237c1d954ffcfa7e1831f8bf02c7d9b0ab04a126c350ce19aa22a4e7",
+                                                                                       "3":  "fba2a8ac881733ac1d13b7f8bdc3fd8f39840e5baaf56415dc7f58b7924bc5ab",
+                                                                                       "4":  "a45115bb5005882cadec94143e99ff70eab04ac949ef21e3862b2be9c3253f70",
+                                                                                       "5":  "8331314e7d86898ec6913a9d8b0ffd3870ce50014cf30e820b12bd7d6eb704dd",
+                                                                                       "6":  "2b28fad3e37317657b668e54fcb8c89463e34468c851416801ff126a7fd80df3",
+                                                                                       "7":  "5728e4978ba5e0206a7f6315ec916e905ecaddf422f2bb29d683b9ff75897fad",
+                                                                                       "8":  "ca4c934a80c5b21407007f717f35f83cf82533031a0f4d445c8954e2140ddc63",
+                                                                                       "9":  "d864f46f198b8c05984c57874d82069f6eb937af53e8895e6569b7b9d20bc001",
+                                                                                       "10":  "c8b4e617e3066d46739206fc5ba2c3178db199e5df746ade88744dfb52ae427e",
+                                                                                       "11":  "36114529f3bb8e3a6ecfa30c426767c5e982f6623fee26841606e0f98062252b",
+                                                                                       "12":  "8fa41ade260b7c8904c96baaa9d012030f14190f1df4254931ae08493d85b158",
+                                                                                       "13":  "797042a194b3ca0766e1dae21d03deb315764c96d6f405cd3c7127bc299b5f60",
+                                                                                       "14":  "acfeb1119ffdf6859bc1fe3ab97af9a1233a8773a1a261c011cf3f21c740d41a",
+                                                                                       "15":  "5916e1b3f11370c7ea2632bfb853d36b2815318512f6feedc03a9c8cc86e7e17",
+                                                                                       "16":  "3bff7e0ad28826463f47011774d4a07efb25543a0b594d32016e310fc41346dd",
+                                                                                       "17":  "4022591c4bb0577d3579d6a5b064d8e11662eabf0b8b8e13e95b8dd1d163814d",
+                                                                                       "18":  "ab9d96b0eeeba6f6295a052c47d87e6b2072ada80b104130239ea9a98a30e070",
+                                                                                       "19":  "234bbe7545cbb1f7b4d9e6af2b76765cb89d4d94513bad9e3d8e517a073caea3"
+                                                                                   },
+                                                            "checkpoint_sha256":  "82ba87a05f705afd2570cb098c3cb65a72586f52f46eb9a631fc5dfc2aeb100c",
+                                                            "committed_deck_sha256":  "595d65fd2608ceb304125528c0db1974a89236f5490277ecdcb5caf09034a7c7",
+                                                            "source_path":  "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\Aircraft_surface.pptx",
+                                                            "source_sha256":  "b9f19d9f2d7db738b5e7496823a4260508505ae8cf90b645128a1844b90d69a8",
+                                                            "source_preserved":  true,
+                                                            "passed":  true
+                                                        },
+                                                        {
+                                                            "schema":  "xiaopu-ppt-scope-certificate-v1",
+                                                            "transaction_id":  "dbf302fd0b364fe0a6ded049287c52b1",
+                                                            "allowed_slides":  [
+                                                                                   2
+                                                                               ],
+                                                            "requested_slides":  [
+                                                                                     2
+                                                                                 ],
+                                                            "slide_count_before":  19,
+                                                            "slide_count_after":  19,
+                                                            "changed_slides":  [
+                                                                                   2
+                                                                               ],
+                                                            "unchanged_slides":  [
+                                                                                     1,
+                                                                                     3,
+                                                                                     4,
+                                                                                     5,
+                                                                                     6,
+                                                                                     7,
+                                                                                     8,
+                                                                                     9,
+                                                                                     10,
+                                                                                     11,
+                                                                                     12,
+                                                                                     13,
+                                                                                     14,
+                                                                                     15,
+                                                                                     16,
+                                                                                     17,
+                                                                                     18,
+                                                                                     19
+                                                                                 ],
+                                                            "unexpected_changed_slides":  [
+
+                                                                                          ],
+                                                            "before_slide_hashes":  {
+                                                                                        "1":  "923f95b2e0733994a934f5e38e85348cc71155fc3fb82556a0800397ad9cfbf5",
+                                                                                        "2":  "fd15e1eb237c1d954ffcfa7e1831f8bf02c7d9b0ab04a126c350ce19aa22a4e7",
+                                                                                        "3":  "fba2a8ac881733ac1d13b7f8bdc3fd8f39840e5baaf56415dc7f58b7924bc5ab",
+                                                                                        "4":  "a45115bb5005882cadec94143e99ff70eab04ac949ef21e3862b2be9c3253f70",
+                                                                                        "5":  "8331314e7d86898ec6913a9d8b0ffd3870ce50014cf30e820b12bd7d6eb704dd",
+                                                                                        "6":  "2b28fad3e37317657b668e54fcb8c89463e34468c851416801ff126a7fd80df3",
+                                                                                        "7":  "5728e4978ba5e0206a7f6315ec916e905ecaddf422f2bb29d683b9ff75897fad",
+                                                                                        "8":  "ca4c934a80c5b21407007f717f35f83cf82533031a0f4d445c8954e2140ddc63",
+                                                                                        "9":  "d864f46f198b8c05984c57874d82069f6eb937af53e8895e6569b7b9d20bc001",
+                                                                                        "10":  "c8b4e617e3066d46739206fc5ba2c3178db199e5df746ade88744dfb52ae427e",
+                                                                                        "11":  "36114529f3bb8e3a6ecfa30c426767c5e982f6623fee26841606e0f98062252b",
+                                                                                        "12":  "8fa41ade260b7c8904c96baaa9d012030f14190f1df4254931ae08493d85b158",
+                                                                                        "13":  "797042a194b3ca0766e1dae21d03deb315764c96d6f405cd3c7127bc299b5f60",
+                                                                                        "14":  "acfeb1119ffdf6859bc1fe3ab97af9a1233a8773a1a261c011cf3f21c740d41a",
+                                                                                        "15":  "5916e1b3f11370c7ea2632bfb853d36b2815318512f6feedc03a9c8cc86e7e17",
+                                                                                        "16":  "3bff7e0ad28826463f47011774d4a07efb25543a0b594d32016e310fc41346dd",
+                                                                                        "17":  "4022591c4bb0577d3579d6a5b064d8e11662eabf0b8b8e13e95b8dd1d163814d",
+                                                                                        "18":  "ab9d96b0eeeba6f6295a052c47d87e6b2072ada80b104130239ea9a98a30e070",
+                                                                                        "19":  "234bbe7545cbb1f7b4d9e6af2b76765cb89d4d94513bad9e3d8e517a073caea3"
+                                                                                    },
+                                                            "after_slide_hashes":  {
+                                                                                       "1":  "923f95b2e0733994a934f5e38e85348cc71155fc3fb82556a0800397ad9cfbf5",
+                                                                                       "2":  "b34d2379895b91bce3bf2c739f10cf967d90e1f28a97cba9763e10641c488829",
+                                                                                       "3":  "fba2a8ac881733ac1d13b7f8bdc3fd8f39840e5baaf56415dc7f58b7924bc5ab",
+                                                                                       "4":  "a45115bb5005882cadec94143e99ff70eab04ac949ef21e3862b2be9c3253f70",
+                                                                                       "5":  "8331314e7d86898ec6913a9d8b0ffd3870ce50014cf30e820b12bd7d6eb704dd",
+                                                                                       "6":  "2b28fad3e37317657b668e54fcb8c89463e34468c851416801ff126a7fd80df3",
+                                                                                       "7":  "5728e4978ba5e0206a7f6315ec916e905ecaddf422f2bb29d683b9ff75897fad",
+                                                                                       "8":  "ca4c934a80c5b21407007f717f35f83cf82533031a0f4d445c8954e2140ddc63",
+                                                                                       "9":  "d864f46f198b8c05984c57874d82069f6eb937af53e8895e6569b7b9d20bc001",
+                                                                                       "10":  "c8b4e617e3066d46739206fc5ba2c3178db199e5df746ade88744dfb52ae427e",
+                                                                                       "11":  "36114529f3bb8e3a6ecfa30c426767c5e982f6623fee26841606e0f98062252b",
+                                                                                       "12":  "8fa41ade260b7c8904c96baaa9d012030f14190f1df4254931ae08493d85b158",
+                                                                                       "13":  "797042a194b3ca0766e1dae21d03deb315764c96d6f405cd3c7127bc299b5f60",
+                                                                                       "14":  "acfeb1119ffdf6859bc1fe3ab97af9a1233a8773a1a261c011cf3f21c740d41a",
+                                                                                       "15":  "5916e1b3f11370c7ea2632bfb853d36b2815318512f6feedc03a9c8cc86e7e17",
+                                                                                       "16":  "3bff7e0ad28826463f47011774d4a07efb25543a0b594d32016e310fc41346dd",
+                                                                                       "17":  "4022591c4bb0577d3579d6a5b064d8e11662eabf0b8b8e13e95b8dd1d163814d",
+                                                                                       "18":  "ab9d96b0eeeba6f6295a052c47d87e6b2072ada80b104130239ea9a98a30e070",
+                                                                                       "19":  "234bbe7545cbb1f7b4d9e6af2b76765cb89d4d94513bad9e3d8e517a073caea3"
+                                                                                   },
+                                                            "checkpoint_sha256":  "595d65fd2608ceb304125528c0db1974a89236f5490277ecdcb5caf09034a7c7",
+                                                            "committed_deck_sha256":  "4a386c783df5a8433fac515291c9d59f85ad6d7601a1399c5a94ebcf641cb093",
+                                                            "source_path":  "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\Aircraft_surface.pptx",
+                                                            "source_sha256":  "b9f19d9f2d7db738b5e7496823a4260508505ae8cf90b645128a1844b90d69a8",
+                                                            "source_preserved":  true,
+                                                            "passed":  true
+                                                        }
+                                                    ],
+                                   "certificate_paths":  [
+                                                             "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\.xiaopu\\runs\\20260813T144842Z-fe995af3\\working\\transactions\\17deb1431f514212b395f1ad561d67d4\\immutability_certificate.json",
+                                                             "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\.xiaopu\\runs\\20260813T144842Z-fe995af3\\working\\transactions\\68946acb49174e1f8a933d44c29770ae\\immutability_certificate.json",
+                                                             "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\.xiaopu\\runs\\20260813T144842Z-fe995af3\\working\\transactions\\dbf302fd0b364fe0a6ded049287c52b1\\immutability_certificate.json"
+                                                         ],
+                                   "source_preserved":  true,
+                                   "assertions":  [
+                                                      "bullet present",
+                                                      "text and main image no longer overlap",
+                                                      "two-column gutter is at least 0.25in",
+                                                      "only slide 2 changed",
+                                                      "save/reopen passed"
+                                                  ]
+                               },
+                  "title_48pt":  {
+                                     "source":  "E:\\project\\agent\\ppt-harness\\benchmark_v0.1\\ppt-eval\\data\\files\\PowerPoint\\4._Pre-Colonial_Filipino_Culture.pptx",
+                                     "source_sha256":  "cf4574ab7795d6ed17ca2bb731470fdd56f2c3e7aa426a6e0c39f46bdfe51e30",
+                                     "output":  "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\outputs\\precolonial_title_48pt.pptx",
+                                     "output_sha256":  "b0ef7f52256709a5cd8eaf174dc98a5b1ac3f814de315502c05aff4d5c9af305",
+                                     "edit":  "updated style on 1 run(s), slide 1 shape 2",
+                                     "check":  {
+                                                   "structural":  "Verification: no structural issues found; no blocking structural issues. Historical warnings retained: 2."
+                                               },
+                                     "save":  "saved 32 slides -\u003e precolonial_title_48pt.pptx",
+                                     "certificate":  {
+                                                         "schema":  "xiaopu-ppt-scope-certificate-v1",
+                                                         "transaction_id":  "c21937c10f6849afa486bda53f9f0a17",
+                                                         "allowed_slides":  [
+                                                                                1
+                                                                            ],
+                                                         "requested_slides":  [
+                                                                                  1
+                                                                              ],
+                                                         "slide_count_before":  32,
+                                                         "slide_count_after":  32,
+                                                         "changed_slides":  [
+                                                                                1
+                                                                            ],
+                                                         "unchanged_slides":  [
+                                                                                  2,
+                                                                                  3,
+                                                                                  4,
+                                                                                  5,
+                                                                                  6,
+                                                                                  7,
+                                                                                  8,
+                                                                                  9,
+                                                                                  10,
+                                                                                  11,
+                                                                                  12,
+                                                                                  13,
+                                                                                  14,
+                                                                                  15,
+                                                                                  16,
+                                                                                  17,
+                                                                                  18,
+                                                                                  19,
+                                                                                  20,
+                                                                                  21,
+                                                                                  22,
+                                                                                  23,
+                                                                                  24,
+                                                                                  25,
+                                                                                  26,
+                                                                                  27,
+                                                                                  28,
+                                                                                  29,
+                                                                                  30,
+                                                                                  31,
+                                                                                  32
+                                                                              ],
+                                                         "unexpected_changed_slides":  [
+
+                                                                                       ],
+                                                         "before_slide_hashes":  {
+                                                                                     "1":  "9e8d3d42807ef44fdf64bcfa59c76f8c1b570e6fba86a7994ceb4f253601aabf",
+                                                                                     "2":  "352b56bded9383a67b17290eb456bab7b2fff41ea285f570a5d3a56d125e8433",
+                                                                                     "3":  "afb0c1bd0002185ea91f7330c4c8a2f70eb7d05e218309453ac913df97fceaba",
+                                                                                     "4":  "45b4e18b501debc92b45902f919c85009893ccf77974fe25c144ca0609173c5a",
+                                                                                     "5":  "f623d29148b123fe6911464ab7d0e6fb0d0d61e50f8d6b8bc8de10bf3b1df80f",
+                                                                                     "6":  "02158a44b4d7c0966604d5a13dc51bf1bf879d8f45d724e553ff71e6669db6bf",
+                                                                                     "7":  "a658e506753855b0cd15a8034962d018e1ae3f317b528ac9fa565bca1be186be",
+                                                                                     "8":  "26100c7583065c45683fa365d832107be4a9fb6230c8e76bb1308835143b594c",
+                                                                                     "9":  "223357974769c8b6970ac200c0178f4683f09abc2ca066bfb7b509b7a4b6fa14",
+                                                                                     "10":  "754137388241e5b6d3e787f5fae204d3e6024a2ba5a09a6f270dc73f72e8a08a",
+                                                                                     "11":  "cf2a4d57dadafa9a4734bb1433643cf7108f5bd24fd0dcf10b4b8e863b811351",
+                                                                                     "12":  "7b10391fda8d274d2e94ba8cd2780c674dcf3df20db9053d7f94de6d605455b6",
+                                                                                     "13":  "c0d0a0a5ecbe4226f3d28d9181a5e6c38a7cd4d6a77936864787532e38348151",
+                                                                                     "14":  "7961b453bcbf73037eeb01b65f81b2988da3fbe32a2e32d6e336746e96cd2cb6",
+                                                                                     "15":  "a605628be7577f169ddb6044c74414131088a16b6e554ce5527aa08519ba6689",
+                                                                                     "16":  "c492a19aa7a02caf230774a583f8ced5908dffb7530a5a2d3ee2aa8af08259c2",
+                                                                                     "17":  "c0d91cb8fd5fe0e37604e5b31fdbaa771a31042b46f4160870c9c6cfcc0f3cfc",
+                                                                                     "18":  "d5c0a6c467bd146486611a9b5b6ed5429f86308b3d51b3c151323d34d114e701",
+                                                                                     "19":  "6f9b01904ff87caa7ace445fcf21939ccce99b0c70855c04a844a710cbcb945c",
+                                                                                     "20":  "74f7ac0fcf3a0a63c7ffe7beb670eb5cb37e3156a75f63c26b1dc1a82854691f",
+                                                                                     "21":  "fc572011cdfc819a173338e9f037a95aa90f85d7967025ce8b230d526e14e593",
+                                                                                     "22":  "63a29718ba1a3b7fed2cd03e135e320216181a06ab63b55b5607b1acaa6d6ac2",
+                                                                                     "23":  "9656e901c38531111bd9ab25894c473dcfc35abb8be910882b0e042ac70c254c",
+                                                                                     "24":  "62951e2fa0170f883e750c3f9b657218cb8b161e7ea8557491ed8d33d5fc6489",
+                                                                                     "25":  "6764f43057c41d1ccf93e6237ae7137048ef65a66f448c85c6c1bcf12a9482a7",
+                                                                                     "26":  "be7e3eda0fb486ca11c2c0d4fe7e71284b639c068ff2221b32b54c7d6f4e51eb",
+                                                                                     "27":  "dc5e62af01db16a4902770ce918df41d56881d21e5aa7787c085178e43c4ed5e",
+                                                                                     "28":  "53dda972e2b113f604e981fc199dea0ddffbe86a05ee3562abf35f08db1d9215",
+                                                                                     "29":  "a31c1d0655dc57b384211669f4ba0c97173467cfd1c3f5af143ccd3a6ba1c6e9",
+                                                                                     "30":  "a3846d948868be80ba6ae8f6f9bee69506211550b6493700a73d7847d9bf0bac",
+                                                                                     "31":  "f18b3d097bb2575a1b7c6bbbb99ea49da2c2afb9768af06e5f368aa0f76bc5d8",
+                                                                                     "32":  "037da1d0b1b522f3589b4462321ec8572b05c2d2d8e316320aaa91dd36cdd520"
+                                                                                 },
+                                                         "after_slide_hashes":  {
+                                                                                    "1":  "6ce9d2e522b89273b147d9fc62ed26d2e7ed33221a8927a8a922542d6bb891a8",
+                                                                                    "2":  "352b56bded9383a67b17290eb456bab7b2fff41ea285f570a5d3a56d125e8433",
+                                                                                    "3":  "afb0c1bd0002185ea91f7330c4c8a2f70eb7d05e218309453ac913df97fceaba",
+                                                                                    "4":  "45b4e18b501debc92b45902f919c85009893ccf77974fe25c144ca0609173c5a",
+                                                                                    "5":  "f623d29148b123fe6911464ab7d0e6fb0d0d61e50f8d6b8bc8de10bf3b1df80f",
+                                                                                    "6":  "02158a44b4d7c0966604d5a13dc51bf1bf879d8f45d724e553ff71e6669db6bf",
+                                                                                    "7":  "a658e506753855b0cd15a8034962d018e1ae3f317b528ac9fa565bca1be186be",
+                                                                                    "8":  "26100c7583065c45683fa365d832107be4a9fb6230c8e76bb1308835143b594c",
+                                                                                    "9":  "223357974769c8b6970ac200c0178f4683f09abc2ca066bfb7b509b7a4b6fa14",
+                                                                                    "10":  "754137388241e5b6d3e787f5fae204d3e6024a2ba5a09a6f270dc73f72e8a08a",
+                                                                                    "11":  "cf2a4d57dadafa9a4734bb1433643cf7108f5bd24fd0dcf10b4b8e863b811351",
+                                                                                    "12":  "7b10391fda8d274d2e94ba8cd2780c674dcf3df20db9053d7f94de6d605455b6",
+                                                                                    "13":  "c0d0a0a5ecbe4226f3d28d9181a5e6c38a7cd4d6a77936864787532e38348151",
+                                                                                    "14":  "7961b453bcbf73037eeb01b65f81b2988da3fbe32a2e32d6e336746e96cd2cb6",
+                                                                                    "15":  "a605628be7577f169ddb6044c74414131088a16b6e554ce5527aa08519ba6689",
+                                                                                    "16":  "c492a19aa7a02caf230774a583f8ced5908dffb7530a5a2d3ee2aa8af08259c2",
+                                                                                    "17":  "c0d91cb8fd5fe0e37604e5b31fdbaa771a31042b46f4160870c9c6cfcc0f3cfc",
+                                                                                    "18":  "d5c0a6c467bd146486611a9b5b6ed5429f86308b3d51b3c151323d34d114e701",
+                                                                                    "19":  "6f9b01904ff87caa7ace445fcf21939ccce99b0c70855c04a844a710cbcb945c",
+                                                                                    "20":  "74f7ac0fcf3a0a63c7ffe7beb670eb5cb37e3156a75f63c26b1dc1a82854691f",
+                                                                                    "21":  "fc572011cdfc819a173338e9f037a95aa90f85d7967025ce8b230d526e14e593",
+                                                                                    "22":  "63a29718ba1a3b7fed2cd03e135e320216181a06ab63b55b5607b1acaa6d6ac2",
+                                                                                    "23":  "9656e901c38531111bd9ab25894c473dcfc35abb8be910882b0e042ac70c254c",
+                                                                                    "24":  "62951e2fa0170f883e750c3f9b657218cb8b161e7ea8557491ed8d33d5fc6489",
+                                                                                    "25":  "6764f43057c41d1ccf93e6237ae7137048ef65a66f448c85c6c1bcf12a9482a7",
+                                                                                    "26":  "be7e3eda0fb486ca11c2c0d4fe7e71284b639c068ff2221b32b54c7d6f4e51eb",
+                                                                                    "27":  "dc5e62af01db16a4902770ce918df41d56881d21e5aa7787c085178e43c4ed5e",
+                                                                                    "28":  "53dda972e2b113f604e981fc199dea0ddffbe86a05ee3562abf35f08db1d9215",
+                                                                                    "29":  "a31c1d0655dc57b384211669f4ba0c97173467cfd1c3f5af143ccd3a6ba1c6e9",
+                                                                                    "30":  "a3846d948868be80ba6ae8f6f9bee69506211550b6493700a73d7847d9bf0bac",
+                                                                                    "31":  "f18b3d097bb2575a1b7c6bbbb99ea49da2c2afb9768af06e5f368aa0f76bc5d8",
+                                                                                    "32":  "037da1d0b1b522f3589b4462321ec8572b05c2d2d8e316320aaa91dd36cdd520"
+                                                                                },
+                                                         "checkpoint_sha256":  "6fd18243ce420c92d2134087828015421230681346148601a42367ec3200143f",
+                                                         "committed_deck_sha256":  "b0ef7f52256709a5cd8eaf174dc98a5b1ac3f814de315502c05aff4d5c9af305",
+                                                         "source_path":  "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\4._Pre-Colonial_Filipino_Culture.pptx",
+                                                         "source_sha256":  "cf4574ab7795d6ed17ca2bb731470fdd56f2c3e7aa426a6e0c39f46bdfe51e30",
+                                                         "source_preserved":  true,
+                                                         "passed":  true
+                                                     },
+                                     "source_preserved":  true,
+                                     "assertions":  [
+                                                        "title runs are 48pt",
+                                                        "only slide 1 changed",
+                                                        "save/reopen passed"
+                                                    ]
+                                 }
+              },
+    "visual_gate":  {
+                        "backend":  "artifact-tool",
+                        "aircraft":  {
+                                         "status":  "passed",
+                                         "affected_slide":  2,
+                                         "render_dir":  "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\outputs\\aircraft_transaction_repaired",
+                                         "overflow_check":  "passed",
+                                         "manual_inspection":  "bullet is fully visible; text and main image do not overlap"
+                                     },
+                        "title_48pt":  {
+                                           "status":  "baseline-warning-only",
+                                           "affected_slide":  1,
+                                           "render_dir":  "E:\\project\\agent\\xiaopu\\.acceptance\\hourly\\transaction-smoke\\workspace\\outputs\\precolonial_title_48pt",
+                                           "overflow_check":  "source and output report the same historical slides: 1,12,14,23,26,27,28",
+                                           "manual_inspection":  "48pt title is visible; this does not certify the historical deck as visually clean"
+                                       }
+                    }
+}

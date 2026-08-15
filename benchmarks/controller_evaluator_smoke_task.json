@@ -1,0 +1,6 @@
+{
+  "id": "edit-harness-story",
+  "min_slides": 4,
+  "max_slides": 5,
+  "required_text": ["Evidence-Aware PPT Harness", "Inspect", "Render", "controlled"]
+}

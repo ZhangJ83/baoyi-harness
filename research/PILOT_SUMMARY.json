@@ -1,0 +1,41 @@
+﻿[
+  {
+    "manifest": "xiaopu-mini-v1",
+    "suite": "terminal_bench",
+    "attempted": 5,
+    "completed": 3,
+    "completed_rate": 0.6,
+    "budget_overrun": 0,
+    "stopped": 2,
+    "total_tokens": 86229,
+    "mean_tokens": 17245.8,
+    "total_tool_calls": 44,
+    "mean_elapsed_seconds": 12.799199999999999
+  },
+  {
+    "manifest": "xiaopu-mini-v1",
+    "suite": "swe_bench_verified",
+    "attempted": 5,
+    "completed": 3,
+    "completed_rate": 0.6,
+    "budget_overrun": 0,
+    "stopped": 2,
+    "total_tokens": 83165,
+    "mean_tokens": 16633.0,
+    "total_tool_calls": 55,
+    "mean_elapsed_seconds": 12.1844
+  },
+  {
+    "manifest": "xiaopu-mini-v1",
+    "suite": "pptbench",
+    "attempted": 1,
+    "completed": 1,
+    "completed_rate": 1.0,
+    "budget_overrun": 0,
+    "stopped": 0,
+    "total_tokens": 30835,
+    "mean_tokens": 30835.0,
+    "total_tool_calls": 10,
+    "mean_elapsed_seconds": 22.433
+  }
+]

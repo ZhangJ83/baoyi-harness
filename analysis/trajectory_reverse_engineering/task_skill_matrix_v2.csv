@@ -1,0 +1,79 @@
+﻿agent,task_id,difficulty,capability,skill,event_count,failed_events,has_plan,has_render,has_verify,has_repair,has_stop
+claude-code,3-002,easy,precise text editing,ppt.atomic_edit,12,0,True,True,True,True,True
+claude-code,3-003,easy,text structure editing,ppt.atomic_edit,10,0,True,True,True,True,True
+claude-code,3-006,medium,shape/color editing,ppt.atomic_style,10,0,True,True,True,True,True
+claude-code,4._Pre-Colonial_Filipino_Culture-001,easy,font formatting,ppt.atomic_style,7,0,True,True,True,False,True
+claude-code,4._Pre-Colonial_Filipino_Culture-005,hard,cross-slide synthesis and composite generation,ppt.compose_from_slides,8,0,True,True,True,False,True
+claude-code,Accounting Equation-004,medium,global cross-slide text replacement,ppt.atomic_edit,8,0,True,True,True,False,True
+claude-code,Accounting Equation-045,hard,diagram generation,ppt.diagram_composition,8,0,True,True,True,True,True
+claude-code,Aircraft_surface-004,hard,content editing plus overlap repair,ppt.content_and_layout,9,0,True,True,True,True,True
+claude-code,board-material-update-timeline-excel,medium,pptx update from xlsx source; consistency editing,ppt.source_sync,13,1,True,True,True,True,True
+claude-code,HSC Careers and Expo FINAL COM MOD-008,medium,element creation and spatial positioning,ppt.element_creation,7,0,True,True,True,False,True
+claude-code,HSC Careers and Expo FINAL COM MOD-038,hard,layout reflow,ppt.layout_reflow,7,0,True,True,True,True,True
+claude-code,html-report-quadrant-ppt,medium,source-grounded one-slide synthesis; four-quadrant layout; provenance,ppt.source_grounded_build,10,0,True,True,True,True,True
+claude-code,xmind-screenshot-template-ppt,medium,structured deck generation from mindmap; template following,ppt.template_build,11,0,True,True,True,True,True
+codex,3-002,easy,precise text editing,ppt.atomic_edit,7,0,True,True,True,False,False
+codex,3-003,easy,text structure editing,ppt.atomic_edit,1,0,True,True,True,True,False
+codex,3-006,medium,shape/color editing,ppt.atomic_style,7,0,True,True,True,False,False
+codex,4._Pre-Colonial_Filipino_Culture-001,easy,font formatting,ppt.atomic_style,9,0,True,True,True,False,False
+codex,4._Pre-Colonial_Filipino_Culture-005,hard,cross-slide synthesis and composite generation,ppt.compose_from_slides,9,0,True,True,True,False,False
+codex,Accounting Equation-004,medium,global cross-slide text replacement,ppt.atomic_edit,8,0,True,True,True,False,False
+codex,Accounting Equation-045,hard,diagram generation,ppt.diagram_composition,6,0,True,True,True,False,False
+codex,Aircraft_surface-004,hard,content editing plus overlap repair,ppt.content_and_layout,7,0,True,True,True,False,False
+codex,board-material-update-timeline-excel,medium,pptx update from xlsx source; consistency editing,ppt.source_sync,47,0,True,True,True,False,False
+codex,HSC Careers and Expo FINAL COM MOD-008,medium,element creation and spatial positioning,ppt.element_creation,6,0,True,True,True,False,False
+codex,HSC Careers and Expo FINAL COM MOD-038,hard,layout reflow,ppt.layout_reflow,6,0,True,True,True,False,False
+codex,html-report-quadrant-ppt,medium,source-grounded one-slide synthesis; four-quadrant layout; provenance,ppt.source_grounded_build,20,0,True,True,True,False,False
+codex,xmind-screenshot-template-ppt,medium,structured deck generation from mindmap; template following,ppt.template_build,38,0,True,True,True,False,False
+opencode,3-002,easy,precise text editing,ppt.atomic_edit,16,0,True,True,True,True,True
+opencode,3-003,easy,text structure editing,ppt.atomic_edit,8,0,True,True,True,False,True
+opencode,3-006,medium,shape/color editing,ppt.atomic_style,9,0,True,True,True,False,True
+opencode,4._Pre-Colonial_Filipino_Culture-001,easy,font formatting,ppt.atomic_style,8,0,True,True,True,False,True
+opencode,4._Pre-Colonial_Filipino_Culture-005,hard,cross-slide synthesis and composite generation,ppt.compose_from_slides,11,1,True,True,True,True,True
+opencode,Accounting Equation-004,medium,global cross-slide text replacement,ppt.atomic_edit,9,0,True,True,True,True,True
+opencode,Accounting Equation-045,hard,diagram generation,ppt.diagram_composition,8,0,True,True,True,False,True
+opencode,Aircraft_surface-004,hard,content editing plus overlap repair,ppt.content_and_layout,9,1,True,True,True,True,True
+opencode,board-material-update-timeline-excel,medium,pptx update from xlsx source; consistency editing,ppt.source_sync,15,0,True,True,True,True,True
+opencode,HSC Careers and Expo FINAL COM MOD-008,medium,element creation and spatial positioning,ppt.element_creation,0,0,False,False,False,False,False
+opencode,HSC Careers and Expo FINAL COM MOD-038,hard,layout reflow,ppt.layout_reflow,0,0,False,False,False,False,False
+opencode,html-report-quadrant-ppt,medium,source-grounded one-slide synthesis; four-quadrant layout; provenance,ppt.source_grounded_build,0,0,False,False,False,False,False
+opencode,xmind-screenshot-template-ppt,medium,structured deck generation from mindmap; template following,ppt.template_build,0,0,False,False,False,False,False
+workbuddy-deepseek,3-002,easy,precise text editing,ppt.atomic_edit,18,0,True,True,True,True,False
+workbuddy-deepseek,3-003,easy,text structure editing,ppt.atomic_edit,11,0,True,True,True,False,False
+workbuddy-deepseek,3-006,medium,shape/color editing,ppt.atomic_style,12,0,True,True,True,False,False
+workbuddy-deepseek,4._Pre-Colonial_Filipino_Culture-001,easy,font formatting,ppt.atomic_style,12,0,True,True,True,False,False
+workbuddy-deepseek,4._Pre-Colonial_Filipino_Culture-005,hard,cross-slide synthesis and composite generation,ppt.compose_from_slides,16,0,True,True,True,True,False
+workbuddy-deepseek,Accounting Equation-004,medium,global cross-slide text replacement,ppt.atomic_edit,13,0,True,True,True,False,False
+workbuddy-deepseek,Accounting Equation-045,hard,diagram generation,ppt.diagram_composition,19,0,True,True,True,True,False
+workbuddy-deepseek,Aircraft_surface-004,hard,content editing plus overlap repair,ppt.content_and_layout,13,0,True,True,True,False,False
+workbuddy-deepseek,board-material-update-timeline-excel,medium,pptx update from xlsx source; consistency editing,ppt.source_sync,15,2,True,True,True,True,False
+workbuddy-deepseek,HSC Careers and Expo FINAL COM MOD-008,medium,element creation and spatial positioning,ppt.element_creation,11,0,True,True,True,False,False
+workbuddy-deepseek,HSC Careers and Expo FINAL COM MOD-038,hard,layout reflow,ppt.layout_reflow,13,0,True,True,True,True,False
+workbuddy-deepseek,html-report-quadrant-ppt,medium,source-grounded one-slide synthesis; four-quadrant layout; provenance,ppt.source_grounded_build,17,2,True,True,True,True,False
+workbuddy-deepseek,xmind-screenshot-template-ppt,medium,structured deck generation from mindmap; template following,ppt.template_build,21,2,True,True,True,True,False
+workbuddy-HY3,3-002,easy,precise text editing,ppt.atomic_edit,13,0,True,True,True,True,False
+workbuddy-HY3,3-003,easy,text structure editing,ppt.atomic_edit,13,0,True,True,True,True,False
+workbuddy-HY3,3-006,medium,shape/color editing,ppt.atomic_style,13,0,True,True,True,True,False
+workbuddy-HY3,4._Pre-Colonial_Filipino_Culture-001,easy,font formatting,ppt.atomic_style,13,0,True,True,True,True,False
+workbuddy-HY3,4._Pre-Colonial_Filipino_Culture-005,hard,cross-slide synthesis and composite generation,ppt.compose_from_slides,14,0,True,True,True,True,False
+workbuddy-HY3,Accounting Equation-004,medium,global cross-slide text replacement,ppt.atomic_edit,14,0,True,True,True,True,False
+workbuddy-HY3,Accounting Equation-045,hard,diagram generation,ppt.diagram_composition,13,0,True,True,True,True,False
+workbuddy-HY3,Aircraft_surface-004,hard,content editing plus overlap repair,ppt.content_and_layout,14,0,True,True,True,True,False
+workbuddy-HY3,board-material-update-timeline-excel,medium,pptx update from xlsx source; consistency editing,ppt.source_sync,16,0,True,True,True,True,False
+workbuddy-HY3,HSC Careers and Expo FINAL COM MOD-008,medium,element creation and spatial positioning,ppt.element_creation,0,0,False,False,False,False,False
+workbuddy-HY3,HSC Careers and Expo FINAL COM MOD-038,hard,layout reflow,ppt.layout_reflow,0,0,False,False,False,False,False
+workbuddy-HY3,html-report-quadrant-ppt,medium,source-grounded one-slide synthesis; four-quadrant layout; provenance,ppt.source_grounded_build,0,0,False,False,False,False,False
+workbuddy-HY3,xmind-screenshot-template-ppt,medium,structured deck generation from mindmap; template following,ppt.template_build,0,0,False,False,False,False,False
+workbuddy-ppt-agent-mode,3-002,easy,precise text editing,ppt.atomic_edit,6,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,3-003,easy,text structure editing,ppt.atomic_edit,6,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,3-006,medium,shape/color editing,ppt.atomic_style,6,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,4._Pre-Colonial_Filipino_Culture-001,easy,font formatting,ppt.atomic_style,6,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,4._Pre-Colonial_Filipino_Culture-005,hard,cross-slide synthesis and composite generation,ppt.compose_from_slides,10,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,Accounting Equation-004,medium,global cross-slide text replacement,ppt.atomic_edit,7,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,Accounting Equation-045,hard,diagram generation,ppt.diagram_composition,10,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,Aircraft_surface-004,hard,content editing plus overlap repair,ppt.content_and_layout,7,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,board-material-update-timeline-excel,medium,pptx update from xlsx source; consistency editing,ppt.source_sync,4,0,True,True,True,True,False
+workbuddy-ppt-agent-mode,HSC Careers and Expo FINAL COM MOD-008,medium,element creation and spatial positioning,ppt.element_creation,6,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,HSC Careers and Expo FINAL COM MOD-038,hard,layout reflow,ppt.layout_reflow,8,0,True,True,True,False,False
+workbuddy-ppt-agent-mode,html-report-quadrant-ppt,medium,source-grounded one-slide synthesis; four-quadrant layout; provenance,ppt.source_grounded_build,4,0,True,True,True,True,False
+workbuddy-ppt-agent-mode,xmind-screenshot-template-ppt,medium,structured deck generation from mindmap; template following,ppt.template_build,4,0,True,True,True,True,False

@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+case "${1:-}" in
+  venv)
+    python3 -m venv "${2:-.venv}"
+    ;;
+  pip)
+    # pytest is baked into /opt/testdeps for offline benchmark execution.
+    exit 0
+    ;;
+  run)
+    shift
+    PYTHONPATH=/opt/testdeps exec python3 "$@"
+    ;;
+  *)
+    echo "offline uv shim: unsupported command" >&2
+    exit 2
+    ;;
+esac
