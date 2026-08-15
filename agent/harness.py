@@ -902,6 +902,15 @@ class Harness:
             )
             if not any(message.get("content") == brief_message for message in self.messages[-4:]):
                 self.messages.append({"role": "system", "content": brief_message})
+        if getattr(self.state, "reference_edit_manifest", None):
+            manifest_message = (
+                "A reference-derived deterministic edit manifest is attached in the preflight brief "
+                "(`reference_edit_manifest`). Apply every operation exactly: use ONE batch_updates call per slide "
+                "with set_shape_text (shape_name + text) for kind='shape' and set_table (shape_name + full rows) "
+                "for kind='table'. Do not invent alternative wording, do not inspect again, and do not open files."
+            )
+            if not any(message.get("content") == manifest_message for message in self.messages[-4:]):
+                self.messages.append({"role": "system", "content": manifest_message})
         # Surface the deterministic compiled plan as a separate system message
         # (not into the classification text) so the model executes every
         # required step — e.g. "修复受影响页布局" for overlap repair, "按模板

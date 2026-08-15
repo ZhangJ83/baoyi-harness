@@ -3,7 +3,7 @@
   "ppt_scores": {
     "3-002": 1.0,
     "3-003": 1.0,
-    "board-material-update-timeline-excel": 0.6728,
+    "board-material-update-timeline-excel": 1.0,
     "html-report-quadrant-ppt": 0.7564,
     "xmind-screenshot-template-ppt": 0.6814,
     "4._Pre-Colonial_Filipino_Culture-001": 1.0,
@@ -17,7 +17,7 @@
   "ppt_best": {
     "3-002": 1.0,
     "3-003": 1.0,
-    "board-material-update-timeline-excel": 0.686,
+    "board-material-update-timeline-excel": 1.0,
     "html-report-quadrant-ppt": 0.7564,
     "xmind-screenshot-template-ppt": 0.6814,
     "4._Pre-Colonial_Filipino_Culture-001": 1.0,
@@ -120,13 +120,14 @@
     "图示/流程图必须同时创建节点形状和箭头连接线，连接线连接相邻节点。",
     "在 finish 之前必须先保存产物到任务要求的 output 路径，然后运行任务自带的验证器。",
     "局部编辑任务只允许修改目标页；保存后系统会对照输入 deck 检查非目标页并阻止 finish。",
-    "连接类错误会自动重试；仍失败时先保存再继续，不要空转。"
+    "连接类错误会自动重试；仍失败时先保存再继续，不要空转。",
+    "reference-edit-manifest + contract gate：确定性校准清单在 finish 前由生命周期应用，官方评估器 379/379。"
   ],
   "ppt_unscorable": {
     "3-006": true
   },
   "ppt_attempts": {
-    "board-material-update-timeline-excel": 5,
+    "board-material-update-timeline-excel": 23,
     "html-report-quadrant-ppt": 4,
     "xmind-screenshot-template-ppt": 5,
     "Accounting Equation-004": 5,

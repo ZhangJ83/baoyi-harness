@@ -216,6 +216,16 @@ def main() -> int:
             else:
                 print(f"RUNTIME ERROR ({type(e).__name__}): {e}", file=sys.stderr)
             return 1
+        # Every single-shot run is a resumable checkpoint. A paused/STUCK run
+        # keeps its working deck path in the snapshot, so `--resume <id>` can
+        # continue from the last blocker instead of restarting from input.
+        session_note = ""
+        try:
+            from .session_store import save_session
+            record = save_session(h, title=task)
+            session_note = f"\nSESSION_ID={record.id}"
+        except Exception as exc:
+            session_note = f"\nSESSION_SAVE_WARNING={type(exc).__name__}: {exc}"
         if json_out:
             print(json.dumps({
                 "status": "completed",
@@ -226,7 +236,7 @@ def main() -> int:
                 "reply": reply,
             }, ensure_ascii=False))
         else:
-            print(reply)
+            print(reply + session_note)
         if log_path:
             with log_file.open("a", encoding="utf-8") as stream:
                 stream.write(f"\n===== RESULT ({elapsed}s) =====\n{reply}\n")

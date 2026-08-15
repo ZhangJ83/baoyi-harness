@@ -70,8 +70,9 @@ def _canonical_local_ppt_scope(name: str, args: dict[str, Any], harness) -> tupl
             requested = ({slide_number} if isinstance(slide_number, int) else set(range(1, len(deck.slides) + 1)))
         elif operation == "batch_updates":
             requested = set()
+            default_slide = args.get("slide_number")
             for update in args.get("updates", []):
-                slide_number = update.get("slide_number")
+                slide_number = update.get("slide_number", default_slide)
                 if update.get("operation") == "replace" and slide_number is None:
                     requested.update(range(1, len(deck.slides) + 1))
                 elif isinstance(slide_number, int):

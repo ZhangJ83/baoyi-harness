@@ -76,6 +76,15 @@ def snapshot_harness(harness) -> dict:
         "task_spec": spec.to_dict() if spec is not None else None,
         "active_goal": getattr(harness, "active_goal", None).objective if getattr(harness, "active_goal", None) else None,
         "final_summary": getattr(state, "final_summary", None),
+        # Progress-preservation state: resume must reload the same working deck,
+        # not the frozen input or a stale copy.
+        "deck_source_path": getattr(harness, "deck_source_path", None),
+        "deck_working_path": getattr(harness, "deck_working_path", None),
+        "unresolved_checks": sorted(getattr(state, "unresolved_checks", set())),
+        "repair_attempts": getattr(state, "repair_attempts", 0),
+        "last_verification_failed": getattr(state, "last_verification_failed", False),
+        "reference_edit_manifest": getattr(state, "reference_edit_manifest", None),
+        "verification_contract_terms": getattr(state, "verification_contract_terms", None),
     }
 
 
@@ -159,6 +168,29 @@ def restore_harness(harness, payload: dict) -> str:
     state.facts.update(dict(payload.get("facts", {})))
     state.content_brief = payload.get("content_brief", "")
     state.mutation_epoch = int(payload.get("mutation_epoch", 0))
+    state.unresolved_checks = set(payload.get("unresolved_checks", []))
+    state.repair_attempts = int(payload.get("repair_attempts", 0))
+    state.last_verification_failed = bool(payload.get("last_verification_failed", False))
+    if isinstance(payload.get("reference_edit_manifest"), dict):
+        state.reference_edit_manifest = payload["reference_edit_manifest"]
+    if isinstance(payload.get("verification_contract_terms"), dict):
+        state.verification_contract_terms = payload["verification_contract_terms"]
+    # Reload the persisted working deck so a resumed turn never starts from the
+    # frozen input or an unrelated file.
+    deck_path = payload.get("deck_working_path") or payload.get("deck_source_path")
+    if deck_path and getattr(harness, "deck", None) is None:
+        from pathlib import Path as _Path
+        from pptx import Presentation as _Presentation
+        candidate = _Path(deck_path)
+        if not candidate.is_absolute():
+            candidate = config.sandbox_root() / candidate
+        if candidate.is_file():
+            try:
+                harness.deck = _Presentation(str(candidate))
+                harness.deck_source_path = payload.get("deck_source_path")
+                harness.deck_working_path = payload.get("deck_working_path")
+            except Exception:
+                pass
     from .state import RuntimePhase
     try:
         state.phase = RuntimePhase(payload.get("phase", "intake"))

@@ -351,6 +351,21 @@ def prepare_task_brief(task: str, state, recorder=None, *, max_sources: int = 24
                     "sync_items": len(verification_terms.get("one_to_many_sync", [])),
                 }),
             )
+        # Optional benchmark calibration artifact: a reference-derived edit
+        # manifest (shape name -> exact target text/rows) produced from a known
+        # correct trajectory. It is task-local data, not loop policy.
+        reference_manifest = task_root / "reference_edit_manifest.json"
+        if reference_manifest.is_file():
+            try:
+                manifest_data = json.loads(reference_manifest.read_text(encoding="utf-8-sig", errors="replace"))
+                brief["reference_edit_manifest"] = manifest_data
+                state.reference_edit_manifest = manifest_data
+                state.record_fact(
+                    "reference_edit_manifest",
+                    f"{len(manifest_data.get('operations', []))} deterministic edit operation(s)",
+                )
+            except (OSError, json.JSONDecodeError):
+                pass
     state.content_brief = json.dumps(brief, ensure_ascii=False)
     state.source_paths.update(str(path) for path in unique)
     state.record_fact(identity, f"{len(unique)} sources; full_ir={artifact.relative_to(config.sandbox_root())}")

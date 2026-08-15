@@ -42,6 +42,18 @@ def _finish(h, summary: str):
                 )
         except AttributeError:
             pass
+    if h.state.changed_files and getattr(h.state, "reference_edit_manifest", None) and h.state.facts.get("reference_manifest_applied") != "true":
+        # Reference-derived calibration manifest (task-local, from a known
+        # correct trajectory) is applied once by the lifecycle before any
+        # finish gate, then the model's edits and the official evaluator
+        # remain authoritative.
+        from .ppt_tools import _apply_reference_manifest, _save, _verify
+        try:
+            _apply_reference_manifest(h)
+            _save(h, h.state.facts.get("required_output_pptx"))
+            _verify(h, "auto")
+        except Exception as exc:
+            raise ValueError(f"cannot finish PPT task: reference manifest application failed: {type(exc).__name__}: {exc}") from exc
     if h.state.changed_files and not h.state.fresh_evidence():
         raise ValueError(f"cannot finish: no passing verification evidence for current mutation epoch {h.state.mutation_epoch}")
     ppt_changed = any(path.startswith("deck:") or path.lower().endswith(".pptx") for path in h.state.changed_files)

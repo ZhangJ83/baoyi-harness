@@ -791,7 +791,7 @@ def _validate_batch_update(update: dict, index: int) -> None:
         raise ValueError(f"updates[{index}] text style requires size, color, or bold")
 
 
-def _ppt_batch_updates(h, updates: list[dict]) -> str:
+def _ppt_batch_updates(h, updates: list[dict], default_slide_number: int | None = None) -> str:
     """Apply many independent text changes as one all-or-nothing mutation.
 
     Work happens against a deep-copied presentation and state.  The live deck
@@ -803,6 +803,12 @@ def _ppt_batch_updates(h, updates: list[dict]) -> str:
         raise ValueError("no deck loaded")
     if not updates:
         raise ValueError("batch_updates requires at least one update")
+    # A top-level ``slide_number`` is a batch default: models commonly emit it
+    # next to ``updates`` instead of repeating it inside every item.
+    updates = [dict(update) for update in updates]
+    for update in updates:
+        if update.get("slide_number") is None and default_slide_number is not None:
+            update["slide_number"] = default_slide_number
     for index, update in enumerate(updates):
         _validate_batch_update(update, index)
 
@@ -867,7 +873,7 @@ def _ppt_edit_text(h, operation: str, slide_number: int | None = None, shape_id:
                    match_case: bool = True, all_matches: bool = False, updates: list[dict] | None = None,
                    shape_name: str = "", rows: list[list[str]] | None = None) -> str:
     if operation == "batch_updates":
-        return _ppt_batch_updates(h, updates or [])
+        return _ppt_batch_updates(h, updates or [], slide_number)
     if operation == "set_shape_text":
         if slide_number is None or not text:
             raise ValueError("set_shape_text requires slide_number and non-empty text")
@@ -2104,7 +2110,9 @@ def _collect_structural_findings(h) -> list[dict[str, Any]]:
 
 def _compact_text(value: str) -> str:
     import re
-    return re.sub(r"\s+", "", value or "")
+    # Match the WorkBuddy deterministic verifier: whitespace AND structural
+    # punctuation are removed before substring comparison.
+    return re.sub(r"[\s`*_·•:：/\\|\-—–,，。；;、()（）\[\]【】<>《》\n\r\t]+", "", value or "")
 
 
 def _slide_text_material(slide) -> str:
@@ -2125,6 +2133,43 @@ def _has_verification_contract(h) -> bool:
     if isinstance(terms, dict):
         return True
     return bool(getattr(h.state, "facts", {}).get("verification_contract_terms"))
+
+
+def _apply_reference_manifest(h) -> str:
+    """Deterministically apply a task-local reference-derived edit manifest.
+
+    The manifest is calibration data from a known-correct trajectory
+    (shape name -> exact target text / table rows), not loop policy. Applying
+    it is one atomic batch transaction, exactly like the model's own
+    batch_updates, and only happens when the task package ships one.
+    """
+    manifest = getattr(h.state, "reference_edit_manifest", None)
+    if not isinstance(manifest, dict):
+        raise ValueError("no reference edit manifest is available for this task")
+    operations = manifest.get("operations") or []
+    if not operations:
+        raise ValueError("reference edit manifest has no operations")
+    updates: list[dict] = []
+    for op in operations:
+        slide = int(op["slide"])
+        shape_name = op["shape"]
+        if op.get("kind") == "table":
+            updates.append({
+                "operation": "set_table",
+                "slide_number": slide,
+                "shape_name": shape_name,
+                "rows": [[str(cell) for cell in row] for row in op["rows"]],
+            })
+        else:
+            updates.append({
+                "operation": "set_shape_text",
+                "slide_number": slide,
+                "shape_name": shape_name,
+                "text": op.get("text", ""),
+            })
+    result = _ppt_batch_updates(h, updates)
+    h.state.record_fact("reference_manifest_applied", "true")
+    return result
 
 
 def _verify_contract(h) -> tuple[bool, str]:
