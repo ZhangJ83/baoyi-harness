@@ -1387,7 +1387,13 @@ def _ppt_compose(h, kind: str, **kw) -> str:
             kw.get("left_title", "Male"), kw.get("right_title", "Female"),
         )
     if kind == "from_outline":
-        return _compose_from_outline(h, kw.get("slides") or [], kw.get("replace_template", True))
+        slides = kw.get("slides") or []
+        if not slides and kw.get("bullets"):
+            # Outline shorthand: one semantic content page from a bullet list.
+            # Without a template deck this is the same primitive the model
+            # would otherwise have to spell out as kind='content'.
+            return _content_slide(h, kw.get("title", ""), kw.get("bullets") or [], kw.get("size", 18))
+        return _compose_from_outline(h, slides, kw.get("replace_template", True))
     if kind == "table":
         if not kw.get("columns") or not kw.get("rows"):
             raise ValueError("table requires non-empty columns and rows")

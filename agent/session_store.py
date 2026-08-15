@@ -197,6 +197,22 @@ def restore_harness(harness, payload: dict) -> str:
                 harness.deck_working_path = payload.get("deck_working_path")
             except Exception:
                 pass
+    # New-deck runs have no working-copy path until the first save. Recover the
+    # latest saved deliverable instead of silently starting from an empty deck.
+    if getattr(harness, "deck", None) is None and int(payload.get("mutation_epoch", 0)) > 0:
+        from pathlib import Path as _Path
+        from pptx import Presentation as _Presentation
+        facts = payload.get("facts", {})
+        candidate_rel = facts.get("required_output_pptx") or facts.get("output_path")
+        if candidate_rel:
+            candidate = _Path(candidate_rel)
+            if not candidate.is_absolute():
+                candidate = config.sandbox_root() / candidate
+            if candidate.is_file():
+                try:
+                    harness.deck = _Presentation(str(candidate))
+                except Exception:
+                    pass
     from .state import RuntimePhase
     try:
         state.phase = RuntimePhase(payload.get("phase", "intake"))
