@@ -9,9 +9,9 @@ def test_gui_has_independent_native_entry():
     assert args.model == "m"
 
 
-def test_gui_tool_start_event_appends_to_tool_log():
+def test_gui_tool_start_event_appends_to_timeline():
     gui = AgentGUI.__new__(AgentGUI)
-    gui.process_visible = True
+    gui.activity_visible = True
     gui.tool_log_lines = []
     gui._trajectory = []
     gui.tool_started_count = 0
@@ -20,11 +20,6 @@ def test_gui_tool_start_event_appends_to_tool_log():
     gui.live_action = type("Value", (), {"set": lambda self, value: None})()
     gui.live_phase = type("Value", (), {"set": lambda self, value: None})()
     gui.live_counts = type("Value", (), {"set": lambda self, value: None})()
-    gui.tool_box = type("Box", (), {
-        "configure": lambda self, *a, **kw: None,
-        "insert": lambda self, *a, **kw: None,
-        "see": lambda self, *a: None,
-    })()
     gui.trajectory_box = type("Box", (), {
         "configure": lambda self, *a, **kw: None,
         "insert": lambda self, *a, **kw: None,
@@ -34,6 +29,7 @@ def test_gui_tool_start_event_appends_to_tool_log():
     from agent.events import EventKind, RuntimeEvent
     gui._show_event(RuntimeEvent(EventKind.TOOL_STARTED, {"tool": "list_dir", "arguments": "{}"}))
     assert "▸ list_dir" in gui.tool_log_lines[0]
+    assert "▸ list_dir" in gui._trajectory[0]
 
 
 def test_gui_live_counts_report_current_execution_state():
