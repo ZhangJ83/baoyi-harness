@@ -46,7 +46,13 @@ class AgentGUI:
         self.h.stream_callback = self._on_stream_token
         self.h.subscribe(self._capture_runtime_event)
         self._build()
+        from .workspace_store import register_workspace
+        try:
+            register_workspace(self.workspace.get())
+        except Exception:
+            pass
         self._refresh_sessions()
+        self._refresh_workspaces()
         self.root.after(60, self._drain_events)
         self.root.after(120, self._drain_approvals)
         self.root.after(250, self._tick_elapsed)
@@ -108,15 +114,33 @@ class AgentGUI:
         pane.add(chat_frame, weight=4)
         pane.add(process_frame, weight=2)
 
-        ttk.Label(session_frame, text="会话", font=("Microsoft YaHei UI", 11, "bold")).pack(anchor="w", pady=(0, 5))
-        self.session_list = tk.Listbox(session_frame, bg="#151515", fg="#e8e8e8", selectbackground="#2867b2",
+        # Sidebar: sessions and workspace management live together.
+        sidebar = ttk.Notebook(session_frame)
+        sidebar.pack(fill="both", expand=True)
+        sessions_tab = ttk.Frame(sidebar)
+        workspaces_tab = ttk.Frame(sidebar)
+        sidebar.add(sessions_tab, text="会话")
+        sidebar.add(workspaces_tab, text="工作区")
+
+        ttk.Label(sessions_tab, text="已保存会话", font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
+        self.session_list = tk.Listbox(sessions_tab, bg="#151515", fg="#e8e8e8", selectbackground="#2867b2",
                                        relief="flat", activestyle="none", height=18)
         self.session_list.pack(fill="both", expand=True)
-        session_buttons = ttk.Frame(session_frame)
+        session_buttons = ttk.Frame(sessions_tab)
         session_buttons.pack(fill="x", pady=(6, 0))
         ttk.Button(session_buttons, text="恢复", command=self._resume_session).pack(side="left")
         ttk.Button(session_buttons, text="删除", command=self._delete_session).pack(side="left", padx=(5, 0))
         ttk.Button(session_buttons, text="刷新", command=self._refresh_sessions).pack(side="left", padx=(5, 0))
+
+        ttk.Label(workspaces_tab, text="工作区", font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
+        self.workspace_list = tk.Listbox(workspaces_tab, bg="#151515", fg="#e8e8e8", selectbackground="#2867b2",
+                                         relief="flat", activestyle="none", height=18)
+        self.workspace_list.pack(fill="both", expand=True)
+        workspace_buttons = ttk.Frame(workspaces_tab)
+        workspace_buttons.pack(fill="x", pady=(6, 0))
+        ttk.Button(workspace_buttons, text="添加", command=self._add_workspace).pack(side="left")
+        ttk.Button(workspace_buttons, text="切换", command=self._switch_workspace).pack(side="left", padx=(5, 0))
+        ttk.Button(workspace_buttons, text="移除", command=self._remove_workspace).pack(side="left", padx=(5, 0))
 
         ttk.Label(chat_frame, text="对话", font=("Microsoft YaHei UI", 11, "bold")).pack(anchor="w", pady=(0, 5))
         self.chat = tk.Text(chat_frame, wrap="word", bg="#151515", fg="#ededed", insertbackground="white",
@@ -549,17 +573,61 @@ class AgentGUI:
             except Exception as exc:
                 messagebox.showerror("保存失败", str(exc))
 
-    def _choose_workspace(self) -> None:
-        if self.running:
-            return
+    def _refresh_workspaces(self) -> None:
+        from .workspace_store import list_workspaces
+
+        self.workspace_list.delete(0, "end")
+        self._workspace_records = list_workspaces()
+        current = str(Path(self.workspace.get()).resolve())
+        for index, record in enumerate(self._workspace_records):
+            marker = "● " if Path(record.path) == Path(current) else "  "
+            self.workspace_list.insert("end", f"{marker}{record.name} · {record.path}")
+
+    def _add_workspace(self) -> None:
+        from .workspace_store import register_workspace
+
         path = filedialog.askdirectory(initialdir=self.workspace.get())
         if not path:
             return
-        if not messagebox.askyesno("切换工作区", "切换将保存当前会话并创建新的会话，是否继续？"):
+        try:
+            register_workspace(path)
+        except ValueError as exc:
+            messagebox.showerror("添加工作区失败", str(exc))
             return
+        self._refresh_workspaces()
+
+    def _switch_workspace(self) -> None:
+        selection = self.workspace_list.curselection()
+        if not selection:
+            messagebox.showinfo("切换工作区", "请先在列表中选择一个工作区。")
+            return
+        record = self._workspace_records[selection[0]]
+        if Path(record.path) == Path(self.workspace.get()).resolve():
+            return
+        if self.running:
+            messagebox.showinfo("切换工作区", "当前任务执行中，请先中断。")
+            return
+        if messagebox.askyesno("切换工作区", f"切换将保存当前会话并进入：\n{record.path}\n\n是否继续？"):
+            from .session_store import save_session
+            save_session(self.h)
+            self._replace_harness(record.path)
+
+    def _remove_workspace(self) -> None:
+        selection = self.workspace_list.curselection()
+        if not selection:
+            return
+        record = self._workspace_records[selection[0]]
+        if Path(record.path) == Path(self.workspace.get()).resolve():
+            messagebox.showinfo("移除工作区", "当前使用中的工作区不能移除，请先切换到其他工作区。")
+            return
+        if messagebox.askyesno("移除工作区", f"从管理列表移除：\n{record.path}\n\n（磁盘目录不会被删除）"):
+            from .workspace_store import remove_workspace
+            remove_workspace(record.path)
+            self._refresh_workspaces()
+
+    def _replace_harness(self, path: str) -> None:
         from .harness import Harness
-        from .session_store import save_session
-        save_session(self.h)
+
         os.environ["WORKSPACE"] = str(Path(path).resolve())
         self.h = Harness(model=self.model, interactive=True)
         self.h.approval_handler = self._approve_command
@@ -569,6 +637,23 @@ class AgentGUI:
         self.model_var.set(getattr(self.h.llm, "model", config.model()))
         self._append_chat("系统", f"已切换工作区：{path}", "assistant")
         self._refresh_sessions()
+        self._refresh_workspaces()
+        self._refresh_status()
+
+    def _choose_workspace(self) -> None:
+        if self.running:
+            return
+        path = filedialog.askdirectory(initialdir=self.workspace.get())
+        if not path:
+            return
+        if not messagebox.askyesno("切换工作区", "切换将保存当前会话并创建新的会话，是否继续？"):
+            return
+        from .session_store import save_session
+        from .workspace_store import register_workspace
+
+        save_session(self.h)
+        register_workspace(path)
+        self._replace_harness(path)
 
 
 def build_parser() -> argparse.ArgumentParser:
