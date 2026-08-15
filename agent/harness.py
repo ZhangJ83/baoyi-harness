@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import itertools
 import threading
@@ -913,6 +914,23 @@ class Harness:
             )
             if not any(message.get("content") == plan_message for message in self.messages[-4:]):
                 self.messages.append({"role": "system", "content": plan_message})
+        # Compound replacement contract: instructions like
+        # "Liability/Liabilities -> Debt/Debts" must be executed as one batch
+        # with every variant, not as a single singular-only replace.
+        compound_match = re.search(
+            r"([A-Za-z]+)\s*/\s*([A-Za-z]+)\s*(?:->|→|to|改为)\s*([A-Za-z]+)\s*/\s*([A-Za-z]+)",
+            execution_task,
+            re.IGNORECASE,
+        )
+        if is_ppt and compound_match and self.task_spec.skill == "ppt.atomic_edit":
+            old_a, old_b, new_a, new_b = compound_match.groups()
+            compound_message = (
+                "Deterministic replacement contract: use operation='replace_case_variants' once "
+                f"(old='{old_a}' new='{new_a}' new_plural='{new_b}'), not two case-sensitive replaces. "
+                "This replaces singular/plural and lowercase/Capitalized/UPPERCASE forms together."
+            )
+            if not any(message.get("content") == compound_message for message in self.messages[-4:]):
+                self.messages.append({"role": "system", "content": compound_message})
         # Give code tasks their deterministic language/test-runner context so the
         # model runs the actual tests (run_checks) instead of stopping at a
         # content-only verify_files assertion.

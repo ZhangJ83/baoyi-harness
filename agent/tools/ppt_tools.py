@@ -881,9 +881,11 @@ def _ppt_batch_updates(h, updates: list[dict], default_slide_number: int | None 
 def _ppt_edit_text(h, operation: str, slide_number: int | None = None, shape_id: int | None = None,
                    text_contains: str = "", old: str = "", new: str = "", text: str = "",
                    match_case: bool = True, all_matches: bool = False, updates: list[dict] | None = None,
-                   shape_name: str = "", rows: list[list[str]] | None = None) -> str:
+                   shape_name: str = "", rows: list[list[str]] | None = None, new_plural: str = "") -> str:
     if operation == "batch_updates":
         return _ppt_batch_updates(h, updates or [], slide_number)
+    if operation == "replace_case_variants":
+        return _replace_case_variants(h, old, new, new_plural, slide_number)
     if operation == "set_shape_text":
         if slide_number is None or not text:
             raise ValueError("set_shape_text requires slide_number and non-empty text")
@@ -1161,6 +1163,40 @@ def _rewrite_table_preserving_style(table, rows: list[list[str]]) -> None:
                 if run._r.rPr is not None:
                     run._r.remove(run._r.rPr)
                 run._r.insert(0, deepcopy(rpr))
+
+
+def _replace_case_variants(h, old: str, new: str, new_plural: str = "", slide_number: int | None = None) -> str:
+    """Replace singular/plural case variants while preserving each form's case.
+
+    Rubrics often phrase a task as "Liability/Liabilities -> Debt/Debts" and
+    score lowercase / Capitalized / UPPERCASE forms separately. A single
+    case-sensitive replace covers only one spelling.
+    """
+    if not old or not new:
+        raise ValueError("replace_case_variants requires old and new")
+    if not new_plural:
+        new_plural = new + "s"
+    old_singular = old
+    old_plural = old[:-1] + "ies" if old.lower().endswith("y") else old + "s"
+    variants = [
+        (old_singular, new),
+        (old_singular.lower(), new.lower()),
+        (old_singular.upper(), new.upper()),
+        (old_plural, new_plural),
+        (old_plural.lower(), new_plural.lower()),
+        (old_plural.upper(), new_plural.upper()),
+    ]
+    results = []
+    replaced_any = False
+    for old_variant, new_variant in variants:
+        try:
+            results.append(_replace_text_semantic(h, old_variant, new_variant, slide_number, True))
+            replaced_any = True
+        except ValueError:
+            continue
+    if not replaced_any:
+        raise ValueError(f"none of the case variants of {old!r} were found")
+    return f"replaced case variants of {old!r}: " + "; ".join(results)
 
 
 def _set_shape_metadata(h, slide_number: int, descr: str, shape_id: int | None = None,
@@ -2228,6 +2264,13 @@ def _verify_contract(h) -> tuple[bool, str]:
         forbidden_present = [str(term) for term in item.get("forbidden_terms") or [] if _compact_text(term) in compact]
         if required_missing:
             co_findings.append(f"slide {slide_number}/{item.get('object_name')}: missing=[{'; '.join(required_missing)}]")
+            # Provenance/binding terms may legally live in shape description
+            # metadata rather than visible text. Give the model the exact call.
+            all_required = "; ".join(str(term) for term in (item.get("required_terms") or []))
+            co_findings.append(
+                f"  → use ppt_metadata slide {slide_number} shape_name={item.get('object_name')} "
+                f"descr='{all_required}'"
+            )
         if forbidden_present:
             co_findings.append(f"slide {slide_number}/{item.get('object_name')}: forbidden=[{'; '.join(forbidden_present)}]")
 
@@ -2436,11 +2479,11 @@ ppt_tools = [
     ),
     _make(
         "ppt_edit_text",
-        "Edit presentation text. operation='replace' does one exact substring replacement (all occurrences in scope). operation='set_shape_text' rewrites a whole existing text shape: select it by shape_id or unique shape_name or text_contains and provide multi-line `text`. operation='set_table' rewrites a whole existing table atomically: select the table by shape_id or shape_name and provide `rows` as a list of cell-value lists matching the current table dimensions exactly. operation='batch_updates' applies 2+ independent replace/style/set_shape_text/set_table edits in one transaction. For consistency/source-sync work prefer set_shape_text/set_table (single or inside batch_updates) to avoid stale-fragment leftovers.",
+        "Edit presentation text. operation='replace' does one exact substring replacement (all occurrences in scope). operation='replace_case_variants' replaces singular/plural and lowercase/Capitalized/UPPERCASE forms in one call (old + new + optional new_plural). operation='set_shape_text' rewrites a whole existing text shape: select it by shape_id or unique shape_name or text_contains and provide multi-line `text`. operation='set_table' rewrites a whole existing table atomically: select the table by shape_id or shape_name and provide `rows` as a list of cell-value lists matching the current table dimensions exactly. operation='batch_updates' applies 2+ independent replace/style/set_shape_text/set_table edits in one transaction. For consistency/source-sync work prefer set_shape_text/set_table (single or inside batch_updates) to avoid stale-fragment leftovers.",
         {
-            "operation": {"type": "string", "enum": ["replace", "append_bullet", "batch_updates", "set_shape_text", "set_table"]},
+            "operation": {"type": "string", "enum": ["replace", "append_bullet", "batch_updates", "set_shape_text", "set_table", "replace_case_variants"]},
             "slide_number": {"type": "integer"}, "shape_id": {"type": "integer"}, "shape_name": {"type": "string"},
-            "text_contains": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"},
+            "text_contains": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"}, "new_plural": {"type": "string"},
             "text": {"type": "string"}, "match_case": {"type": "boolean"}, "all_matches": {"type": "boolean"},
             "rows": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "string"}}},
             "updates": {

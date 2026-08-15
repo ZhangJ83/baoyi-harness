@@ -353,6 +353,22 @@ def test_verification_contract_gate_reports_missing_and_forbidden_terms():
     assert "ppt_contract" not in h.state.unresolved_checks
 
 
+def test_replace_case_variants_covers_singular_plural_and_case():
+    h = DummyHarness()
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    box = slide.shapes.add_textbox(914400, 914400, 914400 * 3, 914400)
+    box.text = "Liability / liabilities / LIABILITIES"
+    h.deck = prs
+
+    out = dispatch("ppt_edit_text", json.dumps({
+        "operation": "replace_case_variants", "old": "Liability", "new": "Debt", "new_plural": "Debts",
+    }), h)
+    assert "replaced case variants" in out
+    new_box = next(shape for shape in h.deck.slides[0].shapes if shape.has_text_frame)
+    assert new_box.text == "Debt / debts / DEBTS"
+
+
 def test_verification_contract_brief_extracts_terms(tmp_path):
     from agent.intake import _verification_contract_brief
 
