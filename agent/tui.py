@@ -7,16 +7,19 @@ import queue
 import shutil
 import threading
 import time
+from pathlib import Path
 
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.completion import Completer, Completion, PathCompleter, WordCompleter
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.filters import to_filter
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.styles import Style
@@ -33,39 +36,55 @@ console = Console()
 XIAOPU_HELP = """\
 小朴 commands:
 
-  <task>         run the agent on a task
-  /new           reset session memory and deck
-  /info          show slide deck structure
-  /status        show current loop state (phase / epoch / evidence / budget)
-  /verify        run structural verifier
-  /save [path]   save deck to file (default workspace/deck.pptx)
-  /doctor        show provider and dependency readiness (secrets are never shown)
-  /thinking      show or switch thinking mode: on/off
-  /effort        show or set reasoning effort: high/max
-  /activity      show / hide the latest auditable work summary
-  /process       set process display: hidden/balanced/summary/detail
-  /goal [task]   start or inspect a recoverable long-horizon goal
-  /mouse         switch mouse input mode: on/off (off keeps output selectable)
-  /help          show this help message
-  /exit, /quit   exit the session
+  <task>           run the agent on a task
+  /new             save current session, then reset memory and deck
+  /sessions        list saved sessions
+  /resume [id]     resume a saved session (id or list index)
+  /export [path]   export current session transcript to a markdown file
+  /info            show slide deck structure
+  /status          show current loop state (phase / epoch / evidence / budget)
+  /context         show token usage and context-window budget
+  /compact         compact the conversation history now
+  /verify          run structural verifier
+  /save [path]     save deck to file (default workspace/deck.pptx)
+  /doctor          show provider and dependency readiness (secrets are never shown)
+  /model [name]    show or switch the active model
+  /thinking        show or switch thinking mode: on/off
+  /effort          show or set reasoning effort: high/max
+  /permissions     show or set shell policy: allow/ask/deny
+  /plan            toggle plan mode: on/off (plan first, do not mutate)
+  /activity        show / hide the latest auditable work summary
+  /process         set process display: hidden/balanced/summary/detail
+  /goal [task]     start or inspect a recoverable long-horizon goal
+  /mouse           switch mouse input mode: on/off (off keeps output selectable)
+  /help            show this help message
+  /exit, /quit     save session and exit
 """
 
 COMMANDS = {
-    "/new": "新建会话并清空当前演示文稿",
+    "/new": "保存并新建会话，清空当前演示文稿",
+    "/sessions": "列出已保存会话",
+    "/resume": "恢复已保存会话（id 或序号）",
+    "/export": "导出当前会话记录到 markdown 文件",
     "/info": "查看当前演示文稿结构",
     "/status": "查看循环状态：相位、证据纪元、修复预算、用量",
+    "/context": "查看 token 用量与上下文预算",
+    "/compact": "立即压缩对话历史",
     "/verify": "执行演示文稿结构校验",
     "/save": "保存演示文稿（可附目标路径）",
     "/doctor": "检查模型、凭据和本地依赖",
+    "/model": "查看或切换当前模型",
     "/thinking": "查看或切换思考模式（on/off）",
     "/effort": "查看或设置推理强度（high/max）",
+    "/permissions": "查看或设置 shell 策略（allow/ask/deny）",
+    "/plan": "切换计划模式（on/off）",
     "/activity": "展开或收起最新工作摘要",
     "/process": "设置过程显示（hidden/balanced/summary/detail）",
     "/goal": "启动或查看可恢复的长期目标",
     "/mouse": "切换鼠标输入模式（off 时终端文字可选择）",
     "/help": "查看全部命令说明",
-    "/exit": "退出小朴",
-    "/quit": "退出小朴",
+    "/exit": "保存会话并退出小朴",
+    "/quit": "保存会话并退出小朴",
 }
 
 
@@ -79,6 +98,24 @@ class CommandCompleter(Completer):
         for command, description in COMMANDS.items():
             if command.startswith(text):
                 yield Completion(command, start_position=-len(text), display=command, display_meta=description)
+
+
+class HybridCompleter(Completer):
+    """Slash commands after '/', filesystem paths everywhere else."""
+
+    def __init__(self) -> None:
+        self.commands = CommandCompleter()
+        self.paths = PathCompleter(
+            only_directories=False,
+            expanduser=True,
+            get_paths=lambda: [os.getcwd()],
+        )
+
+    def get_completions(self, document, complete_event):
+        if document.text_before_cursor.startswith("/"):
+            yield from self.commands.get_completions(document, complete_event)
+            return
+        yield from self.paths.get_completions(document, complete_event)
 
 
 class XiaopuTerminalUI:
@@ -145,12 +182,18 @@ class XiaopuTerminalUI:
             self._cycle_reasoning_view()
             event.app.invalidate()
 
+        @bindings.add("c-l")
+        def _clear_screen(event) -> None:
+            event.app.renderer.clear()
+
         session = PromptSession(
-            completer=CommandCompleter(),
+            completer=HybridCompleter(),
             complete_while_typing=True,
             multiline=True,
             mouse_support=self._mouse_input,
             key_bindings=bindings,
+            history=FileHistory(str(config.state_home() / "history.txt")),
+            enable_history_search=True,
             prompt_continuation=lambda width, line_number, is_soft_wrap: " " * width,
             style=Style.from_dict({
                 "prompt": "bg:#303030 #f5f5f5 bold",
@@ -473,6 +516,117 @@ class XiaopuTerminalUI:
         )
         console.print(Panel(body, title="小朴 · Loop 状态（可审计，不含隐藏推理）", border_style="bright_black", padding=(0, 1)))
 
+    def _show_sessions(self) -> None:
+        from .session_store import list_sessions
+
+        records = list_sessions()
+        if not records:
+            console.print("[dim]暂无已保存会话。运行任务后退出或使用 /new 会自动保存。[/]\n")
+            return
+        table = Table(title="小朴 · 会话", border_style="bright_black", expand=True)
+        table.add_column("#", justify="right", width=4)
+        table.add_column("id", width=14)
+        table.add_column("标题", ratio=3)
+        table.add_column("模型", width=18)
+        table.add_column("轮次", justify="right", width=6)
+        table.add_column("更新时间", width=22)
+        for index, record in enumerate(records, 1):
+            table.add_row(str(index), record.id[:12], record.title, record.model,
+                          str(record.turn_count), record.updated_at)
+        console.print(table)
+        console.print("[dim]使用 /resume <序号|id> 恢复会话。[/]\n")
+
+    def _resume(self, token: str | None) -> None:
+        from .session_store import list_sessions, restore_harness
+
+        if not token:
+            self._show_sessions()
+            return
+        records = list_sessions()
+        session_id = token
+        if token.isdigit() and 1 <= int(token) <= len(records):
+            session_id = records[int(token) - 1].id
+        payload = None
+        for record in records:
+            if record.id == session_id or record.id.startswith(session_id):
+                from .session_store import load_session
+
+                payload = load_session(record.id)
+                break
+        if payload is None:
+            console.print(f"[yellow]未找到会话：{token}[/]\n")
+            return
+        report = restore_harness(self.h, payload)
+        console.print(f"[dim white]{report}[/]\n")
+
+    def _show_context(self) -> None:
+        state = self.h.state
+        limit = config.max_total_tokens()
+        used = min(state.total_tokens, limit)
+        bar = ProgressBar(total=limit, completed=used, width=50)
+        console.print(
+            f"上下文预算：{used:,} / {limit:,} tokens（模型输入累计；达到上限前自动压缩）\n"
+            f"[dim]{bar}[/]\n"
+            f"生成输出：{state.generated_output_tokens:,} tokens · 工具调用 {state.tool_calls} 次\n"
+            f"思考信号：累计 {state.reasoning_chars:,} 字符（原始思维链永不显示）\n"
+        )
+
+    def _show_model(self) -> None:
+        from . import config as cfg
+
+        current = getattr(self.h.llm, "model", config.model())
+        console.print(
+            f"当前模型：{current}（provider={config.provider()}）\n"
+            "可用模型：" + ", ".join(cfg.known_models()) + "\n"
+            "用法：/model <名称> 切换（仅限 OpenAI-compatible 模型，重启后仍可覆盖）。\n"
+        )
+
+    def _set_model(self, value: str | None) -> None:
+        if value is None:
+            self._show_model()
+            return
+        known = config.known_models()
+        if value not in known:
+            console.print(f"[yellow]未知模型：{value}。可用：{', '.join(known)}[/]\n")
+            return
+        if config.provider() == "anthropic":
+            os.environ["ANTHROPIC_MODEL"] = value
+        else:
+            os.environ["OPENAI_MODEL"] = value
+        self.h.llm.model = value
+        self._show_model()
+
+    def _permissions(self, value: str | None) -> None:
+        current = config.command_policy()
+        if value is None:
+            console.print(f"Shell 策略：{current}（allow=全部放行 / ask=外部写、网络与危险命令需授权 / deny=全部拒绝）\n")
+            return
+        normalized = value.lower()
+        if normalized not in {"allow", "ask", "deny"}:
+            console.print("[yellow]用法：/permissions allow、ask 或 deny[/]\n")
+            return
+        os.environ["COMMAND_POLICY"] = normalized
+        console.print(f"[dim white]Shell 策略已切换为：{normalized}[/]\n")
+
+    def _plan(self, value: str | None) -> None:
+        current = config.plan_mode()
+        if value is None:
+            value = "off" if current else "on"
+        normalized = value.lower()
+        if normalized not in {"on", "off"}:
+            console.print("[yellow]用法：/plan on 或 /plan off[/]\n")
+            return
+        config.set_plan_mode(normalized == "on")
+        console.print(f"[dim white]计划模式：{'开启（先给计划，不修改文件）' if normalized == 'on' else '关闭'}[/]\n")
+
+    def _export(self, path: str | None) -> None:
+        from .session_store import export_session, save_session
+
+        record = save_session(self.h)
+        target = Path(path) if path else Path.cwd() / f"xiaopu-session-{record.id}.md"
+        exported = export_session(record.id, target)
+        console.print(f"[dim white]会话已导出：{exported}[/]\n")
+
     def run_interactive(self) -> int:
         self.print_welcome()
         while True:
@@ -489,13 +643,42 @@ class XiaopuTerminalUI:
             parts = user_input.split(None, 1)
             cmd = parts[0].lower()
             if cmd in ("/quit", "/exit", "/q"):
+                from .session_store import save_session
+                save_session(self.h)
                 break
             if cmd in ("/help", "/h"):
                 console.print(XIAOPU_HELP)
                 continue
             if cmd == "/new":
+                from .session_store import save_session
+                record = save_session(self.h)
                 self.h.reset()
-                console.print("[dim white]会话已重置，记忆与演示文稿已清空。[/]\n")
+                console.print(f"[dim white]会话已保存（{record.id[:12]}）并重置，记忆与演示文稿已清空。[/]\n")
+                continue
+            if cmd == "/sessions":
+                self._show_sessions()
+                continue
+            if cmd == "/resume":
+                self._resume(parts[1].strip() if len(parts) > 1 else None)
+                continue
+            if cmd == "/export":
+                self._export(parts[1].strip() if len(parts) > 1 else None)
+                continue
+            if cmd == "/context":
+                self._show_context()
+                continue
+            if cmd == "/compact":
+                self.h._maybe_compact(force=True)
+                console.print("[dim white]上下文已压缩，完整状态保留在运行账本中。[/]\n")
+                continue
+            if cmd == "/model":
+                self._set_model(parts[1].strip() if len(parts) > 1 else None)
+                continue
+            if cmd == "/permissions":
+                self._permissions(parts[1].strip() if len(parts) > 1 else None)
+                continue
+            if cmd == "/plan":
+                self._plan(parts[1].strip() if len(parts) > 1 else None)
                 continue
             if cmd == "/info":
                 console.print(f"[dim white]{dispatch('deck_info', '{}', self.h)}[/]\n")

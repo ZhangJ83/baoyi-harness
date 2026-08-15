@@ -82,9 +82,14 @@ def main() -> int:
     model = None
     workspace = None
     json_out = "--json" in args
+    list_sessions = "--list-sessions" in args
+    resume_id: str | None = None
+    export_spec: str | None = None
+    log_path: str | None = None
+    plan_arg: str | None = None
     positional = []
     i = 0
-    args = [a for a in args if a != "--json"]
+    args = [a for a in args if a not in {"--json", "--list-sessions"}]
     while i < len(args):
         a = args[i]
         if a == "--model":
@@ -98,6 +103,33 @@ def main() -> int:
             i += 2
         elif a.startswith("--workspace="):
             workspace = a.split("=", 1)[1]
+            i += 1
+        elif a == "--resume":
+            resume_id = args[i + 1]
+            i += 2
+        elif a.startswith("--resume="):
+            resume_id = a.split("=", 1)[1]
+            i += 1
+        elif a == "--export":
+            export_spec = args[i + 1]
+            i += 2
+        elif a.startswith("--export="):
+            export_spec = a.split("=", 1)[1]
+            i += 1
+        elif a == "--log":
+            log_path = args[i + 1]
+            i += 2
+        elif a.startswith("--log="):
+            log_path = a.split("=", 1)[1]
+            i += 1
+        elif a == "--plan":
+            plan_arg = "on" if i + 1 >= len(args) or args[i + 1].startswith("-") else args[i + 1]
+            if plan_arg in {"on", "off"}:
+                i += 2
+            else:
+                i += 1
+        elif a.startswith("--plan="):
+            plan_arg = a.split("=", 1)[1]
             i += 1
         else:
             positional.append(a)
@@ -113,7 +145,30 @@ def main() -> int:
     os.environ["WORKSPACE"] = str(selected_workspace)
     _print_incomplete_transaction_notice(selected_workspace)
 
-    if task:
+    if list_sessions:
+        from .session_store import list_sessions
+        for index, record in enumerate(list_sessions(), 1):
+            print(f"{index}\t{record.id[:12]}\t{record.title}\t{record.model}\t{record.updated_at}")
+        return 0
+
+    if export_spec:
+        from .session_store import export_session
+        parts = export_spec.split(maxsplit=1)
+        session_id = parts[0]
+        target = Path(parts[1]) if len(parts) > 1 else Path.cwd() / f"xiaopu-session-{session_id}.md"
+        try:
+            print(export_session(session_id, target))
+            return 0
+        except Exception as exc:
+            print(f"EXPORT ERROR ({type(exc).__name__}): {exc}", file=sys.stderr)
+            return 1
+
+    if plan_arg:
+        config.set_plan_mode(plan_arg == "on")
+    if config.plan_mode() and task and resume_id is None:
+        task = f"计划模式：先只给出执行计划与预期修改，不要调用任何修改工具。\n{task}"
+
+    if task or resume_id:
         # single-shot mode
         try:
             from .harness import Harness
@@ -122,7 +177,28 @@ def main() -> int:
             return 1
 
         h = Harness(model=model)
-        h.attach_printer(_print_tool)
+        if log_path:
+            log_file = Path(log_path).expanduser().resolve()
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+
+            def _tee_printer(name: str, args: str, out: str) -> None:
+                _print_tool(name, args, out)
+                with log_file.open("a", encoding="utf-8") as stream:
+                    stream.write(f"\n> {name}({args})\n{out}\n")
+            h.attach_printer(_tee_printer)
+        else:
+            h.attach_printer(_print_tool)
+        if resume_id:
+            from .session_store import load_session, restore_harness
+            payload = load_session(resume_id)
+            if payload is None:
+                print(f"SESSION ERROR: unknown session id: {resume_id}", file=sys.stderr)
+                return 2
+            if payload.get("workspace"):
+                os.environ["WORKSPACE"] = payload["workspace"]
+            print(restore_harness(h, payload))
+            if not task:
+                return 0
         if not config.provider_api_key():
             print(_missing_credential_error(), file=sys.stderr)
             return 2
@@ -148,6 +224,9 @@ def main() -> int:
             }, ensure_ascii=False))
         else:
             print(reply)
+        if log_path:
+            with log_file.open("a", encoding="utf-8") as stream:
+                stream.write(f"\n===== RESULT ({elapsed}s) =====\n{reply}\n")
         return 0
 
     # interactive terminal UI

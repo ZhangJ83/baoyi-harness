@@ -170,3 +170,33 @@ def sandbox_root() -> Path:
     p = Path(os.getenv("WORKSPACE", str(WORKSPACE)))
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def state_home() -> Path:
+    """Durable per-user state: sessions, prompt history, exports."""
+    p = Path(os.getenv("XIAOPU_HOME", str(Path.home() / ".xiaopu")))
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def plan_mode() -> bool:
+    return os.getenv("PLAN_MODE", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def set_plan_mode(enabled: bool) -> None:
+    os.environ["PLAN_MODE"] = "1" if enabled else "0"
+
+
+def known_models() -> list[str]:
+    """OpenAI-compatible model choices exposed to /model and CLI.
+
+    Falls back to the active model plus any XIAOPU_MODELS comma list, so a
+    product build can publish a curated picker without editing code.
+    """
+    active = model() if provider() != "anthropic" else anthropic_model()
+    extras = [m.strip() for m in os.getenv("XIAOPU_MODELS", "").split(",") if m.strip()]
+    seen: list[str] = []
+    for candidate in [active, *extras]:
+        if candidate and candidate not in seen:
+            seen.append(candidate)
+    return seen
