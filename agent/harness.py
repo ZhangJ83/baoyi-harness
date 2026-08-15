@@ -213,13 +213,18 @@ class Harness:
         return profile
 
     def _bind_ppt_mutation_scope(self, task: str) -> None:
-        """Bind a new explicit scope, preserving it only for a pure resume turn."""
+        """Bind an explicit mutation scope, preserving it only for a pure resume turn."""
 
         if is_scope_continuation(task):
             return
-        inferred = infer_ppt_mutation_scope(task)
-        self.state.ppt_allowed_slides = set(inferred or ())
-        self.state.ppt_scope_explicit = ppt_scope_is_explicit(task)
+        scope = infer_ppt_mutation_scope(task)
+        self.state.ppt_allowed_slides = set(scope.slides)
+        self.state.ppt_allowed_shapes = {
+            slide: set(shapes) for slide, shapes in scope.shape_targets
+        }
+        self.state.ppt_scope_global = scope.global_scope
+        self.state.ppt_scope_hard = scope.restrictive
+        self.state.ppt_scope_explicit = scope.explicit
 
     def _auto_open_preflight_deck(self) -> str:
         """Open the one exact PPT input selected by deterministic intake.

@@ -98,6 +98,9 @@ class RunState:
     # Distinguishes an explicitly open whole-deck scope from a task that did
     # not state any trustworthy slide scope.  Both have an empty finite set.
     ppt_scope_explicit: bool = False
+    ppt_scope_global: bool = False
+    ppt_scope_hard: bool = False
+    ppt_allowed_shapes: dict[int, set[int]] = field(default_factory=dict)
     # Runtime-only executable policy. Kept out of compact persistence; the
     # Task Compiler rebuilds it deterministically on every task turn.
     execution_contract: Any = None

@@ -99,14 +99,28 @@ def _finish(h, summary: str):
                     except Exception:
                         delta = None
                     if delta is not None:
-                        violations = [c.summarize() for c in delta.attribute_changes if c.slide not in allowed]
-                        violations += [f"slide {s} added/removed outside allowed slides" for s in (*delta.added_slides, *delta.removed_slides) if s not in allowed]
+                        shape_targets = getattr(h.state, "ppt_allowed_shapes", {}) or {}
+                        violations = []
+                        for change in delta.attribute_changes:
+                            if change.slide not in allowed:
+                                violations.append(change.summarize())
+                                continue
+                            if change.slide in shape_targets and change.shape_id not in shape_targets[change.slide]:
+                                violations.append(change.summarize())
+                        violations += [
+                            f"slide {s} added/removed outside allowed slides"
+                            for s in (*delta.added_slides, *delta.removed_slides)
+                            if s not in allowed
+                        ]
                         if violations:
                             preview = "; ".join(violations[:6])
-                            raise ValueError(
-                                "cannot finish PPT task: the saved deck modified objects outside the declared "
-                                f"mutation scope (allowed slides {sorted(allowed)}): {preview}"
-                            )
+                            if getattr(h.state, "ppt_scope_hard", False):
+                                raise ValueError(
+                                    "cannot finish PPT task: the saved deck modified objects outside the declared "
+                                    f"mutation scope (allowed slides {sorted(allowed)}): {preview}"
+                                )
+                            h.state.record_fact("ppt_scope_violations", preview)
+                            summary = summary.rstrip() + "\n\nScope audit (non-blocking): " + preview
         if h.state.facts.get("official_evaluator_present") == "true" and "task_evaluator" not in evidence_kinds:
             from .lifecycle_tools import _run_task_evaluator
             _run_task_evaluator(h)

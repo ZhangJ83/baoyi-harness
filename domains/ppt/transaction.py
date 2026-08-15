@@ -19,11 +19,12 @@ class PptMutationScope(MutationScope):
 
     slides: Set[int] = field(default_factory=set)
     shapes: Set[int] = field(default_factory=set)
+    shape_targets: dict = field(default_factory=dict)
     properties: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         self.label = "ppt"
-        self.fields = ("slides", "shapes", "properties")
+        self.fields = ("slides", "shapes", "shape_targets", "properties")
 
 
 @dataclass(frozen=True)
@@ -170,6 +171,7 @@ def delta_within_mutation(delta: PptDelta, mutation: AllowedMutation) -> Tuple[b
     scope = mutation.scope
     allowed_slides = set(scope.slides) if isinstance(scope, PptMutationScope) else set()
     allowed_shapes = set(scope.shapes) if isinstance(scope, PptMutationScope) else set()
+    shape_targets = getattr(scope, "shape_targets", {}) if isinstance(scope, PptMutationScope) else {}
     allowed_properties = set(scope.properties) if isinstance(scope, PptMutationScope) else set()
 
     for slide in (*delta.added_slides, *delta.removed_slides):
@@ -180,6 +182,10 @@ def delta_within_mutation(delta: PptDelta, mutation: AllowedMutation) -> Tuple[b
         if allowed_slides and change.slide not in allowed_slides:
             reasons.append(f"change on non-allowed slide {change.slide}: {change.summarize()}")
             continue
+        if change.shape_id is not None and change.slide in shape_targets:
+            if change.shape_id not in set(shape_targets[change.slide]):
+                reasons.append(f"change on non-allowed shape {change.shape_id} on slide {change.slide}: {change.summarize()}")
+                continue
         if change.shape_id is not None and allowed_shapes and change.shape_id not in allowed_shapes:
             reasons.append(f"change on non-allowed shape {change.shape_id}: {change.summarize()}")
 

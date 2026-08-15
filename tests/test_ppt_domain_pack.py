@@ -84,7 +84,7 @@ def test_ppt_transaction_types():
     )
 
     scope = PptMutationScope(slides={2, 3}, shapes={7})
-    assert scope.fields == ("slides", "shapes", "properties")
+    assert scope.fields == ("slides", "shapes", "shape_targets", "properties")
     change = PptAttributeChange(slide=3, shape_id=7, property="fill",
                                 before="FF66CC", after="00FF00")
     delta = PptDelta(added_slides=[4], changed_shapes=[7],

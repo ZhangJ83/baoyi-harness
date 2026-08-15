@@ -10,16 +10,16 @@ from agent.task_scope import (
 
 
 def test_infers_supported_english_slide_expressions() -> None:
-    assert infer_ppt_mutation_scope("Edit slide 2 only") == frozenset({2})
-    assert infer_ppt_mutation_scope("Update slides 2 and 3") == frozenset({2, 3})
-    assert infer_ppt_mutation_scope("Fix pages 3, 5 & 7") == frozenset({3, 5, 7})
-    assert infer_ppt_mutation_scope("Review page 4") == frozenset({4})
+    assert infer_ppt_mutation_scope("Edit slide 2 only").slides == frozenset({2})
+    assert infer_ppt_mutation_scope("Update slides 2 and 3").slides == frozenset({2, 3})
+    assert infer_ppt_mutation_scope("Fix pages 3, 5 & 7").slides == frozenset({3, 5, 7})
+    assert infer_ppt_mutation_scope("Review page 4").slides == frozenset({4})
 
 
 def test_infers_supported_chinese_page_expressions() -> None:
-    assert infer_ppt_mutation_scope("修改第2页") == frozenset({2})
-    assert infer_ppt_mutation_scope("只调整第 2、3 页") == frozenset({2, 3})
-    assert infer_ppt_mutation_scope("修改第2页和第3页") == frozenset({2, 3})
+    assert infer_ppt_mutation_scope("修改第2页").slides == frozenset({2})
+    assert infer_ppt_mutation_scope("只调整第 2、3 页").slides == frozenset({2, 3})
+    assert infer_ppt_mutation_scope("修改第2页和第3页").slides == frozenset({2, 3})
 
 
 def test_global_scope_is_explicit_but_open() -> None:
@@ -29,8 +29,10 @@ def test_global_scope_is_explicit_but_open() -> None:
         "修改所有页面",
         "通篇统一字体",
     ):
-        assert infer_ppt_mutation_scope(task) is None
-        assert ppt_scope_is_explicit(task) is True
+        scope = infer_ppt_mutation_scope(task)
+        assert scope.global_scope is True
+        assert scope.slides == frozenset()
+        assert scope.explicit is True
 
 
 def test_ambiguous_text_never_guesses_a_page() -> None:
@@ -41,18 +43,32 @@ def test_ambiguous_text_never_guesses_a_page() -> None:
         "Q2 results for 2026",
         "edit slide zero",
     ):
-        assert infer_ppt_mutation_scope(task) is None
-        assert ppt_scope_is_explicit(task) is False
+        scope = infer_ppt_mutation_scope(task)
+        assert scope.global_scope is False
+        assert scope.slides == frozenset()
+        assert scope.explicit is False
 
 
 def test_harness_binds_inferred_scope_to_run_state() -> None:
     harness = Harness.__new__(Harness)
     harness.state = RunState()
 
-    harness._bind_ppt_mutation_scope("修改 PPT 的第 2、3 页")
+    harness._bind_ppt_mutation_scope("只修改 PPT 的第 2、3 页")
 
     assert harness.state.ppt_allowed_slides == {2, 3}
     assert harness.state.ppt_scope_explicit is True
+    assert harness.state.ppt_scope_hard is True
+
+
+def test_shape_target_scope_binds_slide_and_shape() -> None:
+    harness = Harness.__new__(Harness)
+    harness.state = RunState()
+
+    harness._bind_ppt_mutation_scope("只修改第 2 页的形状 4")
+
+    assert harness.state.ppt_allowed_slides == {2}
+    assert harness.state.ppt_allowed_shapes == {2: {4}}
+    assert harness.state.ppt_scope_hard is True
 
 
 def test_standalone_continuation_preserves_previous_explicit_scope() -> None:
