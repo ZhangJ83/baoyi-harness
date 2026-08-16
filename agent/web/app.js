@@ -1183,6 +1183,7 @@
   }
 
   function renderHistory(payload) {
+    removeWorkingStatus();
     chatContainer.innerHTML = "";
     timelineLog.innerText = "";
     cotLog.innerText = "";
@@ -1348,39 +1349,20 @@
       card.classList.toggle("collapsed");
     });
 
-    chatContainer.appendChild(card);
+    if (activeWorkingIndicator && activeWorkingIndicator.parentNode === chatContainer) {
+      chatContainer.insertBefore(card, activeWorkingIndicator);
+    } else {
+      chatContainer.appendChild(card);
+    }
     scrollToBottom();
     return card;
   }
 
   let activeWorkingIndicator = null;
 
-  function updateWorkingStatus(title, detail) {
-    if (!activeWorkingIndicator) return;
-    if (title) {
-      const titleEl = activeWorkingIndicator.querySelector(".working-title span");
-      if (titleEl) titleEl.innerText = title;
-    }
-    if (detail) {
-      const detailEl = activeWorkingIndicator.querySelector(".working-detail");
-      if (detailEl) detailEl.innerText = detail;
-    }
-  }
-
-  function removeWorkingStatus() {
-    if (activeWorkingIndicator) {
-      activeWorkingIndicator.remove();
-      activeWorkingIndicator = null;
-    }
-  }
-
-  function appendAssistantContainer() {
+  function showWorkingIndicator(title = "✨ 小朴正在思考与执行中…", detail = "正在分析任务意图与编排工具…") {
+    removeWorkingStatus();
     removeWelcomeHero();
-    const row = document.createElement("div");
-    row.className = "chat-row assistant";
-    const box = document.createElement("div");
-    box.className = "assistant-message-box";
-
     const indicator = document.createElement("div");
     indicator.className = "working-indicator-card";
     indicator.innerHTML = `
@@ -1391,20 +1373,58 @@
       </div>
       <div class="working-status-info">
         <div class="working-title">
-          <span>✨ 小朴正在思考与执行中…</span>
+          <span>${escapeHtml(title)}</span>
         </div>
-        <div class="working-detail">正在分析任务意图与编排工具…</div>
+        <div class="working-detail">${escapeHtml(detail)}</div>
       </div>
       <div class="working-live-badge">工作中</div>
     `;
-    box.appendChild(indicator);
+    chatContainer.appendChild(indicator);
     activeWorkingIndicator = indicator;
+    scrollToBottom();
+    return indicator;
+  }
 
+  function updateWorkingStatus(title, detail) {
+    if (!activeWorkingIndicator || !activeWorkingIndicator.isConnected) {
+      showWorkingIndicator(title || "✨ 小朴正在思考与执行中…", detail || "正在执行…");
+      return;
+    }
+    if (title) {
+      const titleEl = activeWorkingIndicator.querySelector(".working-title span");
+      if (titleEl) titleEl.innerText = title;
+    }
+    if (detail) {
+      const detailEl = activeWorkingIndicator.querySelector(".working-detail");
+      if (detailEl) detailEl.innerText = detail;
+    }
+    if (chatContainer.lastElementChild !== activeWorkingIndicator) {
+      chatContainer.appendChild(activeWorkingIndicator);
+    }
+    scrollToBottom();
+  }
+
+  function removeWorkingStatus() {
+    document.querySelectorAll(".working-indicator-card").forEach(el => el.remove());
+    activeWorkingIndicator = null;
+  }
+
+  function appendAssistantContainer() {
+    removeWelcomeHero();
+    const row = document.createElement("div");
+    row.className = "chat-row assistant";
+    const box = document.createElement("div");
+    box.className = "assistant-message-box";
     const msgCard = document.createElement("div");
     msgCard.className = "message-card assistant";
     box.appendChild(msgCard);
     row.appendChild(box);
-    chatContainer.appendChild(row);
+
+    if (activeWorkingIndicator && activeWorkingIndicator.parentNode === chatContainer) {
+      chatContainer.insertBefore(row, activeWorkingIndicator);
+    } else {
+      chatContainer.appendChild(row);
+    }
     scrollToBottom();
     return msgCard;
   }
@@ -1423,7 +1443,11 @@
       </div>
       ${args ? `<div class="tool-step-output">${escapeHtml(args)}</div>` : ""}
     `;
-    chatContainer.appendChild(card);
+    if (activeWorkingIndicator && activeWorkingIndicator.parentNode === chatContainer) {
+      chatContainer.insertBefore(card, activeWorkingIndicator);
+    } else {
+      chatContainer.appendChild(card);
+    }
     scrollToBottom();
     return card;
   }
@@ -1495,6 +1519,7 @@
     abortController = new AbortController();
     rawReasoning = "";
     currentThoughtCard = null;
+    showWorkingIndicator("✨ 小朴正在思考与执行中…", "正在分析任务意图与编排工具…");
     currentAssistantCard = appendAssistantContainer();
 
     try {
