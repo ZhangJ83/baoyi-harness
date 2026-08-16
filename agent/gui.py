@@ -292,6 +292,7 @@ class AgentGUI:
         label = "你" if is_user else role
 
         row = ctk.CTkFrame(self.chat, fg_color="transparent")
+        row._xiaopu_bubble = True
         row.grid(sticky="e" if is_user else "w", padx=6, pady=5)
         row.grid_columnconfigure(0, weight=1)
         row.grid_columnconfigure(1, weight=1)
@@ -616,6 +617,33 @@ class AgentGUI:
                           fg_color="transparent", hover_color="#4a3038", text_color="#c98787",
                           command=lambda i=index: self._delete_session(i)).grid(row=0, column=1, padx=4)
 
+    def _clear_chat(self) -> None:
+        for child in list(getattr(self.chat, "winfo_children", lambda: [])()):
+            if getattr(child, "_xiaopu_bubble", False):
+                child.destroy()
+        self._streaming_started = False
+        self._stream_buffer = ""
+        self._stream_bubble_label = None
+
+    @staticmethod
+    def _history_messages(payload: dict) -> list[tuple[str, str]]:
+        """Visible conversation turns from a session snapshot."""
+        pairs = []
+        for message in payload.get("messages", []):
+            role = message.get("role")
+            content = str(message.get("content", "")).strip()
+            if role == "user" and content:
+                pairs.append(("you", content))
+            elif role == "assistant" and content:
+                pairs.append(("小朴", content))
+        return pairs
+
+    def _render_history(self, payload: dict) -> None:
+        self._clear_chat()
+        pairs = self._history_messages(payload)
+        for role, text in pairs:
+            self._append_chat(role, text)
+
     def _resume_session(self, index: int) -> None:
         from .session_store import load_session, restore_harness
 
@@ -625,6 +653,7 @@ class AgentGUI:
             messagebox.showerror("恢复失败", "会话文件不可用。")
             return
         report = restore_harness(self.h, payload)
+        self._render_history(payload)
         self._append_chat("system", report)
         self._refresh_status()
 

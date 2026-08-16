@@ -506,6 +506,13 @@ class XiaopuCLI:
             if payload.get("workspace"):
                 os.environ["WORKSPACE"] = payload["workspace"]
             console.print(restore_harness(self.h, payload))
+            for message in payload.get("messages", []):
+                role = message.get("role")
+                content = str(message.get("content", "")).strip()
+                if role == "user" and content:
+                    console.print(Panel(content, title="你", border_style="cyan", padding=(0, 1)))
+                elif role == "assistant" and content:
+                    console.print(Markdown(content))
             console.print()
             return False
         if cmd == "/export":

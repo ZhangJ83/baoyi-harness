@@ -71,3 +71,29 @@ def test_send_requires_text_and_uses_worker_thread():
     with patch("agent.gui.threading.Thread") as thread:
         gui._send()
         thread.assert_not_called()
+
+
+def test_history_messages_extract_visible_turns_from_snapshot():
+    payload = {"messages": [
+        {"role": "system", "content": "system prompt"},
+        {"role": "user", "content": "第一问"},
+        {"role": "assistant", "content": "第一答"},
+        {"role": "tool", "content": "tool result"},
+        {"role": "user", "content": "第二问"},
+    ]}
+    pairs = AgentGUI._history_messages(payload)
+    assert pairs == [("you", "第一问"), ("小朴", "第一答"), ("you", "第二问")]
+
+
+def test_clear_chat_removes_bubble_rows_only():
+    gui = AgentGUI.__new__(AgentGUI)
+    bubble = type("Row", (), {"_xiaopu_bubble": True, "destroy": lambda self: None})()
+    other = type("Row", (), {"destroy": lambda self: None})()
+    gui.chat = type("Chat", (), {"winfo_children": lambda self: [bubble, other]})()
+    gui._streaming_started = True
+    gui._stream_buffer = "abc"
+    gui._stream_bubble_label = object()
+    gui._clear_chat()
+    assert gui._streaming_started is False
+    assert gui._stream_buffer == ""
+    assert gui._stream_bubble_label is None
