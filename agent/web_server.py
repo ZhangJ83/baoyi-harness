@@ -17,33 +17,80 @@ import webbrowser
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import ctypes
+from ctypes import wintypes
 from typing import Any
 
 
+class _BROWSEINFOW(ctypes.Structure):
+    _fields_ = [
+        ("hwndOwner", wintypes.HWND),
+        ("pidlRoot", ctypes.c_void_p),
+        ("pszDisplayName", wintypes.LPWSTR),
+        ("lpszTitle", wintypes.LPCWSTR),
+        ("ulFlags", wintypes.UINT),
+        ("lpfn", ctypes.c_void_p),
+        ("lParam", wintypes.LPARAM),
+        ("iImage", ctypes.c_int),
+    ]
+
+
+class _OPENFILENAMEW(ctypes.Structure):
+    _fields_ = [
+        ("lStructSize", wintypes.DWORD),
+        ("hwndOwner", wintypes.HWND),
+        ("hInstance", wintypes.HINSTANCE),
+        ("lpstrFilter", wintypes.LPCWSTR),
+        ("lpstrCustomFilter", wintypes.LPWSTR),
+        ("nMaxCustFilter", wintypes.DWORD),
+        ("nFilterIndex", wintypes.DWORD),
+        ("lpstrFile", wintypes.LPWSTR),
+        ("nMaxFile", wintypes.DWORD),
+        ("lpstrFileTitle", wintypes.LPWSTR),
+        ("nMaxFileTitle", wintypes.DWORD),
+        ("lpstrInitialDir", wintypes.LPCWSTR),
+        ("lpstrTitle", wintypes.LPCWSTR),
+        ("Flags", wintypes.DWORD),
+        ("nFileOffset", wintypes.WORD),
+        ("nFileExtension", wintypes.WORD),
+        ("lpstrDefExt", wintypes.LPCWSTR),
+        ("lCustData", wintypes.LPARAM),
+        ("lpfnHook", ctypes.c_void_p),
+        ("lpTemplateName", wintypes.LPCWSTR),
+        ("pvReserved", ctypes.c_void_p),
+        ("dwReserved", wintypes.DWORD),
+        ("FlagsEx", wintypes.DWORD),
+    ]
+
+
 def _pick_directory_native(initial_dir: str = "") -> str | None:
-    # 1. On Windows, use PowerShell STA FolderBrowserDialog (100% reliable, zero Tkinter issues)
+    # 1. On Windows, use Win32 SHBrowseForFolderW (zero subprocess, zero PowerShell, zero Tkinter)
     if sys.platform == "win32":
         try:
-            ps_cmd = (
-                "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
-                "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
-                "$f.Description = '请选择小朴项目 / 工作区目录'; "
-                "$f.ShowNewFolderButton = $true; "
-                f"$f.SelectedPath = '{initial_dir}'; "
-                "if($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){ [Console]::WriteLine($f.SelectedPath) }"
-            )
-            res = subprocess.run(
-                ["powershell", "-NoProfile", "-STA", "-Command", ps_cmd],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=120,
-            )
-            for line in reversed(res.stdout.strip().splitlines()):
-                p = line.strip()
-                if p and Path(p).is_dir():
-                    return str(Path(p).resolve())
+            ole32 = ctypes.windll.ole32
+            ole32.CoInitialize(None)
+            shell32 = ctypes.windll.shell32
+
+            display_name = ctypes.create_unicode_buffer(260)
+            bi = _BROWSEINFOW()
+            bi.hwndOwner = None
+            bi.pidlRoot = None
+            bi.pszDisplayName = ctypes.cast(display_name, wintypes.LPWSTR)
+            bi.lpszTitle = "请选择小朴项目 / 工作区目录"
+            # BIF_RETURNONLYFSDIRS (0x1) | BIF_NEWDIALOGSTYLE (0x40) | BIF_USENEWUI (0x50)
+            bi.ulFlags = 0x00000040 | 0x00000010 | 0x00000001
+
+            pidl = shell32.SHBrowseForFolderW(ctypes.byref(bi))
+            if pidl:
+                path_buf = ctypes.create_unicode_buffer(1024)
+                if shell32.SHGetPathFromIDListW(pidl, path_buf):
+                    ole32.CoTaskMemFree(pidl)
+                    ole32.CoUninitialize()
+                    res_path = path_buf.value
+                    if res_path and Path(res_path).is_dir():
+                        return str(Path(res_path).resolve())
+                ole32.CoTaskMemFree(pidl)
+            ole32.CoUninitialize()
         except Exception:
             pass
 
@@ -65,32 +112,30 @@ def _pick_directory_native(initial_dir: str = "") -> str | None:
 
 
 def _pick_save_file_native(initial_dir: str = "", default_name: str = "presentation.pptx") -> str | None:
+    # 1. On Windows, use Win32 GetSaveFileNameW
     if sys.platform == "win32":
         try:
-            ps_cmd = (
-                "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
-                "$f = New-Object System.Windows.Forms.SaveFileDialog; "
-                "$f.Title = '另存为 PPT 文件'; "
-                "$f.Filter = 'PowerPoint 演示文稿 (*.pptx)|*.pptx|所有文件 (*.*)|*.*'; "
-                f"$f.InitialDirectory = '{initial_dir}'; "
-                f"$f.FileName = '{default_name}'; "
-                "if($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){ [Console]::WriteLine($f.FileName) }"
-            )
-            res = subprocess.run(
-                ["powershell", "-NoProfile", "-STA", "-Command", ps_cmd],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=120,
-            )
-            for line in reversed(res.stdout.strip().splitlines()):
-                p = line.strip()
-                if p:
-                    return str(Path(p).resolve())
+            ofn = _OPENFILENAMEW()
+            ofn.lStructSize = ctypes.sizeof(_OPENFILENAMEW)
+            file_buf = ctypes.create_unicode_buffer(1024)
+            if default_name:
+                file_buf.value = default_name
+            ofn.lpstrFile = ctypes.cast(file_buf, wintypes.LPWSTR)
+            ofn.nMaxFile = 1024
+            ofn.lpstrFilter = "PowerPoint 演示文稿 (*.pptx)\0*.pptx\0所有文件 (*.*)\0*.*\0\0"
+            ofn.lpstrTitle = "另存为 PPT 文件"
+            ofn.lpstrDefExt = "pptx"
+            if initial_dir:
+                ofn.lpstrInitialDir = initial_dir
+            ofn.Flags = 0x00000002 | 0x00000800  # OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST
+            if ctypes.windll.comdlg32.GetSaveFileNameW(ctypes.byref(ofn)):
+                res_path = file_buf.value
+                if res_path:
+                    return str(Path(res_path).resolve())
         except Exception:
             pass
 
+    # 2. Cross-platform Tkinter fallback
     try:
         import tkinter as tk
         from tkinter import filedialog
