@@ -805,6 +805,27 @@ class PowerPointTests(unittest.TestCase):
         check = dispatch("ppt_check", json.dumps({"policy": "full"}), h)
         self.assertIn("no structural issues", check)
 
+    def test_requested_slide_count_gate_blocks_undercomplete_deck(self):
+        h = DummyHarness()
+        h.goal = "请制作一个两页的“AI Agent 工作流程” PPT"
+        dispatch("new_deck", json.dumps({"title": "AI Workflow"}), h)
+        dispatch("ppt_compose", json.dumps({
+            "kind": "workflow_pipeline", "slide_number": 1, "title": "Pipeline",
+            "steps": [{"title": "Step 1", "action": "Act", "bullets": ["b1"]}],
+        }), h)
+        check = dispatch("ppt_check", "{}", h)
+        self.assertIn("deck only has 1 slide(s)", check)
+        self.assertIn("ppt_structural", h.state.unresolved_checks)
+
+        # Adding second slide satisfies the requirement
+        dispatch("ppt_compose", json.dumps({
+            "kind": "html_mockup", "slide_number": 2, "title": "Dashboard",
+            "cards": [{"title": "Card 1", "metric": "OK", "bullets": ["c1"]}],
+        }), h)
+        check_pass = dispatch("ppt_check", "{}", h)
+        self.assertIn("no structural issues found", check_pass)
+        self.assertNotIn("ppt_structural", h.state.unresolved_checks)
+
     def test_mutation_registry_covers_all_stateful_ppt_operations(self):
         expected = {
             "new_deck", "add_slide", "add_two_column_slide", "compose_quadrant_slide", "add_metric_slide",

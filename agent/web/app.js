@@ -1353,12 +1353,53 @@
     return card;
   }
 
+  let activeWorkingIndicator = null;
+
+  function updateWorkingStatus(title, detail) {
+    if (!activeWorkingIndicator) return;
+    if (title) {
+      const titleEl = activeWorkingIndicator.querySelector(".working-title span");
+      if (titleEl) titleEl.innerText = title;
+    }
+    if (detail) {
+      const detailEl = activeWorkingIndicator.querySelector(".working-detail");
+      if (detailEl) detailEl.innerText = detail;
+    }
+  }
+
+  function removeWorkingStatus() {
+    if (activeWorkingIndicator) {
+      activeWorkingIndicator.remove();
+      activeWorkingIndicator = null;
+    }
+  }
+
   function appendAssistantContainer() {
     removeWelcomeHero();
     const row = document.createElement("div");
     row.className = "chat-row assistant";
     const box = document.createElement("div");
     box.className = "assistant-message-box";
+
+    const indicator = document.createElement("div");
+    indicator.className = "working-indicator-card";
+    indicator.innerHTML = `
+      <div class="working-spinner">
+        <div class="spinner-dot"></div>
+        <div class="spinner-dot"></div>
+        <div class="spinner-dot"></div>
+      </div>
+      <div class="working-status-info">
+        <div class="working-title">
+          <span>✨ 小朴正在思考与执行中…</span>
+        </div>
+        <div class="working-detail">正在分析任务意图与编排工具…</div>
+      </div>
+      <div class="working-live-badge">工作中</div>
+    `;
+    box.appendChild(indicator);
+    activeWorkingIndicator = indicator;
+
     const msgCard = document.createElement("div");
     msgCard.className = "message-card assistant";
     box.appendChild(msgCard);
@@ -1526,11 +1567,13 @@
 
     if (type === "token") {
       // Server streams {"type":"token","content":...}; tolerate payload.text too.
+      removeWorkingStatus();
       onToken(payload.text || directText || "");
     } else if (type === "thought" || type === "reasoning") {
       const thoughtText = payload.text || directText || "";
       rawReasoning += thoughtText;
       cotLog.innerText = rawReasoning;
+      updateWorkingStatus("🧠 小朴正在深度思考…", "正在推理设计方案与结构…");
 
       if (!currentThoughtCard) {
         currentThoughtCard = appendThoughtCard(rawReasoning);
@@ -1556,9 +1599,11 @@
         scrollToBottom();
       }
       if (content.trim()) {
+        removeWorkingStatus();
         appendAssistantMessage(content);
       }
     } else if (type === "result") {
+      removeWorkingStatus();
       // Providers occasionally return no token deltas; render the final text
       // so a completed turn is never invisible in the bubble.
       const finalText = directText || "";
@@ -1572,6 +1617,7 @@
         ? `<span class="icon" style="color: var(--danger);">${ICONS.close}</span><span>运行安全暂停</span>`
         : `<span class="icon" style="color: var(--accent-emerald);">${ICONS.check}</span><span>本次运行结束</span>`;
     } else if (type === "error") {
+      removeWorkingStatus();
       appendSystemMessage(`请求异常: ${directText || payload.content || "未知错误"}`);
       livePhase.innerText = "Phase: error";
       liveAction.innerHTML = `<span class="icon" style="color: var(--danger);">${ICONS.close}</span><span>运行异常</span>`;
@@ -1580,12 +1626,14 @@
       refreshCounts(toolStarted, toolCompleted, toolFailed);
       liveAction.innerHTML = `<span class="icon" style="color: var(--accent);">${ICONS.tool}</span><span>调用 ${escapeHtml(payload.tool)}…</span>`;
       timelineLog.innerText += `▸ ${payload.tool} ${payload.arguments || ""}\n`;
+      updateWorkingStatus("🛠 正在调用工具", `正在执行 ${escapeHtml(payload.tool)}…`);
       appendToolCard(payload.tool, payload.arguments || "");
     } else if (type === "tool_completed") {
       toolCompleted++;
       refreshCounts(toolStarted, toolCompleted, toolFailed);
       liveAction.innerHTML = `<span class="icon" style="color: var(--accent-emerald);">${ICONS.check}</span><span>${escapeHtml(payload.tool)} 完成</span>`;
       timelineLog.innerText += `✓ ${payload.tool} 结果: ${(payload.output || "").slice(0, 300)}\n`;
+      updateWorkingStatus("✓ 工具调用完成", `${escapeHtml(payload.tool)} 执行成功，继续下一步…`);
       const runningCards = [...document.querySelectorAll(".tool-step-card")].reverse();
       const card = runningCards.find(c => c.querySelector(".tool-status-pill.running"));
       if (card) {
@@ -1602,6 +1650,7 @@
       refreshCounts(toolStarted, toolCompleted, toolFailed);
       liveAction.innerHTML = `<span class="icon" style="color: var(--danger);">${ICONS.close}</span><span>${escapeHtml(payload.tool)} 失败</span>`;
       timelineLog.innerText += `✕ ${payload.tool}: ${(payload.error || "").slice(0, 200)}\n`;
+      updateWorkingStatus("✕ 工具执行异常", `${escapeHtml(payload.tool)} 执行失败，正在自动修复…`);
       const runningCards = [...document.querySelectorAll(".tool-step-card")].reverse();
       const card = runningCards.find(c => c.querySelector(".tool-status-pill.running"));
       if (card) {
@@ -1616,6 +1665,7 @@
     } else if (type === "phase_changed") {
       livePhase.innerText = `Phase: ${payload.to_phase}`;
       timelineLog.innerText += `阶段流转 · ${payload.from_phase} → ${payload.to_phase}\n`;
+      updateWorkingStatus("⚡ 阶段流转", `当前阶段：${payload.to_phase}…`);
     } else if (type === "session_saved") {
       activeSessionId = event.session_id;
     }
@@ -1640,6 +1690,7 @@
       }, 1000);
     } else {
       clearInterval(timerInterval);
+      removeWorkingStatus();
       liveAction.innerText = "就绪 · 等待指令";
     }
   }

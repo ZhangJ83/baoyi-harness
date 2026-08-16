@@ -814,6 +814,81 @@ button, input, textarea, select {
   margin: 0 auto;
 }
 
+/* Realtime Working & Thinking Indicator */
+.working-indicator-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.05), rgba(16, 185, 129, 0.05));
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  margin-bottom: 8px;
+  animation: workingPulse 2.5s infinite ease-in-out;
+}
+
+@keyframes workingPulse {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.08); border-color: rgba(37, 99, 235, 0.2); }
+  50% { box-shadow: 0 0 14px 2px rgba(37, 99, 235, 0.16); border-color: rgba(37, 99, 235, 0.45); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.08); border-color: rgba(37, 99, 235, 0.2); }
+}
+
+.working-spinner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.spinner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  animation: dotBlink 1.4s infinite ease-in-out both;
+}
+
+.spinner-dot:nth-child(1) { animation-delay: -0.32s; }
+.spinner-dot:nth-child(2) { animation-delay: -0.16s; }
+.spinner-dot:nth-child(3) { animation-delay: 0s; }
+
+@keyframes dotBlink {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+  40% { transform: scale(1.2); opacity: 1; background-color: var(--accent); }
+}
+
+.working-status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.working-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.working-detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, monospace);
+}
+
+.working-live-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background-color: rgba(37, 99, 235, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  letter-spacing: 0.5px;
+}
+
 /* Claude-Style Thinking Card */
 .thought-card {
   border: 1px solid var(--thought-border);

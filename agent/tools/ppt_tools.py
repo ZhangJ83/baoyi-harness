@@ -339,22 +339,38 @@ def _clear_slide_shapes(slide) -> None:
         shape._element.getparent().remove(shape._element)
 
 
-def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: int | None = None, slide_number: int | None = None) -> str:
+def _resolve_target_slide(h, slide_number: int | None = None, insert_after: int | None = None) -> tuple[Any, int, bool]:
+    """Resolve or append a slide without raising IndexError on incremental multi-page builds.
+
+    Returns:
+        (slide_object, 1-based position, is_rebuild)
+    """
     prs = _deck(h)
     if slide_number is not None:
-        # An explicit slide target means "this content belongs on page N",
-        # not "append somewhere". Rebuild that page in place so a page
-        # specification can never silently produce an extra slide.
-        if not 1 <= slide_number <= len(prs.slides):
-            raise IndexError("slide number out of range")
-        s = prs.slides[slide_number - 1]
-        _convert_fresh_cover(h, slide_number)
-        _clear_slide_shapes(s)
-        position = slide_number
+        if slide_number < 1:
+            slide_number = 1
+        if 1 <= slide_number <= len(prs.slides):
+            s = prs.slides[slide_number - 1]
+            _convert_fresh_cover(h, slide_number)
+            _clear_slide_shapes(s)
+            return s, slide_number, True
+        else:
+            # slide_number is beyond current slide count (e.g. slide_number=2 on 1-slide deck).
+            # Seamlessly append as new slide instead of raising IndexError!
+            _assert_can_append_slide(h)
+            s = _blank_slide(prs)
+            position = len(prs.slides)
+            return s, position, False
     else:
         _assert_can_append_slide(h)
         s = _blank_slide(prs)
         position = _position_new_slide(prs, s, insert_after)
+        return s, position, False
+
+
+def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: int | None = None, slide_number: int | None = None) -> str:
+    prs = _deck(h)
+    s, position, is_rebuild = _resolve_target_slide(h, slide_number, insert_after)
     _rect(s, 0, 0, _W, _H, _BG)
     # header band
     _rect(s, 0, 0, _W, 1.1, _HEAD)
@@ -370,7 +386,7 @@ def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: i
         for index, bullet in enumerate(bullets[:max_bullets]):
             tb2 = s.shapes.add_textbox(Inches(0.9), Inches(top + index * box_height), Inches(11.5), Inches(box_height - 0.12))
             _fit_lines(tb2.text_frame, [f"•  {bullet}"], size, False, _TEXT)
-    verb = "rebuilt" if slide_number is not None else "added"
+    verb = "rebuilt" if is_rebuild else "added"
     return f"{verb} slide {position}: '{title}' ({len(bullets)} visible bullet boxes)"
 
 
@@ -403,19 +419,8 @@ def _quadrant_slide(h, title: str, subtitle: str, quadrants: list[dict], slide_n
     if len(quadrants) != 4:
         raise ValueError("quadrant slide requires exactly four quadrants")
     prs = _deck(h)
-    # A missing title must not leave the structural check with an empty
-    # heading box that then blocks the verify-before-continue gate.
     title = (title or "").strip() or "季度四象限看板"
-    if slide_number is None:
-        slide = _blank_slide(prs)
-        target = len(prs.slides)
-    else:
-        if not 1 <= slide_number <= len(prs.slides):
-            raise ValueError("slide_number is out of range")
-        slide = prs.slides[slide_number - 1]
-        target = slide_number
-        _convert_fresh_cover(h, slide_number)
-        _clear_slide_shapes(slide)
+    slide, target, is_rebuild = _resolve_target_slide(h, slide_number)
 
     # Predominantly black and white, with one restrained amber signal color.
     _rect(slide, 0, 0, _W, _H, _WHITE)
@@ -425,6 +430,7 @@ def _quadrant_slide(h, title: str, subtitle: str, quadrants: list[dict], slide_n
     if subtitle:
         sub = slide.shapes.add_textbox(Inches(10.15), Inches(0.20), Inches(2.7), Inches(0.4))
         _put_lines(sub.text_frame, subtitle, 11, False, RGBColor(0xD0, 0xD0, 0xD0))
+
 
     positions = ((0.48, 1.18), (6.83, 1.18), (0.48, 4.12), (6.83, 4.12))
     sources: list[str] = []
@@ -598,19 +604,9 @@ def _workflow_pipeline_slide(
 ) -> str:
     """Compose a modern multi-step horizontal workflow pipeline with cards, badges, and details."""
     prs = _deck(h)
-    if not 2 <= len(steps) <= 8:
-        raise ValueError("workflow_pipeline requires 2-8 steps")
-    if slide_number is not None:
-        if not 1 <= slide_number <= len(prs.slides):
-            raise IndexError("slide number out of range")
-        s = prs.slides[slide_number - 1]
-        _convert_fresh_cover(h, slide_number)
-        _clear_slide_shapes(s)
-        position = slide_number
-    else:
-        _assert_can_append_slide(h)
-        s = _blank_slide(prs)
-        position = _position_new_slide(prs, s, insert_after)
+    if not 1 <= len(steps) <= 8:
+        raise ValueError("workflow_pipeline requires 1-8 steps")
+    s, position, is_rebuild = _resolve_target_slide(h, slide_number, insert_after)
 
     _rect(s, 0, 0, _W, _H, _SLATE_LIGHT_BG)
     _rect(s, 0, 0, _W, 1.10, _PRIMARY)
@@ -704,17 +700,7 @@ def _html_mockup_slide(
 ) -> str:
     """Compose a modern Web UI / Browser interface mockup with window chrome, nav, and card grid."""
     prs = _deck(h)
-    if slide_number is not None:
-        if not 1 <= slide_number <= len(prs.slides):
-            raise IndexError("slide number out of range")
-        s = prs.slides[slide_number - 1]
-        _convert_fresh_cover(h, slide_number)
-        _clear_slide_shapes(s)
-        position = slide_number
-    else:
-        _assert_can_append_slide(h)
-        s = _blank_slide(prs)
-        position = _position_new_slide(prs, s, insert_after)
+    s, position, is_rebuild = _resolve_target_slide(h, slide_number, insert_after)
 
     _rect(s, 0, 0, _W, _H, _SLATE_DARK)
 
@@ -842,17 +828,7 @@ def _hero_split_slide(
 ) -> str:
     """Compose a left-hero highlight + right breakdown cards layout."""
     prs = _deck(h)
-    if slide_number is not None:
-        if not 1 <= slide_number <= len(prs.slides):
-            raise IndexError("slide number out of range")
-        s = prs.slides[slide_number - 1]
-        _convert_fresh_cover(h, slide_number)
-        _clear_slide_shapes(s)
-        position = slide_number
-    else:
-        _assert_can_append_slide(h)
-        s = _blank_slide(prs)
-        position = _position_new_slide(prs, s, insert_after)
+    s, position, is_rebuild = _resolve_target_slide(h, slide_number, insert_after)
 
     _rect(s, 0, 0, _W, _H, _SLATE_LIGHT_BG)
     _rect(s, 0, 0, _W, 1.10, _PRIMARY)
@@ -1215,11 +1191,18 @@ def _add_textbox_to_slide(h, slide_number: int, box: dict) -> str:
 def _add_flowchart(h, slide_number: int, nodes: list[str], title: str = "") -> str:
     if getattr(h, "deck", None) is None:
         raise ValueError("no deck loaded")
-    if slide_number < 1 or slide_number > len(h.deck.slides):
-        raise IndexError("slide number out of range")
     if not 2 <= len(nodes) <= 8:
         raise ValueError("flowchart requires 2-8 nodes")
-    slide = h.deck.slides[slide_number - 1]
+    prs = h.deck
+    if slide_number < 1:
+        slide_number = 1
+    if slide_number > len(prs.slides):
+        _assert_can_append_slide(h)
+        slide = _blank_slide(prs)
+        _rect(slide, 0, 0, _W, _H, _BG)
+        slide_number = len(prs.slides)
+    else:
+        slide = prs.slides[slide_number - 1]
     converted_cover = _convert_fresh_cover(h, slide_number)
     if converted_cover:
         # The diagram page owns slide 1 of a freshly created deck. Give it a
@@ -2773,6 +2756,11 @@ def _collect_structural_findings(h) -> list[dict[str, Any]]:
             "message": message,
         })
 
+    # Explicit instruction following: verify requested slide count
+    req_count = _detect_requested_slide_count(h)
+    if req_count is not None and len(h.deck.slides) < req_count:
+        add(0, "slide_count_deficit", "deck", 1.0, f"deck only has {len(h.deck.slides)} slide(s); user task explicitly requested at least {req_count} slides")
+
     for i, slide in enumerate(h.deck.slides, 1):
         text_shapes = []
         for sh in slide.shapes:
@@ -2854,6 +2842,36 @@ def _slide_text_material(slide) -> str:
     return "".join(parts)
 
 
+def _detect_requested_slide_count(h) -> int | None:
+    facts = getattr(getattr(h, "state", None), "facts", {})
+    text = (
+        getattr(h, "task", "")
+        or getattr(h, "goal", "")
+        or getattr(getattr(h, "state", None), "task_intent", "")
+        or facts.get("task_instruction", "")
+        or facts.get("bound_task_identity", "")
+        or ""
+    ).casefold()
+    if not text:
+        return None
+    import re
+    if any(k in text for k in ("两页", "二页", "2页", "2 页", "2-page", "two page", "two slides", "two-slide", "first page", "second page")):
+        return 2
+    if any(k in text for k in ("三页", "3页", "3 页", "3-page", "three page", "three slides")):
+        return 3
+    if any(k in text for k in ("四页", "4页", "4 页", "4-page", "four page")):
+        return 4
+    if any(k in text for k in ("五页", "5页", "5 页", "5-page", "five page")):
+        return 5
+    m = re.search(r"(\d+)\s*(?:页|pages|slides)", text)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            pass
+    return None
+
+
 def _deck_completeness_gate(h) -> str:
     """Return a human-readable gap for open-ended decks, or "" when complete.
 
@@ -2862,6 +2880,9 @@ def _deck_completeness_gate(h) -> str:
     """
     if getattr(h, "deck", None) is None:
         return ""
+    req_count = _detect_requested_slide_count(h)
+    if req_count is not None and len(h.deck.slides) < req_count:
+        return f"deck only has {len(h.deck.slides)} slide(s); user task explicitly requested at least {req_count} slides"
     for slide_number, slide in enumerate(h.deck.slides, 1):
         boxes = []
         for shape, _path in _walk_shapes(slide.shapes):
@@ -3449,7 +3470,7 @@ ppt_tools = [
             "url_bar": {"type": "string", "description": "Address bar text for html_mockup."},
             "hero_title": {"type": "string"}, "hero_text": {"type": "string"}, "hero_metric": {"type": "string"},
             "steps": {
-                "type": "array", "minItems": 2, "maxItems": 8,
+                "type": "array", "minItems": 1, "maxItems": 8,
                 "description": "Step items for workflow_pipeline. Each object has title, action/summary, detail, bullets, and optional tech tag.",
                 "items": {
                     "type": "object",
