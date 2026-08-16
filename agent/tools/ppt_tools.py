@@ -2223,21 +2223,6 @@ def _save(h, path: str | None) -> str:
         if not path or "intermediate" not in {part.casefold() for part in target.parts}:
             target = required_target
     target.parent.mkdir(parents=True, exist_ok=True)
-    # Best-verified-artifact protection: once the official evaluator passed,
-    # no later draft save may regress the contracted deliverable. Replaying the
-    # verified artifact on every save keeps the final score stable at 1.0.
-    if (
-        required_output
-        and h.state.facts.get("task_evaluator_output") == "passed"
-    ):
-        try:
-            best_artifact = target.parent.parent / ".xiaopu" / "best_evaluated_artifact.pptx"
-            if best_artifact.is_file():
-                shutil.copy2(best_artifact, target)
-                h.state.record_fact("restored_best_artifact", "1")
-                return f"saved best verified artifact -> {target.name} (official evaluator pass preserved)"
-        except Exception:
-            pass
     prs = _deck(h)
     prs, normalized = _normalize_minimal_container(prs)
     if normalized:

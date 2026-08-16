@@ -2,18 +2,12 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timezone
 import json
 from pathlib import Path
 import os
 import re
-import shutil
 import subprocess
 import sys
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 from .. import config
 from ..lifecycle import discover_workspace
@@ -497,54 +491,6 @@ def _run_structured_evaluator(h, task_root: Path, grading: Path, output: Path, l
     return {"data": data, "checks": checks, "total_count": total_count, "passed_count": passed_count, "pass_rate": pass_rate}
 
 
-def _best_artifact_paths(task_root: Path):
-    state_dir = task_root / ".xiaopu"
-    return state_dir / "best_evaluated_artifact.json", state_dir / "best_evaluated_artifact.pptx"
-
-
-def _load_best_artifact(task_root: Path) -> dict | None:
-    record_path, _ = _best_artifact_paths(task_root)
-    if not record_path.is_file():
-        return None
-    try:
-        record = json.loads(record_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-    return record if float(record.get("pass_rate", 0) or 0) >= 1.0 else None
-
-
-def _freeze_best_artifact(task_root: Path, output: Path, pass_rate: float, passed_count: int, total_count: int) -> dict:
-    record_path, backup_path = _best_artifact_paths(task_root)
-    record_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(output, backup_path)
-    record = {
-        "pass_rate": float(pass_rate),
-        "passed_count": int(passed_count),
-        "total_count": int(total_count),
-        "output_name": output.name,
-        "updated_at": _now(),
-    }
-    record_path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
-    return record
-
-
-def _restore_best_artifact(task_root: Path, output: Path) -> dict | None:
-    """Once a task reached 1.0, the verified best artifact is authoritative.
-
-    New attempts may explore freely, but the official deliverable path can
-    never regress below the best verified score.
-    """
-    record = _load_best_artifact(task_root)
-    if record is None:
-        return None
-    _, backup_path = _best_artifact_paths(task_root)
-    if not backup_path.is_file():
-        return None
-    shutil.copy2(backup_path, output)
-    return record
-
-
-
 def _run_task_evaluator(h, timeout_seconds: int = 120):
     root = config.sandbox_root().resolve()
     evaluator_rel = h.state.facts.get("official_evaluator")
@@ -570,23 +516,6 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
     output = (root / output_rel).resolve()
     if not output.is_file():
         raise FileNotFoundError(f"save the required output before evaluation: {output_rel}")
-    best = _restore_best_artifact(task_root, output)
-    if best is not None:
-        text = (
-            f"official evaluator passed: best verified artifact restored and authoritative "
-            f"({best['passed_count']}/{best['total_count']} checks, pass_rate=1.0)"
-        )
-        h.state.record_evidence("task_evaluator", text)
-        h.state.unresolved_checks.discard("task_evaluator")
-        h.state.last_verification_failed = False
-        h.state.record_fact("task_evaluator_output", "passed")
-        h.state.record_fact("restored_best_artifact", "1")
-        logs = getattr(getattr(h, "recorder", None), "evidence", task_root / "trajectory") / "task_evaluator"
-        logs.mkdir(parents=True, exist_ok=True)
-        (logs / "test_output.txt").write_text(text, encoding="utf-8")
-        if getattr(h, "recorder", None):
-            h.recorder.check("task_evaluator", True, text)
-        return text
     logs = getattr(getattr(h, "recorder", None), "evidence", task_root / "trajectory") / "task_evaluator"
     logs.mkdir(parents=True, exist_ok=True)
     env = _evaluator_env(task_root, tests_root, grading, output, logs)
@@ -603,7 +532,6 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
             h.state.unresolved_checks.discard("task_evaluator")
             h.state.last_verification_failed = False
             h.state.record_fact("task_evaluator_output", "passed")
-            _freeze_best_artifact(task_root, output, pass_rate, passed_count, total_count)
             (logs / "test_output.txt").write_text(text, encoding="utf-8")
             if getattr(h, "recorder", None):
                 h.recorder.check("task_evaluator", True, text)
@@ -706,7 +634,6 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
                         h.state.unresolved_checks.discard("task_evaluator")
                         h.state.last_verification_failed = False
                         h.state.record_fact("task_evaluator_output", "passed")
-                        _freeze_best_artifact(task_root, output, rerun_rate, rerun_passed, rerun_total)
                         (logs / "test_output.txt").write_text(text, encoding="utf-8")
                         if getattr(h, "recorder", None):
                             h.recorder.check("task_evaluator", True, text)
@@ -740,7 +667,6 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
         h.state.unresolved_checks.discard("task_evaluator")
         h.state.last_verification_failed = False
         h.state.record_fact("task_evaluator_output", "passed")
-        _freeze_best_artifact(task_root, output, 1.0, 1, 1)
     else:
         h.state.unresolved_checks.add("task_evaluator")
         h.state.last_verification_failed = True
