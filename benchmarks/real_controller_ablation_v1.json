@@ -2,13 +2,13 @@
   "schema": "real-controller-ablation-protocol-v1",
   "status": "prospective_not_run",
   "registered_at": "2026-08-11T05:59:00+08:00",
-  "amended_at": "2026-08-15T10:00:00+08:00",
-  "amendment_boundary": "before any live controller cell was run, the production harness was upgraded so the preregistered CEGAR-H meta-action selector executes online (semantic no-progress control, phase-aware tools, stable artifacts, bounded context, preflight ContentIR, automatic provenance binding, plan injection, finish auto-save, COM render retry). The verify-before-continue gate was then fixed to open on current-epoch structural evidence even when ppt_check reports blocking findings, so the bounded repair cycle cannot deadlock. Runtime hashes were refreshed prospectively; paired tasks, policies, caps, outcomes, and statistics are unchanged.",
+  "amended_at": "2026-08-17T12:00:00+08:00",
+  "amendment_boundary": "before any live controller cell was run, the production harness was upgraded so the preregistered CEGAR-H meta-action selector executes online (semantic no-progress control, phase-aware tools, stable artifacts, bounded context, preflight ContentIR, automatic provenance binding, plan injection, finish auto-save, COM render retry). The verify-before-continue gate was then fixed to open on current-epoch structural evidence even when ppt_check reports blocking findings, so the bounded repair cycle cannot deadlock. New from-scratch deck turns now reopen the production facade from any leftover phase, clear stale task facts, convert the new_deck cover when a slide-targeted page is composed, and give multi-page creations explicit per-page layout guidance. Runtime hashes were refreshed prospectively; paired tasks, policies, caps, outcomes, and statistics are unchanged.",
   "research_question": "At a fixed model and budget, does CEGAR-H improve real PPT artifact success or reduce verification cost at matched success?",
   "null_hypothesis": "CEGAR-H has no paired success or verification-cost advantage over direct, always-verify, or evidence-only.",
   "task_source": {
     "path": "benchmarks/pptbench_model_eval_v2.json",
-    "sha256": "b86d23e97a4ed670a34155d69b32f8c522413d28fa5afdc04746ddd9ef3a9f19"
+    "sha256": "9863fd6d04252ecbfb047d65dc8739605017099a849a5b2bc8e14b30f8217a16"
   },
   "paired_task_set": true,
   "n_tasks": 12,
@@ -80,7 +80,7 @@
     "path": "agent/controller_policies.py",
     "sha256": "02a007ee907e2e38b134f113e3f41af305eb62d2aaa26683f48a2b90c0ad7eff",
     "harness_path": "agent/harness.py",
-    "harness_sha256": "ce0ffc97719fbc9aebda6c903acbab79d3c3c96b2558026353f67cb150e83d8e",
+    "harness_sha256": "0482af6249d1112956d45cb847f70a0174c865fef1a03f8e79ec3fd26f7a5833",
     "harness_argument": "controller_policy"
   },
   "model": {

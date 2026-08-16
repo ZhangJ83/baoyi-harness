@@ -425,6 +425,99 @@ def test_verification_contract_brief_extracts_terms(tmp_path):
     assert "样本口径待冻结" in brief
 
 
+def test_content_compose_with_slide_number_rebuilds_in_place():
+    h = DummyHarness()
+    dispatch("new_deck", json.dumps({"title": "Cover"}), h)
+    out = dispatch("ppt_compose", json.dumps({
+        "kind": "content", "slide_number": 1, "title": "第一页内容",
+        "bullets": ["甲", "乙"],
+    }), h)
+    assert "rebuilt slide 1" in out
+    assert len(h.deck.slides) == 1
+    texts = [shape.text for shape in h.deck.slides[0].shapes if getattr(shape, "has_text_frame", False)]
+    joined = " | ".join(texts)
+    assert "第一页内容" in joined
+    assert "P R E S E N T A T I O N" not in joined
+
+
+def test_flowchart_on_fresh_cover_converts_to_diagram_page():
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    h = DummyHarness()
+    dispatch("new_deck", json.dumps({"title": "Cover"}), h)
+    out = dispatch("ppt_compose", json.dumps({
+        "kind": "flowchart", "slide_number": 1, "title": "系统架构",
+        "nodes": ["接入层", "处理层", "数据层"],
+    }), h)
+    assert "added 3-node flowchart to slide 1" in out
+    assert len(h.deck.slides) == 1
+    slide = h.deck.slides[0]
+    texts = [shape.text for shape in slide.shapes if getattr(shape, "has_text_frame", False)]
+    joined = " | ".join(texts)
+    assert "系统架构" in joined
+    assert "P R E S E N T A T I O N" not in joined
+    assert sum(1 for shape in slide.shapes if shape.shape_type == MSO_SHAPE_TYPE.LINE) == 2
+
+
+def test_new_deck_request_detection():
+    from agent.harness import Harness
+
+    assert Harness._looks_like_new_deck_request("请制作一个两页的“AI Agent 工作流程”PPT。")
+    assert Harness._looks_like_new_deck_request("Create a two-page deck about coffee")
+    assert not Harness._looks_like_new_deck_request("把第一页标题改成结论")
+    assert not Harness._looks_like_new_deck_request("有完成吗")
+
+
+def test_new_from_scratch_turn_resets_phase_and_stale_task_facts(tmp_path, monkeypatch):
+    """Regression: a new deck request after a previous completed turn must not
+    stay in DELIVER (which advertises only finish and pauses the run) and must
+    not inherit the previous task's output path or closed inspection quota."""
+    from agent.harness import Harness
+    from agent.llm import AssistantMessage, LLMReply, ToolCall, ToolFn
+    from agent.state import RuntimePhase
+
+    monkeypatch.setenv("WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("XIAOPU_HOME", str(tmp_path / "home"))
+    # Other suite tests temporarily enable strict run budgets; this turn-level
+    # test must not inherit that flag or run_turn re-raises instead of returning.
+    monkeypatch.delenv("STRICT_RUN_BUDGET", raising=False)
+    monkeypatch.delenv("ISOLATED_BENCHMARK", raising=False)
+
+    class StopAfterOne:
+        model = "fake"
+
+        def __init__(self):
+            self.calls = 0
+            self.advertised = set()
+
+        def chat(self, messages, tools=None):
+            if self.calls == 0:
+                self.calls += 1
+                self.advertised = {tool["function"]["name"] for tool in (tools or [])}
+                return LLMReply.from_message(
+                    AssistantMessage(tool_calls=[ToolCall("1", ToolFn("ppt_compose", json.dumps({
+                        "kind": "new_deck", "title": "AI Agent 工作流程",
+                    })))]),
+                    total_tokens=10,
+                )
+            raise RuntimeError("stop after first model turn")
+
+    h = Harness(interactive=True)
+    h.llm = StopAfterOne()
+    h.state.phase = RuntimePhase.DELIVER
+    h.state.facts["required_output_pptx"] = "tasks/old/output/final.pptx"
+    h.state.facts["ppt_inspect_count"] = "3"
+
+    result = h.run("请制作一个两页的“AI Agent 工作流程”PPT。")
+
+    assert "ppt_compose" in h.llm.advertised, "production tools must be open on the first turn"
+    assert h.state.phase != RuntimePhase.DELIVER
+    assert "required_output_pptx" not in h.state.facts
+    assert "ppt_inspect_count" not in h.state.facts
+    assert h.deck is not None and len(h.deck.slides) == 1
+    assert "运行错误" in result  # the harness caught our deliberate second-turn stop
+
+
 def test_shape_inventory_exposes_table_cells():
     h = DummyHarness()
     prs = Presentation()

@@ -248,6 +248,10 @@ def _new_deck(h, title: str, subtitle: str) -> str:
         h.state.ppt_baseline_captured = False
         h.state.ppt_baseline_findings.clear()
         h.state.ppt_affected_slides.clear()
+        # Slide 1 is a decorative cover scaffold. The first slide-targeted
+        # page builder (flowchart/quadrant/content) converts it into a real
+        # content page instead of overlaying or leaving it as a thin cover.
+        h.state.facts["ppt_new_deck_cover"] = "1"
     s = _blank_slide(prs)
     # warm paper background
     _rect(s, 0, 0, _W, _H, _BG)
@@ -268,11 +272,46 @@ def _new_deck(h, title: str, subtitle: str) -> str:
     return "new deck created: 16:9, one cover slide."
 
 
-def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: int | None = None) -> str:
-    _assert_can_append_slide(h)
+def _convert_fresh_cover(h, slide_number: int) -> bool:
+    """Replace an untouched new_deck cover scaffold with a clean page.
+
+    The first targeted page builder on slide 1 of a freshly created deck owns
+    that page: the decorative cover text must not survive underneath the
+    requested diagram/dashboard/content layout.
+    """
+    if slide_number != 1:
+        return False
+    facts = getattr(getattr(h, "state", None), "facts", {})
+    if facts.get("ppt_new_deck_cover") != "1":
+        return False
+    slide = h.deck.slides[0]
+    for shape in list(slide.shapes):
+        shape._element.getparent().remove(shape._element)
+    facts.pop("ppt_new_deck_cover", None)
+    return True
+
+
+def _clear_slide_shapes(slide) -> None:
+    for shape in list(slide.shapes):
+        shape._element.getparent().remove(shape._element)
+
+
+def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: int | None = None, slide_number: int | None = None) -> str:
     prs = _deck(h)
-    s = _blank_slide(prs)
-    position = _position_new_slide(prs, s, insert_after)
+    if slide_number is not None:
+        # An explicit slide target means "this content belongs on page N",
+        # not "append somewhere". Rebuild that page in place so a page
+        # specification can never silently produce an extra slide.
+        if not 1 <= slide_number <= len(prs.slides):
+            raise IndexError("slide number out of range")
+        s = prs.slides[slide_number - 1]
+        _convert_fresh_cover(h, slide_number)
+        _clear_slide_shapes(s)
+        position = slide_number
+    else:
+        _assert_can_append_slide(h)
+        s = _blank_slide(prs)
+        position = _position_new_slide(prs, s, insert_after)
     _rect(s, 0, 0, _W, _H, _BG)
     # header band
     _rect(s, 0, 0, _W, 1.1, _HEAD)
@@ -288,7 +327,8 @@ def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: i
         for index, bullet in enumerate(bullets[:max_bullets]):
             tb2 = s.shapes.add_textbox(Inches(0.9), Inches(top + index * box_height), Inches(11.5), Inches(box_height - 0.12))
             _fit_lines(tb2.text_frame, [f"•  {bullet}"], size, False, _TEXT)
-    return f"added slide {position}: '{title}' ({len(bullets)} visible bullet boxes)"
+    verb = "rebuilt" if slide_number is not None else "added"
+    return f"{verb} slide {position}: '{title}' ({len(bullets)} visible bullet boxes)"
 
 
 def _two_column(h, title: str, left_title: str, left: list[str], right_title: str, right: list[str], insert_after: int | None = None) -> str:
@@ -331,8 +371,8 @@ def _quadrant_slide(h, title: str, subtitle: str, quadrants: list[dict], slide_n
             raise ValueError("slide_number is out of range")
         slide = prs.slides[slide_number - 1]
         target = slide_number
-        for shape in list(slide.shapes):
-            shape._element.getparent().remove(shape._element)
+        _convert_fresh_cover(h, slide_number)
+        _clear_slide_shapes(slide)
 
     # Predominantly black and white, with one restrained amber signal color.
     _rect(slide, 0, 0, _W, _H, _WHITE)
@@ -817,10 +857,25 @@ def _add_flowchart(h, slide_number: int, nodes: list[str], title: str = "") -> s
     if not 3 <= len(nodes) <= 5:
         raise ValueError("flowchart requires 3-5 nodes")
     slide = h.deck.slides[slide_number - 1]
-    if title:
+    converted_cover = _convert_fresh_cover(h, slide_number)
+    if converted_cover:
+        # The diagram page owns slide 1 of a freshly created deck. Give it a
+        # clean content-page scaffold: background plus header band, then the
+        # node row below the header instead of under leftover cover text.
+        _rect(slide, 0, 0, _W, _H, _BG)
+        if title:
+            _rect(slide, 0, 0, _W, 1.1, _HEAD)
+            _rect(slide, 0, 1.1, _W, 0.07, _ACCENT)
+            title_box = slide.shapes.add_textbox(Inches(0.55), Inches(0.12), Inches(12.2), Inches(0.9))
+            _put_lines(title_box.text_frame, title, 26, True, _WHITE)
+        y = 2.6 if title else 1.5
+    elif title:
         title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.35), Inches(12), Inches(0.55))
         _put_lines(title_box.text_frame, title, 24, True, _PRIMARY)
-    margin, gap, y, height = 0.75, 0.28, 3.0, 1.0
+        y = 3.0
+    else:
+        y = 3.0
+    margin, gap, height = 0.75, 0.28, 1.0
     arrow_w = 0.42
     node_w = (_W - 2 * margin - (len(nodes) - 1) * (gap + arrow_w)) / len(nodes)
     for index, label in enumerate(nodes):
@@ -1559,7 +1614,10 @@ def _ppt_compose(h, kind: str, **kw) -> str:
         # template replacement batch. Route to the tolerant template path.
         return _compose_from_outline(h, kw.get("slides") or [], kw.get("replace_template", True))
     if kind == "content":
-        return _content_slide(h, kw.get("title", ""), kw.get("bullets") or [], kw.get("size", 18), kw.get("insert_after"))
+        return _content_slide(
+            h, kw.get("title", ""), kw.get("bullets") or [], kw.get("size", 18),
+            kw.get("insert_after"), kw.get("slide_number"),
+        )
     if kind == "comparison":
         if not kw.get("left_title") or not kw.get("right_title"):
             raise ValueError("comparison requires left_title and right_title")
@@ -2946,7 +3004,7 @@ ppt_tools = [
     ),
     _make(
         "ppt_compose",
-        "Create one semantic presentation unit. Only provide fields needed by the selected kind.",
+        "Create one semantic presentation unit. Only provide fields needed by the selected kind. kind=content with slide_number rebuilds that page in place; kind=flowchart requires slide_number and draws native rounded-rectangle nodes with connector arrows (use for process/architecture diagrams); kind=quadrant builds a 4-card dashboard page; kind=new_deck starts a fresh deck.",
         {
             "kind": {"type": "string", "enum": ["new_deck", "content", "comparison", "from_slides", "from_outline", "table", "quadrant", "flowchart", "textbox"]},
             "slide_number": {"type": "integer"}, "title": {"type": "string"}, "subtitle": {"type": "string"},
@@ -3042,7 +3100,7 @@ ppt_tools = [
     ),
     _make(
         "new_deck",
-        "Create a new empty 16:9 PowerPoint deck with ONE cover slide. To build a multi-page deck, call new_deck once for the cover, then call ppt_compose with kind='content'/'comparison'/'table'/'quadrant' etc. once per additional slide; never open a non-existent file first.",
+        "Create a new 16:9 PowerPoint deck with ONE decorative cover slide. To build a multi-page deck, call new_deck once, then compose each requested page with ppt_compose; a slide-numbered compose on slide 1 automatically converts the cover into that content page. Never open a non-existent file first.",
         {"title": {"type": "string"}, "subtitle": {"type": "string"}},
         ["title"],
         lambda h, **kw: _new_deck(h, kw.get("title", "Untitled"), kw.get("subtitle", "")),

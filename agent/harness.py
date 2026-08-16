@@ -117,6 +117,8 @@ class Harness:
         "bound_task_identity", "ppt_repair_observation_calls",
         "repair_observation_grant", "auto_evaluator_coverage_applied",
         "auto_evaluator_coverage_applied_epoch",
+        "ppt_inspect_count", "ppt_observation_closure_nudge",
+        "ppt_open_rejection_nudge", "ppt_new_deck_cover",
     }
 
     def _clear_task_facts(self) -> None:
@@ -370,11 +372,40 @@ class Harness:
                 "The harness owns task discovery, provenance, official evaluation, final render/visual audit, and trajectory output.\n"
             )
         elif self._is_ppt_task(task) and profile.name == "create_deck":
-            fast_path_hint = (
-                "\n--- New-deck creation fast path ---\n"
-                "There is no existing presentation to open; do not guess filenames or call ppt_open. "
-                "Create it from scratch: call new_deck once for the cover, then one ppt_compose (content/comparison/table/quadrant) per additional slide, then ppt_save and ppt_check once the deck is complete.\n"
+            multi_page_build = any(
+                marker in task.casefold()
+                for marker in (
+                    "两页", "二页", "2页", "2 页", "三页", "3页", "3 页",
+                    "two-page", "two page", "2-page", "first page", "second page",
+                    "第1页", "第一页", "第2页", "第二页", "第 1 页", "第 2 页",
+                )
             )
+            if multi_page_build:
+                fast_path_hint = (
+                    "\n--- New-deck creation fast path (multi-page custom build) ---\n"
+                    "There is no existing presentation to open; do not guess filenames or call ppt_open. "
+                    "Build ALL requested pages as finished content, not as a cover plus appendages:\n"
+                    "- Start with new_deck once, then compose every page with the semantic builder that "
+                    "matches what that page is: flowchart for a process/architecture diagram (native "
+                    "shapes + connectors), quadrant for a dashboard/card-grid page, comparison for two "
+                    "columns, content only as a fallback.\n"
+                    "- Slide-numbered ppt_compose (flowchart/quadrant/content) targets that page in place "
+                    "and converts the new_deck cover scaffold; never leave the bare cover as page 1 of a "
+                    "multi-page deck.\n"
+                    "- An 'HTML/CSS 风格' page means a web-page layout rendered with native PPT "
+                    "primitives: header bar, panels/cards with title > metric > detail, one accent "
+                    "color. It is NOT a bare bullet list.\n"
+                    "- Keep the two pages' key content labels consistent, then ppt_save and ppt_check "
+                    "once the deck is complete.\n"
+                )
+            else:
+                fast_path_hint = (
+                    "\n--- New-deck creation fast path ---\n"
+                    "There is no existing presentation to open; do not guess filenames or call ppt_open. "
+                    "Create it from scratch: call new_deck once for the cover, then one ppt_compose "
+                    "(content/comparison/table/quadrant) per additional slide, then ppt_save and "
+                    "ppt_check once the deck is complete.\n"
+                )
         return (
             "Identity (non-negotiable): You are 小朴 (Xiaopu), the product's autonomous coding and PowerPoint agent. "
             "Never identify yourself as Claude, Anthropic, Codex, OpenAI, or any other product. "
@@ -884,8 +915,15 @@ class Harness:
             getattr(self, "deck", None) is not None
             and getattr(getattr(self, "task_spec", None), "skill", "").startswith("ppt.")
         )
+        # A NEW from-scratch deck request is its own task, not a follow-up on
+        # the previous deck. Keeping the previous task's output contract,
+        # evaluator flag, task capability, or observation counters would route
+        # the new deck through stale facts (wrong skill, wrong save path,
+        # pre-closed inspection). Plain chat and edit follow-ups on the
+        # current deck intentionally keep PPT context.
+        new_deck_request = self._looks_like_new_deck_request(task)
         if not continuing_goal and not is_scope_continuation(task):
-            if not (prior_ppt_context and not self._looks_like_code_request(task)):
+            if not (prior_ppt_context and not self._looks_like_code_request(task)) or new_deck_request:
                 self._clear_task_facts()
         if manifest_task_id:
             self.state.record_fact("manifest_task_id", manifest_task_id)
@@ -936,20 +974,26 @@ class Harness:
         if getattr(self, "recorder", None) and callable(getattr(self.recorder, "event", None)):
             self.recorder.event("task_compiled", **self.task_spec.to_dict())
         # A from-scratch deck with no input source has nothing to discover or
-        # inspect. Start the first model turn in PRODUCE so compose/edit/save
-        # tools are advertised immediately instead of stranding the run on an
-        # empty observation phase.
+        # inspect. Start every new task turn in PRODUCE so compose/edit/save
+        # tools are advertised immediately instead of stranding the run in a
+        # leftover DELIVER/VERIFY phase from the previous turn. This includes
+        # a follow-up turn after an earlier task marked itself complete.
         if (
             is_ppt
             and self.task_spec.artifact_mode == "new_deck"
             and not self.state.facts.get("ppt_input_deck")
             and not self.state.facts.get("primary_input")
             and not self.state.facts.get("task_root")
-            and self.state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND}
         ):
-            previous_phase = self.state.phase
-            self.state.transition(RuntimePhase.PRODUCE)
-            self._publish_phase_change(previous_phase, "from-scratch deck starts in produce")
+            # An open-ended new deck has no package-owned output contract;
+            # a leftover required_output_pptx from a previous task must not
+            # redirect its saves into the old package.
+            for stale_key in ("required_output_pptx", "ppt_input_candidates", "ppt_input_deck"):
+                self.state.facts.pop(stale_key, None)
+            if self.state.phase != RuntimePhase.PRODUCE:
+                previous_phase = self.state.phase
+                self.state.transition(RuntimePhase.PRODUCE)
+                self._publish_phase_change(previous_phase, "from-scratch deck starts in produce")
         instruction = self.state.facts.get("task_instruction", "")
         execution_task = effective_task + (("\n\nBound task instruction:\n" + instruction) if instruction else "")
         if is_ppt and self.task_spec.skill == "ppt.template_build":
@@ -984,9 +1028,14 @@ class Harness:
             # treatment, not into bespoke dashboard components.
             execution_task += (
                 "\n\nVisual treatment contract: interpret style requests through generic PPT primitives only. "
-                "Use visible text blocks for every content item, separate panels/cards with rounded rectangles or "
-                "light background fills, keep one clear visual hierarchy (title > metric > detail), and preserve "
-                "a restrained single-accent palette. Do not use decorative placeholders or invisible grouped text."
+                "An HTML/CSS-style page is a web-page layout made of native PPT primitives: a full-width "
+                "header bar, then 2-4 card panels arranged in a grid (use ppt_compose quadrant for a "
+                "4-card dashboard, comparison for two columns; a bare bullet list does NOT satisfy an "
+                "HTML-style page). Use visible text blocks for every content item, separate panels/cards "
+                "with rounded rectangles or light background fills, keep one clear visual hierarchy "
+                "(title > metric > detail), and preserve a restrained single-accent palette. Do not use "
+                "decorative placeholders or invisible grouped text. A requested diagram/architecture page "
+                "uses ppt_compose flowchart so it contains real native shapes and connector lines."
             )
         profile = self._set_task_profile(execution_task)
         if preflight_brief and self.state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND}:
@@ -1297,17 +1346,21 @@ class Harness:
                 if tc.function.name not in admitted_names
             ]
             if rejected:
-                # A mutation request is the strongest possible signal that
-                # understanding is complete. Instead of rejecting it until the
-                # fuse pauses the run, advance to PRODUCE once and let the
-                # model retry the exact same call.
+                # A mutation request is the strongest possible signal that the
+                # model has real work to do right now. Instead of rejecting it
+                # until the fuse pauses the run, reopen the production facade
+                # once and let the model retry the exact same call. This also
+                # recovers a turn that starts in a leftover VERIFY/DELIVER
+                # phase from a previous completed task.
                 from .controller_policies import MUTATION_TOOLS as _MUTATION_TOOLS
 
                 mutation_rejected = [name for name in rejected if name in _MUTATION_TOOLS]
                 if (
                     mutation_rejected
-                    and self.state.mutation_epoch == 0
-                    and self.state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND}
+                    and self.state.phase in {
+                        RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND,
+                        RuntimePhase.VERIFY, RuntimePhase.DELIVER, RuntimePhase.STOPPED,
+                    }
                 ):
                     previous_phase = self.state.phase
                     self.state.transition(RuntimePhase.PRODUCE)
@@ -1683,6 +1736,22 @@ class Harness:
         text = task.casefold()
         return any(marker in text for marker in (
             "代码", "code", "python", "函数", "solution.py", "test", "编译", "shell", "命令行",
+        ))
+
+    @staticmethod
+    def _looks_like_new_deck_request(task: str) -> bool:
+        """A request to author a new deck, not a follow-up on the current one."""
+        text = task.casefold()
+        if not any(marker in text for marker in (
+            "ppt", "pptx", "powerpoint", "deck", "演示文稿", "幻灯片",
+        )):
+            return False
+        return any(marker in text for marker in (
+            "new deck", "create a deck", "make a deck", "two-page deck", "2-page deck",
+            "deck about", "create a presentation",
+            "make a presentation", "新建一个", "创建一份", "创建一份新", "制作一份",
+            "制作一个", "生成一份", "生成一个", "做一个", "做一份", "绘制一份",
+            "新建演示", "生成演示", "制作演示", "创建演示", "制作ppt", "生成ppt", "新建ppt",
         ))
 
     @staticmethod

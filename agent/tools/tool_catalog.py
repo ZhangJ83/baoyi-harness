@@ -158,12 +158,13 @@ def infer_ppt_intents(task: str) -> set[str]:
         "flowchart", "diagram", "quadrant", "table", "metric", "textbox",
         "text box", "new slide", "insert slide", "combine", "merge",
         "流程图", "图示", "四象限", "表格", "文本框", "新幻灯片", "插入一页",
-        "合并", "整合",
+        "合并", "整合", "制作", "绘制", "创建", "两页",
     )
     create_artifact_cues = (
         "create deck", "generate deck", "new deck", "create presentation",
-        "generate presentation", "build presentation", "制作演示文稿",
-        "生成演示文稿", "创建演示文稿", "新建演示文稿", "生成ppt", "制作ppt",
+        "generate presentation", "build presentation", "create a deck",
+        "make a deck", "build a deck", "two-page deck",
+        "制作演示文稿", "生成演示文稿", "创建演示文稿", "新建演示文稿", "生成ppt", "制作ppt",
     )
     text_cues = (
         "replace", "substitute", "rename", "change the word", "change text",
