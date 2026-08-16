@@ -119,3 +119,28 @@ def test_web_api_choose_directory(web_test_server, monkeypatch, tmp_path):
         assert data["status"] == "ok"
         assert "mock_workspace" in data["path"]
 
+
+def test_web_api_artifacts(web_test_server):
+    req = urllib.request.urlopen(f"{web_test_server}/api/artifacts")
+    assert req.status == 200
+    data = json.loads(req.read().decode("utf-8"))
+    assert "artifacts" in data
+    assert "workspace" in data
+    assert "count" in data
+    assert isinstance(data["artifacts"], list)
+
+
+def test_web_api_reveal_file(web_test_server, tmp_path):
+    f = tmp_path / "test_artifact.pptx"
+    f.write_text("dummy", encoding="utf-8")
+
+    req = urllib.request.Request(
+        f"{web_test_server}/api/reveal_file",
+        data=json.dumps({"path": str(f)}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as resp:
+        assert resp.status == 200
+        data = json.loads(resp.read().decode("utf-8"))
+        assert data["status"] == "ok"
+

@@ -80,21 +80,18 @@
           </div>
         </div>
         <div class="topbar-right">
-          <button id="btn-verify" class="pill-btn" title="运行 PPT 结构校验">
-            <span class="icon"><svg viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-            <span>校验</span>
-          </button>
-          <button id="btn-save-ppt" class="pill-btn" title="保存 PPTX 文件">
-            <span class="icon"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span>
-            <span>保存 PPT</span>
-          </button>
-          <button id="btn-undo" class="pill-btn" title="撤销最近一次 PPT 修改">
-            <span class="icon"><svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg></span>
-            <span>撤销</span>
-          </button>
+          <!-- Unified Artifacts Hub Trigger -->
+          <div class="artifacts-hub-container">
+            <button id="btn-artifacts-hub" class="pill-btn artifacts-pill" title="查看当前工作区生成的文件与产物">
+              <span class="icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+              <span>产物看板</span>
+              <span id="artifacts-count-badge" class="artifacts-count-badge">0</span>
+            </button>
+          </div>
+
           <button id="btn-export" class="pill-btn" title="导出 Markdown 会话">
             <span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
-            <span>导出</span>
+            <span>导出记录</span>
           </button>
           <button id="btn-toggle-activity" class="pill-btn primary" title="切换右侧活动与上下文抽屉">
             <span class="icon"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg></span>
@@ -223,6 +220,34 @@
         </div>
       </div>
     </aside>
+  </div>
+
+  <!-- Artifacts Hub Modal -->
+  <div id="artifacts-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card artifacts-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="icon" style="color: var(--accent);"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+          <span class="modal-title">产物与生成文件看板 (Artifacts Hub)</span>
+        </div>
+        <button id="artifacts-modal-close" class="drawer-close-btn">
+          <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 14px;">
+        <div class="artifacts-workspace-info" id="artifacts-ws-info">当前工作区：-</div>
+        <div class="artifacts-list" id="artifacts-list-container">
+          <!-- Dynamically populated artifact cards -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-refresh-artifacts" class="pill-btn">
+          <span class="icon"><svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg></span>
+          <span>刷新列表</span>
+        </button>
+        <button id="artifacts-modal-done" class="pill-btn primary">完成</button>
+      </div>
+    </div>
   </div>
 
   <!-- Goal Dialog Modal -->

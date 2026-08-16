@@ -409,11 +409,66 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             self._send_json({"summary": self.harness.goal_summary()})
             return
 
+        if path == "/api/artifacts":
+            ws_root = Path(config.sandbox_root())
+            artifacts = []
+            if ws_root.is_dir():
+                candidate_exts = {".pptx", ".ppt", ".md", ".py", ".html", ".json", ".csv", ".xlsx", ".pdf", ".txt"}
+                try:
+                    for f in sorted(ws_root.glob("*"), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
+                        if f.is_file() and f.suffix.lower() in candidate_exts:
+                            stat = f.stat()
+                            size_kb = stat.st_size / 1024
+                            size_str = f"{stat.st_size} B" if stat.st_size < 1024 else (f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.2f} MB")
+                            file_type = f.suffix.lower().lstrip(".")
+                            
+                            slides_count = None
+                            if file_type in ("pptx", "ppt") and hasattr(self.harness, "deck") and self.harness.deck:
+                                try:
+                                    slides_count = len(getattr(self.harness.deck, "slides", []))
+                                except Exception:
+                                    slides_count = None
+
+                            artifacts.append({
+                                "name": f.name,
+                                "path": str(f.resolve()),
+                                "type": file_type,
+                                "size": stat.st_size,
+                                "size_human": size_str,
+                                "updated_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+                                "time_ago": _time_ago(datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()),
+                                "slides_count": slides_count,
+                                "is_pptx": file_type in ("pptx", "ppt"),
+                            })
+                except Exception:
+                    pass
+
+            self._send_json({
+                "artifacts": artifacts,
+                "workspace": str(ws_root),
+                "count": len(artifacts),
+            })
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self) -> None:
         path = urllib.parse.urlparse(self.path).path
         body = self._read_json_body()
+
+        if path == "/api/reveal_file":
+            file_path = body.get("path")
+            if file_path and Path(file_path).exists():
+                norm = str(Path(file_path).resolve())
+                if sys.platform == "win32":
+                    try:
+                        subprocess.Popen(["explorer.exe", f"/select,{norm}"])
+                    except Exception:
+                        pass
+                self._send_json({"status": "ok", "path": norm})
+                return
+            self.send_error(400, "File does not exist")
+            return
 
         if path == "/api/choose_directory":
             selected_path = _pick_directory_native(initial_dir=str(config.sandbox_root()))

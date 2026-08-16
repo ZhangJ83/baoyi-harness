@@ -38,11 +38,18 @@
   const liveElapsed = document.getElementById("live-elapsed");
   const liveCounts = document.getElementById("live-counts");
 
-  // Action Tools
-  const btnVerify = document.getElementById("btn-verify");
-  const btnSavePpt = document.getElementById("btn-save-ppt");
-  const btnUndo = document.getElementById("btn-undo");
+  // Topbar Actions
+  const btnArtifactsHub = document.getElementById("btn-artifacts-hub");
+  const artifactsCountBadge = document.getElementById("artifacts-count-badge");
   const btnExport = document.getElementById("btn-export");
+
+  // Artifacts Modal
+  const artifactsModal = document.getElementById("artifacts-modal");
+  const artifactsModalClose = document.getElementById("artifacts-modal-close");
+  const artifactsModalDone = document.getElementById("artifacts-modal-done");
+  const btnRefreshArtifacts = document.getElementById("btn-refresh-artifacts");
+  const artifactsWsInfo = document.getElementById("artifacts-ws-info");
+  const artifactsListContainer = document.getElementById("artifacts-list-container");
 
   // Goal Modal
   const btnGoalDialog = document.getElementById("btn-goal-dialog");
@@ -69,6 +76,7 @@
   let currentAssistantCard = null;
   let sortReverse = false;
   const collapsedFolders = new Set();
+  let cachedArtifacts = [];
 
   // ------------------------------------------------------------------ Icons SVG constants
   const ICONS = {
@@ -80,6 +88,12 @@
     tool: `<svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
     copy: `<svg viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
     check: `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
+    file: `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+    ppt: `<svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 15h4M7 9h6a2 2 0 0 1 0 4H7z"/></svg>`,
+    save: `<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
+    verify: `<svg viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+    undo: `<svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>`,
+    reveal: `<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><circle cx="12" cy="14" r="2"/></svg>`,
   };
 
   // ------------------------------------------------------------------ Init & Config
@@ -89,6 +103,7 @@
     autoResizeTextarea();
     await loadConfig();
     await refreshTree();
+    await fetchArtifacts();
   }
 
   function initTheme() {
@@ -126,6 +141,202 @@
     } catch (e) {
       console.error("Failed to load config:", e);
     }
+  }
+
+  // ------------------------------------------------------------------ Artifacts Hub Management
+  async function fetchArtifacts() {
+    try {
+      const res = await fetch("/api/artifacts");
+      const data = await res.json();
+      if (!data) return;
+
+      cachedArtifacts = data.artifacts || [];
+      const count = cachedArtifacts.length;
+      if (artifactsCountBadge) {
+        artifactsCountBadge.innerText = String(count);
+      }
+      if (artifactsWsInfo) {
+        artifactsWsInfo.innerText = `当前工作区：${data.workspace || activeWorkspacePath || "-"}`;
+      }
+      renderArtifactsList(cachedArtifacts);
+    } catch (e) {
+      console.error("Fetch artifacts error:", e);
+    }
+  }
+
+  function renderArtifactsList(artifacts) {
+    if (!artifactsListContainer) return;
+    if (artifacts.length === 0) {
+      artifactsListContainer.innerHTML = `
+        <div class="empty-tree-placeholder" style="padding: 24px; text-align: center;">
+          当前工作区暂无生成的产物文件（.pptx / .py / .md 等）
+        </div>
+      `;
+      return;
+    }
+
+    artifactsListContainer.innerHTML = artifacts.map(art => {
+      const icon = art.is_pptx ? ICONS.ppt : ICONS.file;
+      const tagText = art.is_pptx ? `PPT 演示文稿${art.slides_count ? ` · ${art.slides_count}页` : ""}` : `${art.type.toUpperCase()} 文件`;
+      
+      let actionsHtml = "";
+      if (art.is_pptx) {
+        actionsHtml = `
+          <button class="pill-btn art-save-btn" data-path="${escapeAttr(art.path)}">
+            <span class="icon">${ICONS.save}</span><span>另存为</span>
+          </button>
+          <button class="pill-btn art-verify-btn" data-path="${escapeAttr(art.path)}">
+            <span class="icon">${ICONS.verify}</span><span>校验结构</span>
+          </button>
+          <button class="pill-btn art-undo-btn">
+            <span class="icon">${ICONS.undo}</span><span>撤销</span>
+          </button>
+          <button class="pill-btn art-reveal-btn" data-path="${escapeAttr(art.path)}">
+            <span class="icon">${ICONS.reveal}</span><span>定位文件</span>
+          </button>
+        `;
+      } else {
+        actionsHtml = `
+          <button class="pill-btn art-copy-path-btn" data-path="${escapeAttr(art.path)}">
+            <span class="icon">${ICONS.copy}</span><span>复制路径</span>
+          </button>
+          <button class="pill-btn art-reveal-btn" data-path="${escapeAttr(art.path)}">
+            <span class="icon">${ICONS.reveal}</span><span>定位文件</span>
+          </button>
+        `;
+      }
+
+      return `
+        <div class="artifact-item-card" data-path="${escapeAttr(art.path)}">
+          <div class="artifact-item-header">
+            <div class="artifact-file-info">
+              <span class="artifact-icon">${icon}</span>
+              <span class="artifact-name" title="${escapeAttr(art.path)}">${escapeHtml(art.name)}</span>
+              <span class="artifact-tag">${escapeHtml(tagText)}</span>
+            </div>
+            <span class="meta-time-text">${escapeHtml(art.time_ago || "now")}</span>
+          </div>
+          <div class="artifact-meta-line">
+            <span>大小: ${escapeHtml(art.size_human)}</span>
+            <span>路径: ${escapeHtml(art.path)}</span>
+          </div>
+          <div class="artifact-actions-bar">
+            ${actionsHtml}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    bindArtifactActions();
+  }
+
+  function bindArtifactActions() {
+    // Reveal file
+    document.querySelectorAll(".art-reveal-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const p = btn.getAttribute("data-path");
+        if (p) await revealFile(p);
+      });
+    });
+
+    // Copy path
+    document.querySelectorAll(".art-copy-path-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const p = btn.getAttribute("data-path");
+        if (p) {
+          navigator.clipboard.writeText(p);
+          showToast("文件绝对路径已复制");
+        }
+      });
+    });
+
+    // Save PPT
+    document.querySelectorAll(".art-save-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await handleSavePpt();
+      });
+    });
+
+    // Verify PPT
+    document.querySelectorAll(".art-verify-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await handleVerifyPpt();
+      });
+    });
+
+    // Undo PPT
+    document.querySelectorAll(".art-undo-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await handleUndoPpt();
+      });
+    });
+  }
+
+  async function revealFile(filePath) {
+    try {
+      const res = await fetch("/api/reveal_file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: filePath })
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        showToast("已在 Windows 资源管理器中打开并选中该文件");
+      }
+    } catch (e) {
+      console.error("Reveal file failed:", e);
+    }
+  }
+
+  async function handleVerifyPpt() {
+    showToast("正在执行 PPT 结构与排版校验…");
+    const res = await fetch("/api/ppt/verify", { method: "POST" });
+    const data = await res.json();
+    appendAssistantContainer().innerHTML = formatMarkdown(`### 🔍 PPT 校验结果\n\n${data.result}`);
+    if (artifactsModal) artifactsModal.style.display = "none";
+  }
+
+  async function handleSavePpt() {
+    let savePath = "";
+    try {
+      showToast("正在打开系统另存为窗口…");
+      const dlgRes = await fetch("/api/choose_save_ppt", { method: "POST" });
+      const dlgData = await dlgRes.json();
+      if (dlgData.status === "ok" && dlgData.path) {
+        savePath = dlgData.path;
+      } else if (dlgData.status === "cancelled") {
+        return;
+      }
+    } catch (e) {
+      console.error("Choose save dialog error:", e);
+    }
+
+    if (!savePath) {
+      savePath = "presentation.pptx";
+    }
+
+    const res = await fetch("/api/ppt/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: savePath })
+    });
+    const data = await res.json();
+    appendAssistantContainer().innerHTML = formatMarkdown(`### 💾 保存 PPT\n\n${data.result}`);
+    await fetchArtifacts();
+    if (artifactsModal) artifactsModal.style.display = "none";
+  }
+
+  async function handleUndoPpt() {
+    const res = await fetch("/api/ppt/undo", { method: "POST" });
+    const data = await res.json();
+    appendAssistantContainer().innerHTML = formatMarkdown(`### ↩ 撤销结果\n\n${data.result}`);
+    await fetchArtifacts();
+    if (artifactsModal) artifactsModal.style.display = "none";
   }
 
   // ------------------------------------------------------------------ Tree Management
@@ -237,6 +448,7 @@
           await switchWorkspace(ws);
           showToast(`已切换工作区：${ws}`);
           refreshTree();
+          fetchArtifacts();
         }
       });
     });
@@ -274,6 +486,7 @@
         const ws = btn.getAttribute("data-path");
         await switchWorkspace(ws);
         newSessionInProject(ws);
+        fetchArtifacts();
       });
     });
   }
@@ -287,6 +500,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ workspace: workspacePath })
     });
+    fetchArtifacts();
   }
 
   function newSessionInProject(workspacePath) {
@@ -306,6 +520,7 @@
     rawReasoning = "";
     refreshCounts(0, 0, 0);
     refreshTree();
+    fetchArtifacts();
     promptInput.focus();
   }
 
@@ -323,6 +538,7 @@
       currentTitle.innerText = data.title || "对话";
       renderHistory(data);
       refreshTree();
+      fetchArtifacts();
       showToast("历史会话已加载，可接着继续对话");
     } catch (e) {
       console.error("Load session failed:", e);
@@ -436,6 +652,39 @@
     chatContainer.appendChild(card);
     scrollToBottom();
     return card;
+  }
+
+  function appendChatArtifactCard(art) {
+    removeWelcomeHero();
+    const card = document.createElement("div");
+    card.className = "chat-artifact-card";
+    const icon = art.is_pptx ? ICONS.ppt : ICONS.file;
+    const tagText = art.is_pptx ? `PPT 演示文稿${art.slides_count ? ` · ${art.slides_count}页` : ""}` : `${art.type.toUpperCase()} 文件`;
+
+    card.innerHTML = `
+      <div class="chat-artifact-header">
+        <div class="chat-artifact-title">
+          <span class="icon" style="color: var(--accent);">${icon}</span>
+          <span>${escapeHtml(art.name)}</span>
+        </div>
+        <span class="artifact-tag">${escapeHtml(tagText)}</span>
+      </div>
+      <div class="chat-artifact-desc">文件已成功在工作区生成并就绪（大小: ${escapeHtml(art.size_human)}）</div>
+      <div class="chat-artifact-actions">
+        ${art.is_pptx ? `
+          <button class="pill-btn art-save-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.save}</span><span>另存为</span></button>
+          <button class="pill-btn art-verify-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.verify}</span><span>结构校验</span></button>
+          <button class="pill-btn art-reveal-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.reveal}</span><span>打开文件夹</span></button>
+        ` : `
+          <button class="pill-btn art-copy-path-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.copy}</span><span>复制路径</span></button>
+          <button class="pill-btn art-reveal-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.reveal}</span><span>打开文件夹</span></button>
+        `}
+      </div>
+    `;
+
+    chatContainer.appendChild(card);
+    scrollToBottom();
+    bindArtifactActions();
   }
 
   function formatMarkdown(text) {
@@ -565,6 +814,7 @@
     } finally {
       setRunning(false);
       refreshTree();
+      await fetchArtifacts();
     }
   }
 
@@ -742,61 +992,48 @@
       showToast("原始思维链已复制");
     });
 
-    // PPT & Session Tools
-    btnVerify.addEventListener("click", async () => {
-      showToast("正在执行 PPT 结构校验…");
-      const res = await fetch("/api/ppt/verify", { method: "POST" });
-      const data = await res.json();
-      appendAssistantContainer().innerHTML = formatMarkdown(`### 🔍 PPT 校验结果\n\n${data.result}`);
-    });
-
-    btnSavePpt.addEventListener("click", async () => {
-      let savePath = "";
-      try {
-        showToast("正在打开系统另存为窗口…");
-        const dlgRes = await fetch("/api/choose_save_ppt", { method: "POST" });
-        const dlgData = await dlgRes.json();
-        if (dlgData.status === "ok" && dlgData.path) {
-          savePath = dlgData.path;
-        } else if (dlgData.status === "cancelled") {
-          return;
+    // Artifacts Hub Modal Trigger
+    if (btnArtifactsHub) {
+      btnArtifactsHub.addEventListener("click", async () => {
+        await fetchArtifacts();
+        if (artifactsModal) {
+          artifactsModal.style.display = "flex";
         }
-      } catch (e) {
-        console.error("Choose save dialog error:", e);
-      }
-
-      if (!savePath) {
-        savePath = "presentation.pptx";
-      }
-
-      const res = await fetch("/api/ppt/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: savePath })
       });
-      const data = await res.json();
-      appendAssistantContainer().innerHTML = formatMarkdown(`### 💾 保存 PPT\n\n${data.result}`);
-    });
-
-    btnUndo.addEventListener("click", async () => {
-      const res = await fetch("/api/ppt/undo", { method: "POST" });
-      const data = await res.json();
-      appendAssistantContainer().innerHTML = formatMarkdown(`### ↩ 撤销结果\n\n${data.result}`);
-    });
-
-    btnExport.addEventListener("click", async () => {
-      const res = await fetch("/api/session/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: activeSessionId })
+    }
+    if (artifactsModalClose) {
+      artifactsModalClose.addEventListener("click", () => {
+        if (artifactsModal) artifactsModal.style.display = "none";
       });
-      const data = await res.json();
-      if (data.status === "ok") {
-        showToast(`已导出至：${data.path}`);
-      } else {
-        showToast(data.message || "导出失败");
-      }
-    });
+    }
+    if (artifactsModalDone) {
+      artifactsModalDone.addEventListener("click", () => {
+        if (artifactsModal) artifactsModal.style.display = "none";
+      });
+    }
+    if (btnRefreshArtifacts) {
+      btnRefreshArtifacts.addEventListener("click", async () => {
+        await fetchArtifacts();
+        showToast("产物列表已刷新");
+      });
+    }
+
+    // Export Session
+    if (btnExport) {
+      btnExport.addEventListener("click", async () => {
+        const res = await fetch("/api/session/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: activeSessionId })
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          showToast(`已导出至：${data.path}`);
+        } else {
+          showToast(data.message || "导出失败");
+        }
+      });
+    }
 
     // Goal Modal
     btnGoalDialog.addEventListener("click", async () => {
