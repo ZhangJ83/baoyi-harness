@@ -1,12 +1,13 @@
 """Modern CustomTkinter GUI for the complete Xiaopu Harness.
 
-Layout follows current agent-app practice (ChatGPT / Claude / Cursor / Codex inspired):
-- Left sidebar: Xiaopu brand with custom icon, "+ New Session", session history list with delete, workspace selector;
-- Center panel: Topbar (live state, model & permission selector, PPT tools, activity toggle),
-  live metric strip, scrollable modern chat stream (user & assistant bubbles with copy),
-  goal launcher strip, rounded composer with shortcuts (Ctrl+Enter to send, Esc to cancel);
-- Right activity drawer (collapsible): Streamlined 2-tab layout (Timeline + Raw Provider CoT)
-  with copy buttons, auto-scroll, and genuine reasoning signals (never synthesized).
+Layout follows the Claude Desktop / Cowork 3-column paradigm:
+- Left rail: Mode pill (Cowork / Code), + New session, Quick actions (Workspace, Artifacts, Goal, Doctor),
+  Recents session history list with delete, Gateway status footer, and Dark/Light theme toggle;
+- Center chat: Session title dropdown, PPT quick action pills, right drawer toggle,
+  user bubbles, collapsible 'Thought process (思维链)' card with real-time genuine reasoning,
+  clean assistant responses, and a floating bottom composer with model selector & send button;
+- Right drawer: Progress metrics, Working folder info, Live timeline of tool calls,
+  and Raw provider reasoning stream with copy buttons.
 
 The harness runs on a worker thread and the UI only drains thread-safe
 queues, so streaming, approvals and interruption work cleanly and smoothly.
@@ -29,29 +30,59 @@ from . import config
 from .events import EventKind, RuntimeEvent
 from .tools.registry import dispatch
 
-# Modern Slate + Emerald Design System
-ACCENT = "#10b981"
-ACCENT_HOVER = "#059669"
-ACCENT_ACTIVE = "#047857"
-DANGER = "#ef4444"
-DANGER_HOVER = "#dc2626"
-WARNING = "#f59e0b"
-
-BG_ROOT = "#0b0f14"
-SIDEBAR_BG = "#111720"
-CARD_BG = "#161f2b"
-CARD_HOVER = "#1c2736"
-USER_BG = "#13382b"
-USER_TEXT = "#ecfdf5"
-ASSISTANT_BG = "#16202c"
-ASSISTANT_TEXT = "#f1f5f9"
-SYSTEM_BG = "#141c26"
-BORDER = "#222d3a"
-BORDER_LIGHT = "#2d3b4c"
-
-TEXT_PRIMARY = "#f8fafc"
-TEXT_SECONDARY = "#94a3b8"
-TEXT_MUTED = "#64748b"
+# Design Tokens: Clean Claude Desktop & Cowork Inspired Palette
+THEMES = {
+    "dark": {
+        "bg_root": "#0d1117",
+        "sidebar_bg": "#121720",
+        "card_bg": "#161f2b",
+        "card_hover": "#1c2736",
+        "user_bg": "#16382c",
+        "user_text": "#ecfdf5",
+        "assistant_bg": "#16202c",
+        "assistant_text": "#f1f5f9",
+        "system_bg": "#141c26",
+        "thought_bg": "#131922",
+        "thought_border": "#283548",
+        "thought_text": "#c4b5fd",
+        "border": "#222d3a",
+        "border_light": "#2d3b4c",
+        "text_primary": "#f8fafc",
+        "text_secondary": "#94a3b8",
+        "text_muted": "#64748b",
+        "accent": "#ea580c",        # Warm terracotta/orange accent
+        "accent_hover": "#c2410c",
+        "accent_emerald": "#10b981",
+        "accent_blue": "#2563eb",
+        "danger": "#ef4444",
+        "danger_hover": "#dc2626",
+    },
+    "light": {
+        "bg_root": "#fcfcfc",
+        "sidebar_bg": "#f7f7f6",
+        "card_bg": "#ffffff",
+        "card_hover": "#f3f4f6",
+        "user_bg": "#f0ede6",
+        "user_text": "#1e293b",
+        "assistant_bg": "#ffffff",
+        "assistant_text": "#1e293b",
+        "system_bg": "#f1f5f9",
+        "thought_bg": "#fbfaf8",
+        "thought_border": "#e5e7eb",
+        "thought_text": "#7c3aed",
+        "border": "#e5e7eb",
+        "border_light": "#d1d5db",
+        "text_primary": "#0f172a",
+        "text_secondary": "#475569",
+        "text_muted": "#94a3b8",
+        "accent": "#ea580c",
+        "accent_hover": "#c2410c",
+        "accent_emerald": "#059669",
+        "accent_blue": "#2563eb",
+        "danger": "#dc2626",
+        "danger_hover": "#b91c1c",
+    },
+}
 
 
 def _force_utf8_stdio() -> None:
@@ -86,16 +117,20 @@ class AgentGUI:
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.approvals: queue.Queue = queue.Queue()
         self.running = False
+        self.theme_name = config.theme() if config.theme() in THEMES else "dark"
+        self.colors = THEMES[self.theme_name]
 
         # Reactive string variables for UI bindings
         self.status = ctk.StringVar(value="就绪")
-        self.live_action = ctk.StringVar(value="等待任务输入")
-        self.live_phase = ctk.StringVar(value="阶段：就绪")
+        self.current_title = ctk.StringVar(value="新对话")
+        self.live_action = ctk.StringVar(value="就绪 · 等待指令")
+        self.live_phase = ctk.StringVar(value="Phase: intake")
         self.live_elapsed = ctk.StringVar(value="0 秒")
         self.live_counts = ctk.StringVar(value="工具 0 · 完成 0 · 失败 0")
         self.model_var = ctk.StringVar(value=getattr(self.h.llm, "model", config.model()))
         self.permissions_var = ctk.StringVar(value=config.command_policy())
         self.workspace_var = ctk.StringVar(value=str(config.sandbox_root()))
+        self.mode_var = ctk.StringVar(value="cowork")
 
         self.started_at: float | None = None
         self.tool_started_count = 0
@@ -110,9 +145,13 @@ class AgentGUI:
         self._last_chat_label = None
         self._session_records: list = []
         self._workspace_records: list = []
-        self.activity_visible = False
+        self.activity_visible = True
+        self.sidebar_visible = True
         self._app_icon_ctk = None
         self._app_icon_small = None
+        self._thought_box = None
+        self._thought_container = None
+        self._thought_visible = True
 
         # Harness event bindings
         self.h.approval_handler = self._approve_command
@@ -141,21 +180,23 @@ class AgentGUI:
     # ------------------------------------------------------------------ Layout
     def _build(self) -> None:
         self.root.title("小朴 Agent · Xiaopu")
-        self.root.geometry("1400x880")
-        self.root.minsize(1020, 660)
-        ctk.set_appearance_mode("dark")
+        self.root.geometry("1420x900")
+        self.root.minsize(1040, 680)
+        ctk.set_appearance_mode(self.theme_name)
         ctk.set_default_color_theme("blue")
-        self.root.configure(fg_color=BG_ROOT)
+        self.root.configure(fg_color=self.colors["bg_root"])
 
         # Load & apply custom app icon
         self._apply_window_icon()
 
         self.root.grid_columnconfigure(0, weight=0)
         self.root.grid_columnconfigure(1, weight=1)
+        self.root.grid_columnconfigure(2, weight=0)
         self.root.grid_rowconfigure(0, weight=1)
 
         self._build_sidebar()
         self._build_main()
+        self._build_activity_drawer()
 
     def _apply_window_icon(self) -> None:
         try:
@@ -174,282 +215,413 @@ class AgentGUI:
                 icon_img = Image.open(png_path).convert("RGBA")
                 self._icon_photo = ImageTk.PhotoImage(icon_img)
                 self.root.iconphoto(False, self._icon_photo)
-                self._app_icon_ctk = ctk.CTkImage(light_image=icon_img, dark_image=icon_img, size=(32, 32))
+                self._app_icon_ctk = ctk.CTkImage(light_image=icon_img, dark_image=icon_img, size=(30, 30))
                 self._app_icon_small = ctk.CTkImage(light_image=icon_img, dark_image=icon_img, size=(18, 18))
         except Exception:
             pass
 
     def _build_sidebar(self) -> None:
-        rail = ctk.CTkFrame(self.root, width=260, corner_radius=0, fg_color=SIDEBAR_BG,
-                            border_width=1, border_color=BORDER)
-        rail.grid(row=0, column=0, sticky="nsew")
-        rail.grid_propagate(False)
-        rail.grid_columnconfigure(0, weight=1)
-        rail.grid_rowconfigure(2, weight=1)
+        self.sidebar = ctk.CTkFrame(
+            self.root, width=270, corner_radius=0, fg_color=self.colors["sidebar_bg"],
+            border_width=1, border_color=self.colors["border"],
+        )
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar.grid_propagate(False)
+        self.sidebar.grid_columnconfigure(0, weight=1)
+        self.sidebar.grid_rowconfigure(3, weight=1)
 
-        # Brand / Logo with App Icon
-        brand = ctk.CTkFrame(rail, fg_color="transparent")
-        brand.grid(row=0, column=0, padx=16, pady=(18, 12), sticky="ew")
-        title_row = ctk.CTkFrame(brand, fg_color="transparent")
-        title_row.pack(fill="x")
+        # Top Control Bar: Logo + Brand + Collapse button
+        top_ctrl = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        top_ctrl.grid(row=0, column=0, padx=14, pady=(14, 10), sticky="ew")
+        top_ctrl.grid_columnconfigure(1, weight=1)
 
-        # Custom App Icon in Header
         if getattr(self, "_app_icon_ctk", None) is not None:
-            ctk.CTkLabel(title_row, text="", image=self._app_icon_ctk).pack(side="left", padx=(0, 10))
+            ctk.CTkLabel(top_ctrl, text="", image=self._app_icon_ctk).grid(row=0, column=0, padx=(0, 8), sticky="w")
         else:
-            icon_badge = ctk.CTkFrame(title_row, width=32, height=32, corner_radius=8, fg_color="#2563eb")
-            icon_badge.pack(side="left", padx=(0, 10))
-            icon_badge.pack_propagate(False)
-            ctk.CTkLabel(
-                icon_badge, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 15, "bold"),
-                text_color="#ffffff",
-            ).place(relx=0.5, rely=0.5, anchor="center")
+            logo_box = ctk.CTkFrame(top_ctrl, width=28, height=28, corner_radius=6, fg_color=self.colors["accent_blue"])
+            logo_box.grid(row=0, column=0, padx=(0, 8), sticky="w")
+            logo_box.pack_propagate(False)
+            ctk.CTkLabel(logo_box, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold"),
+                         text_color="#ffffff").place(relx=0.5, rely=0.5, anchor="center")
 
-        ctk.CTkLabel(title_row, text="小朴", font=ctk.CTkFont("Microsoft YaHei UI", 22, "bold"),
-                     text_color=TEXT_PRIMARY).pack(side="left")
-        ctk.CTkLabel(title_row, text="●", font=ctk.CTkFont("Microsoft YaHei UI", 10),
-                     text_color=ACCENT).pack(side="left", padx=(6, 0), pady=(4, 0))
-        ctk.CTkLabel(title_row, text="v0.2.0", font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
-                     text_color=TEXT_MUTED).pack(side="left", padx=(4, 0), pady=(4, 0))
-        ctk.CTkLabel(brand, text="智能代码与演示文稿助手", font=ctk.CTkFont("Microsoft YaHei UI", 11),
-                     text_color=TEXT_SECONDARY).pack(anchor="w", pady=(6, 0))
+        brand_lbl = ctk.CTkLabel(
+            top_ctrl, text="小朴 Xiaopu", font=ctk.CTkFont("Microsoft YaHei UI", 16, "bold"),
+            text_color=self.colors["text_primary"],
+        )
+        brand_lbl.grid(row=0, column=1, sticky="w")
+
+        # Mode Switcher Pill (⇄ Cowork / </> Code)
+        mode_pill = ctk.CTkFrame(
+            self.sidebar, corner_radius=9, fg_color=self.colors["bg_root"],
+            border_width=1, border_color=self.colors["border"], height=34,
+        )
+        mode_pill.grid(row=1, column=0, padx=14, pady=(0, 10), sticky="ew")
+        mode_pill.grid_columnconfigure(0, weight=1)
+        mode_pill.grid_columnconfigure(1, weight=1)
+
+        self.btn_cowork = ctk.CTkButton(
+            mode_pill, text="⇄ 对话 / PPT", height=26, corner_radius=7,
+            fg_color=self.colors["card_bg"], hover_color=self.colors["card_hover"],
+            text_color=self.colors["text_primary"], font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            command=lambda: self._set_mode("cowork"),
+        )
+        self.btn_cowork.grid(row=0, column=0, padx=3, pady=3, sticky="ew")
+
+        self.btn_code = ctk.CTkButton(
+            mode_pill, text="</> 代码模式", height=26, corner_radius=7,
+            fg_color="transparent", hover_color=self.colors["card_hover"],
+            text_color=self.colors["text_secondary"], font=ctk.CTkFont("Microsoft YaHei UI", 11),
+            command=lambda: self._set_mode("code"),
+        )
+        self.btn_code.grid(row=0, column=1, padx=3, pady=3, sticky="ew")
+
+        # Navigation & Quick Action Items
+        actions = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        actions.grid(row=2, column=0, padx=12, pady=(0, 8), sticky="ew")
 
         # + New Session button
         ctk.CTkButton(
-            rail, text="＋ 新建会话", height=38, corner_radius=10,
-            fg_color=ACCENT, hover_color=ACCENT_HOVER,
-            font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold"),
-            text_color="#ffffff",
+            actions, text="＋  新建对话 (New)", height=34, corner_radius=8,
+            fg_color=self.colors["card_bg"], hover_color=self.colors["card_hover"],
+            border_width=1, border_color=self.colors["border"],
+            text_color=self.colors["text_primary"], anchor="w",
+            font=ctk.CTkFont("Microsoft YaHei UI", 12, "bold"),
             command=self._new_session,
-        ).grid(row=1, column=0, padx=14, pady=(0, 12), sticky="ew")
+        ).pack(fill="x", pady=(0, 4))
 
-        # Session History List
+        # Quick action pills
+        for icon_text, handler in (
+            ("📁  工作区目录 (Workspace)", self._choose_workspace),
+            ("🎯  长期目标管理 (Goal)", self._show_goal_dialog),
+            ("⚗  导出/保存 PPT (Artifacts)", self._save_ppt),
+            ("⚙  环境诊断 (Doctor)", self._show_doctor_dialog),
+        ):
+            ctk.CTkButton(
+                actions, text=icon_text, height=28, corner_radius=6,
+                fg_color="transparent", hover_color=self.colors["card_hover"],
+                text_color=self.colors["text_secondary"], anchor="w",
+                font=ctk.CTkFont("Microsoft YaHei UI", 11),
+                command=handler,
+            ).pack(fill="x", pady=1)
+
+        # Recents Session History List
+        recents_header = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        recents_header.grid(row=3, column=0, padx=14, pady=(10, 2), sticky="new")
+        ctk.CTkLabel(
+            recents_header, text="历史会话 (Recents)", font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            text_color=self.colors["text_muted"],
+        ).pack(side="left")
+
         self.session_frame = ctk.CTkScrollableFrame(
-            rail, label_text="历史会话", corner_radius=12,
-            fg_color=BG_ROOT, label_fg_color="transparent",
-            label_text_color=TEXT_SECONDARY,
-            border_width=1, border_color=BORDER,
+            self.sidebar, corner_radius=8,
+            fg_color="transparent",
         )
-        self.session_frame.grid(row=2, column=0, padx=14, pady=(0, 10), sticky="nsew")
+        self.session_frame.grid(row=3, column=0, padx=8, pady=(28, 6), sticky="nsew")
         self.session_frame.grid_columnconfigure(0, weight=1)
 
-        # Workspace selector
-        ws = ctk.CTkFrame(rail, fg_color="transparent")
-        ws.grid(row=3, column=0, padx=14, pady=(0, 14), sticky="ew")
-        ws_header = ctk.CTkFrame(ws, fg_color="transparent")
-        ws_header.pack(fill="x", pady=(0, 4))
-        ctk.CTkLabel(ws_header, text="当前工作区", font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
-                     text_color=TEXT_SECONDARY).pack(side="left")
-
-        self.workspace_menu = ctk.CTkOptionMenu(
-            ws, values=[self.workspace_var.get()],
-            command=self._switch_workspace_value,
-            corner_radius=8, height=30,
-            fg_color=CARD_BG, button_color=BORDER_LIGHT,
-            button_hover_color=CARD_HOVER,
-            text_color=TEXT_PRIMARY,
-            dynamic_resizing=False,
+        # Bottom Footer: Gateway status + Theme Toggle
+        footer = ctk.CTkFrame(
+            self.sidebar, corner_radius=0, fg_color=self.colors["bg_root"],
+            border_width=1, border_color=self.colors["border"], height=44,
         )
-        self.workspace_menu.pack(fill="x")
+        footer.grid(row=4, column=0, sticky="ew")
+        footer.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkButton(
-            ws, text="📁 选择其他目录…", height=28, corner_radius=8,
-            fg_color="transparent", border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_SECONDARY,
-            font=ctk.CTkFont("Microsoft YaHei UI", 11),
-            command=self._choose_workspace,
-        ).pack(fill="x", pady=(6, 0))
+        gw_lbl = ctk.CTkLabel(
+            footer, text="☀️ Gateway · Online", font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
+            text_color=self.colors["text_secondary"],
+        )
+        gw_lbl.grid(row=0, column=0, padx=12, pady=8, sticky="w")
 
-        # Bottom Provider indicator
-        footer = ctk.CTkFrame(rail, fg_color="transparent")
-        footer.grid(row=4, column=0, padx=14, pady=(0, 14), sticky="ew")
-        ctk.CTkLabel(
-            footer, text=f"Provider: {config.provider()} · Ready",
+        theme_btn = ctk.CTkButton(
+            footer, text="🌓 主题", width=52, height=24, corner_radius=6,
+            fg_color=self.colors["card_bg"], border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
             font=ctk.CTkFont("Microsoft YaHei UI", 10),
-            text_color=TEXT_MUTED,
-        ).pack(anchor="w")
+            command=self._toggle_theme,
+        )
+        theme_btn.grid(row=0, column=1, padx=10, pady=8, sticky="e")
+
+    def _set_mode(self, mode: str) -> None:
+        self.mode_var.set(mode)
+        if mode == "cowork":
+            self.btn_cowork.configure(fg_color=self.colors["card_bg"], text_color=self.colors["text_primary"])
+            self.btn_code.configure(fg_color="transparent", text_color=self.colors["text_secondary"])
+            config.set_plan_mode(False)
+            self.status.set("已切换至 对话/PPT 协同模式")
+        else:
+            self.btn_code.configure(fg_color=self.colors["card_bg"], text_color=self.colors["text_primary"])
+            self.btn_cowork.configure(fg_color="transparent", text_color=self.colors["text_secondary"])
+            config.set_plan_mode(True)
+            self.status.set("已切换至 代码与计划模式 (Plan Mode)")
 
     def _build_main(self) -> None:
-        main = ctk.CTkFrame(self.root, corner_radius=0, fg_color=BG_ROOT)
-        main.grid(row=0, column=1, sticky="nsew")
-        main.grid_columnconfigure(0, weight=1)
-        main.grid_columnconfigure(1, weight=0)
-        main.grid_rowconfigure(2, weight=1)
+        self.main_panel = ctk.CTkFrame(self.root, corner_radius=0, fg_color=self.colors["bg_root"])
+        self.main_panel.grid(row=0, column=1, sticky="nsew")
+        self.main_panel.grid_columnconfigure(0, weight=1)
+        self.main_panel.grid_rowconfigure(1, weight=1)
 
-        self._build_topbar(main)
-        self._build_metric_strip(main)
+        self._build_topbar(self.main_panel)
 
-        # Center Chat Area
-        self.chat = ctk.CTkScrollableFrame(main, fg_color=BG_ROOT, corner_radius=0)
-        self.chat.grid(row=2, column=0, sticky="nsew", padx=(16, 8), pady=(0, 6))
+        # Center Chat Scrollable Surface
+        self.chat = ctk.CTkScrollableFrame(self.main_panel, fg_color=self.colors["bg_root"], corner_radius=0)
+        self.chat.grid(row=1, column=0, sticky="nsew", padx=(20, 20), pady=(0, 6))
         self.chat.grid_columnconfigure(0, weight=1)
 
-        # Collapsible Activity Drawer (Right Column)
-        self._build_activity_drawer(main)
+        # Floating Bottom Composer & Status Footer
+        self._build_composer(self.main_panel)
+        self._build_statusbar(self.main_panel)
 
-        # Bottom Composer & Statusbar
-        self._build_composer(main)
-        self._build_statusbar(main)
-
-        self._append_chat("system", "小朴已就绪。输入任务描述开始执行，或在上方启动长期 Goal。")
+        self._append_chat("system", "小朴已就绪。输入任务描述开始执行，支持代码编写、文档生成与 PPT 自动化。")
 
     def _build_topbar(self, main: ctk.CTkFrame) -> None:
-        bar = ctk.CTkFrame(main, fg_color="transparent")
-        bar.grid(row=0, column=0, columnspan=2, padx=16, pady=(12, 4), sticky="ew")
+        bar = ctk.CTkFrame(
+            main, fg_color=self.colors["bg_root"], height=48,
+            border_width=0,
+        )
+        bar.grid(row=0, column=0, padx=16, pady=(10, 4), sticky="ew")
         bar.grid_columnconfigure(0, weight=1)
 
-        # Left status badge & phase
+        # Left: Session Title Dropdown / Indicator
         left = ctk.CTkFrame(bar, fg_color="transparent")
         left.grid(row=0, column=0, sticky="w")
-        self.status_dot = ctk.CTkLabel(
-            left, text="●", text_color=ACCENT, font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold"),
-        )
-        self.status_dot.pack(side="left", padx=(0, 4))
-        ctk.CTkLabel(
-            left, textvariable=self.live_action,
-            font=ctk.CTkFont("Microsoft YaHei UI", 12, "bold"), text_color=TEXT_PRIMARY,
-        ).pack(side="left")
-        ctk.CTkLabel(
-            left, textvariable=self.live_phase,
-            font=ctk.CTkFont("Microsoft YaHei UI", 11), text_color=TEXT_SECONDARY,
-        ).pack(side="left", padx=(10, 0))
 
-        # Right Action Toolbar
+        self.toggle_sidebar_btn = ctk.CTkButton(
+            left, text="≡", width=30, height=28, corner_radius=6,
+            fg_color="transparent", hover_color=self.colors["card_hover"],
+            text_color=self.colors["text_secondary"], font=ctk.CTkFont("Microsoft YaHei UI", 14, "bold"),
+            command=self._toggle_sidebar,
+        )
+        self.toggle_sidebar_btn.pack(side="left", padx=(0, 6))
+
+        title_pill = ctk.CTkFrame(left, corner_radius=6, fg_color=self.colors["sidebar_bg"],
+                                  border_width=1, border_color=self.colors["border"])
+        title_pill.pack(side="left")
+        ctk.CTkLabel(
+            title_pill, textvariable=self.current_title, font=ctk.CTkFont("Microsoft YaHei UI", 12, "bold"),
+            text_color=self.colors["text_primary"],
+        ).pack(side="left", padx=(10, 4), pady=3)
+        ctk.CTkLabel(
+            title_pill, text="⌵", font=ctk.CTkFont("Microsoft YaHei UI", 10),
+            text_color=self.colors["text_muted"],
+        ).pack(side="left", padx=(0, 8), pady=3)
+
+        # Right Toolbar Action Pills
         right = ctk.CTkFrame(bar, fg_color="transparent")
         right.grid(row=0, column=1, sticky="e")
 
-        ctk.CTkLabel(right, text="模型", text_color=TEXT_SECONDARY, font=ctk.CTkFont("Microsoft YaHei UI", 11)).pack(side="left", padx=(0, 4))
-        ctk.CTkOptionMenu(
-            right, variable=self.model_var, values=config.known_models(),
-            command=self._switch_model, width=160, corner_radius=8, height=28,
-            fg_color=CARD_BG, button_color=BORDER_LIGHT, button_hover_color=CARD_HOVER,
-            text_color=TEXT_PRIMARY, font=ctk.CTkFont("Microsoft YaHei UI", 11),
-        ).pack(side="left")
-
-        ctk.CTkLabel(right, text="权限", text_color=TEXT_SECONDARY, font=ctk.CTkFont("Microsoft YaHei UI", 11)).pack(side="left", padx=(10, 4))
-        ctk.CTkOptionMenu(
-            right, variable=self.permissions_var, values=("allow", "ask", "deny"),
-            command=self._switch_permissions, width=76, corner_radius=8, height=28,
-            fg_color=CARD_BG, button_color=BORDER_LIGHT, button_hover_color=CARD_HOVER,
-            text_color=TEXT_PRIMARY, font=ctk.CTkFont("Microsoft YaHei UI", 11),
-        ).pack(side="left")
-
-        self.activity_btn = ctk.CTkButton(
-            right, text="⚡ 活动", width=62, height=28, corner_radius=8,
-            fg_color=CARD_BG, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_PRIMARY,
-            font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
-            command=self._toggle_activity,
-        )
-        self.activity_btn.pack(side="left", padx=(10, 0))
-
         ctk.CTkButton(
-            right, text="🔍 验证", width=58, height=28, corner_radius=8,
-            fg_color=CARD_BG, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_PRIMARY,
+            right, text="🔍 校验", width=56, height=28, corner_radius=6,
+            fg_color=self.colors["card_bg"], border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
             font=ctk.CTkFont("Microsoft YaHei UI", 11),
             command=self._verify,
-        ).pack(side="left", padx=6)
+        ).pack(side="left", padx=4)
 
         ctk.CTkButton(
-            right, text="💾 保存 PPT", width=74, height=28, corner_radius=8,
-            fg_color=CARD_BG, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_PRIMARY,
+            right, text="💾 保存", width=56, height=28, corner_radius=6,
+            fg_color=self.colors["card_bg"], border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
             font=ctk.CTkFont("Microsoft YaHei UI", 11),
             command=self._save_ppt,
-        ).pack(side="left", padx=(0, 6))
+        ).pack(side="left", padx=4)
 
         ctk.CTkButton(
-            right, text="📤 导出", width=56, height=28, corner_radius=8,
-            fg_color=CARD_BG, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_PRIMARY,
-            font=ctk.CTkFont("Microsoft YaHei UI", 11),
-            command=self._export_session,
-        ).pack(side="left", padx=(0, 6))
-
-        ctk.CTkButton(
-            right, text="↩ 撤销", width=56, height=28, corner_radius=8,
-            fg_color=CARD_BG, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_PRIMARY,
+            right, text="↩ 撤销", width=56, height=28, corner_radius=6,
+            fg_color=self.colors["card_bg"], border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
             font=ctk.CTkFont("Microsoft YaHei UI", 11),
             command=self._undo,
-        ).pack(side="left")
+        ).pack(side="left", padx=4)
 
-    def _build_metric_strip(self, main: ctk.CTkFrame) -> None:
-        strip = ctk.CTkFrame(main, corner_radius=10, fg_color=CARD_BG,
-                             border_width=1, border_color=BORDER, height=32)
-        strip.grid(row=1, column=0, columnspan=2, padx=16, pady=(0, 8), sticky="ew")
-        strip.grid_propagate(False)
+        ctk.CTkButton(
+            right, text="📤 导出", width=56, height=28, corner_radius=6,
+            fg_color=self.colors["card_bg"], border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
+            font=ctk.CTkFont("Microsoft YaHei UI", 11),
+            command=self._export_session,
+        ).pack(side="left", padx=4)
 
-        left = ctk.CTkFrame(strip, fg_color="transparent")
-        left.pack(side="left", fill="y", padx=10)
-        ctk.CTkLabel(
-            left, text="📊", font=ctk.CTkFont("Microsoft YaHei UI", 11),
-        ).pack(side="left", padx=(0, 6))
-        ctk.CTkLabel(
-            left, textvariable=self.live_counts, font=ctk.CTkFont("Microsoft YaHei UI", 11),
-            text_color=TEXT_SECONDARY,
-        ).pack(side="left")
-
-        right = ctk.CTkFrame(strip, fg_color="transparent")
-        right.pack(side="right", fill="y", padx=10)
-        ctk.CTkLabel(
-            right, text="⏱ 耗时:", font=ctk.CTkFont("Microsoft YaHei UI", 11),
-            text_color=TEXT_MUTED,
-        ).pack(side="left", padx=(0, 4))
-        ctk.CTkLabel(
-            right, textvariable=self.live_elapsed, font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
-            text_color=ACCENT,
-        ).pack(side="left")
-
-    def _build_activity_drawer(self, main: ctk.CTkFrame) -> None:
-        self.activity = ctk.CTkFrame(
-            main, width=420, corner_radius=14, fg_color=SIDEBAR_BG,
-            border_width=1, border_color=BORDER,
+        self.activity_btn = ctk.CTkButton(
+            right, text="◫ 活动", width=62, height=28, corner_radius=6,
+            fg_color=self.colors["accent"], hover_color=self.colors["accent_hover"],
+            text_color="#ffffff", font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            command=self._toggle_activity,
         )
+        self.activity_btn.pack(side="left", padx=(6, 0))
+
+    def _build_composer(self, main: ctk.CTkFrame) -> None:
+        # Floating rounded composer box (Claude Desktop style)
+        composer_outer = ctk.CTkFrame(
+            main, corner_radius=16, fg_color=self.colors["card_bg"],
+            border_width=1, border_color=self.colors["border"],
+        )
+        composer_outer.grid(row=2, column=0, padx=20, pady=(0, 6), sticky="ew")
+        composer_outer.grid_columnconfigure(0, weight=1)
+
+        self.input = ctk.CTkTextbox(
+            composer_outer, height=68, wrap="word", corner_radius=10,
+            fg_color="transparent", border_width=0,
+            text_color=self.colors["text_primary"],
+            font=ctk.CTkFont("Microsoft YaHei UI", 13),
+        )
+        self.input.grid(row=0, column=0, padx=12, pady=(10, 4), sticky="ew")
+        self.input.bind("<Control-Return>", lambda _e: self._send() or "break")
+
+        # Bottom row inside composer
+        bottom_bar = ctk.CTkFrame(composer_outer, fg_color="transparent")
+        bottom_bar.grid(row=1, column=0, padx=10, pady=(0, 8), sticky="ew")
+        bottom_bar.grid_columnconfigure(1, weight=1)
+
+        # Left tools in composer: Goal + Workspace
+        c_left = ctk.CTkFrame(bottom_bar, fg_color="transparent")
+        c_left.grid(row=0, column=0, sticky="w")
+
+        ctk.CTkButton(
+            c_left, text="＋ 目标 (Goal)", width=80, height=26, corner_radius=6,
+            fg_color=self.colors["bg_root"], border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
+            font=ctk.CTkFont("Microsoft YaHei UI", 10),
+            command=self._show_goal_dialog,
+        ).pack(side="left", padx=(0, 6))
+
+        self.workspace_menu = ctk.CTkOptionMenu(
+            c_left, values=[self.workspace_var.get()],
+            command=self._switch_workspace_value,
+            corner_radius=6, height=26, width=140,
+            fg_color=self.colors["bg_root"], button_color=self.colors["border"],
+            button_hover_color=self.colors["card_hover"],
+            text_color=self.colors["text_secondary"], font=ctk.CTkFont("Microsoft YaHei UI", 10),
+            dynamic_resizing=False,
+        )
+        self.workspace_menu.pack(side="left")
+
+        # Right tools in composer: Model + Permissions + Send button
+        c_right = ctk.CTkFrame(bottom_bar, fg_color="transparent")
+        c_right.grid(row=0, column=2, sticky="e")
+
+        self.model_menu = ctk.CTkOptionMenu(
+            c_right, variable=self.model_var, values=config.known_models(),
+            command=self._switch_model, width=150, corner_radius=6, height=26,
+            fg_color=self.colors["bg_root"], button_color=self.colors["border"],
+            button_hover_color=self.colors["card_hover"],
+            text_color=self.colors["text_primary"], font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
+        )
+        self.model_menu.pack(side="left", padx=(0, 6))
+
+        self.perm_menu = ctk.CTkOptionMenu(
+            c_right, variable=self.permissions_var, values=("allow", "ask", "deny"),
+            command=self._switch_permissions, width=70, corner_radius=6, height=26,
+            fg_color=self.colors["bg_root"], button_color=self.colors["border"],
+            button_hover_color=self.colors["card_hover"],
+            text_color=self.colors["text_secondary"], font=ctk.CTkFont("Microsoft YaHei UI", 10),
+        )
+        self.perm_menu.pack(side="left", padx=(0, 8))
+
+        self.send = ctk.CTkButton(
+            c_right, text="↑ 发送", width=68, height=28, corner_radius=7,
+            fg_color=self.colors["accent"], hover_color=self.colors["accent_hover"],
+            text_color="#ffffff", font=ctk.CTkFont("Microsoft YaHei UI", 12, "bold"),
+            command=self._send,
+        )
+        self.send.pack(side="left")
+
+        self.stop = ctk.CTkButton(
+            c_right, text="⏹ 中断", width=62, height=28, corner_radius=7,
+            fg_color=self.colors["danger"], hover_color=self.colors["danger_hover"],
+            text_color="#ffffff", font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            command=self._cancel, state="disabled",
+        )
+        self.stop.pack(side="left", padx=(6, 0))
+
+    def _build_statusbar(self, main: ctk.CTkFrame) -> None:
+        bar = ctk.CTkFrame(main, corner_radius=0, fg_color="transparent", height=22)
+        bar.grid(row=3, column=0, sticky="ew")
+
+        ctk.CTkLabel(
+            bar, textvariable=self.status, text_color=self.colors["text_muted"],
+            font=ctk.CTkFont("Microsoft YaHei UI", 10),
+        ).pack(side="left", padx=22)
+
+        ctk.CTkLabel(
+            bar, text="小朴 Agent 智能体 · Ctrl+Enter 发送 · Esc 中断",
+            text_color=self.colors["text_muted"], font=ctk.CTkFont("Microsoft YaHei UI", 10),
+        ).pack(side="right", padx=22)
+
+    def _build_activity_drawer(self) -> None:
+        self.activity = ctk.CTkFrame(
+            self.root, width=380, corner_radius=0, fg_color=self.colors["sidebar_bg"],
+            border_width=1, border_color=self.colors["border"],
+        )
+        self.activity.grid(row=0, column=2, sticky="nsew")
+        self.activity.grid_propagate(False)
         self.activity.grid_columnconfigure(0, weight=1)
-        self.activity.grid_rowconfigure(1, weight=1)
+        self.activity.grid_rowconfigure(2, weight=1)
 
         # Drawer Header
         header = ctk.CTkFrame(self.activity, fg_color="transparent")
-        header.grid(row=0, column=0, padx=14, pady=(12, 6), sticky="ew")
+        header.grid(row=0, column=0, padx=14, pady=(14, 6), sticky="ew")
         ctk.CTkLabel(
-            header, text="⚡ 活动监视器", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold"),
-            text_color=TEXT_PRIMARY,
+            header, text="活动与上下文 (Context)", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold"),
+            text_color=self.colors["text_primary"],
         ).pack(side="left")
 
         ctk.CTkButton(
-            header, text="✕", width=28, height=26, corner_radius=6,
-            fg_color="transparent", border_width=1, border_color=BORDER,
-            hover_color=CARD_BG, text_color=TEXT_SECONDARY,
-            font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            header, text="✕", width=26, height=24, corner_radius=6,
+            fg_color="transparent", border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
+            font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
             command=self._toggle_activity,
         ).pack(side="right")
 
-        # 2 high-value tabs: 时间线 + 思维链
+        # Progress / State Metric Strip
+        p_card = ctk.CTkFrame(
+            self.activity, corner_radius=10, fg_color=self.colors["card_bg"],
+            border_width=1, border_color=self.colors["border"],
+        )
+        p_card.grid(row=1, column=0, padx=12, pady=(4, 8), sticky="ew")
+        p_card.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            p_card, textvariable=self.live_action, font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            text_color=self.colors["text_primary"], anchor="w",
+        ).pack(fill="x", padx=10, pady=(8, 2))
+
+        sub_p = ctk.CTkFrame(p_card, fg_color="transparent")
+        sub_p.pack(fill="x", padx=10, pady=(0, 8))
+        ctk.CTkLabel(
+            sub_p, textvariable=self.live_phase, font=ctk.CTkFont("Microsoft YaHei UI", 10),
+            text_color=self.colors["text_secondary"],
+        ).pack(side="left")
+        ctk.CTkLabel(
+            sub_p, textvariable=self.live_elapsed, font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
+            text_color=self.colors["accent_emerald"],
+        ).pack(side="right")
+
+        # 2 High-value Tabs: 时间线 (Timeline) + 思维链 (Reasoning)
         self.activity_tabs = ctk.CTkTabview(
             self.activity, corner_radius=10,
-            fg_color=CARD_BG, segmented_button_fg_color=BG_ROOT,
-            segmented_button_selected_color=ACCENT,
-            segmented_button_selected_hover_color=ACCENT_HOVER,
-            text_color=TEXT_PRIMARY,
+            fg_color=self.colors["card_bg"], segmented_button_fg_color=self.colors["bg_root"],
+            segmented_button_selected_color=self.colors["accent_blue"],
+            segmented_button_selected_hover_color=self.colors["accent_hover"],
+            text_color=self.colors["text_primary"],
         )
-        self.activity_tabs.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+        self.activity_tabs.grid(row=2, column=0, padx=12, pady=(0, 10), sticky="nsew")
         self.activity_tabs.add("时间线")
         self.activity_tabs.add("思维链")
 
         # Tab 1: Timeline
         timeline_tab = self.activity_tabs.tab("时间线")
         t_head = ctk.CTkFrame(timeline_tab, fg_color="transparent")
-        t_head.pack(fill="x", padx=4, pady=(2, 4))
+        t_head.pack(fill="x", padx=2, pady=(0, 4))
         ctk.CTkLabel(
-            t_head, text="决策 / 工具 / 阶段流转", font=ctk.CTkFont("Microsoft YaHei UI", 10),
-            text_color=TEXT_MUTED,
+            t_head, textvariable=self.live_counts, font=ctk.CTkFont("Microsoft YaHei UI", 10),
+            text_color=self.colors["text_muted"],
         ).pack(side="left")
         ctk.CTkButton(
             t_head, text="复制时间线", width=70, height=22, corner_radius=6,
-            fg_color=BG_ROOT, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_SECONDARY,
+            fg_color=self.colors["bg_root"], border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
             font=ctk.CTkFont("Microsoft YaHei UI", 9),
             command=self._copy_timeline,
         ).pack(side="right")
@@ -459,16 +631,15 @@ class AgentGUI:
         # Tab 2: Reasoning (CoT)
         cot_tab = self.activity_tabs.tab("思维链")
         c_head = ctk.CTkFrame(cot_tab, fg_color="transparent")
-        c_head.pack(fill="x", padx=4, pady=(2, 4))
+        c_head.pack(fill="x", padx=2, pady=(0, 4))
         ctk.CTkLabel(
-            c_head, text="模型原始 reasoning_content（绝不伪造）",
-            font=ctk.CTkFont("Microsoft YaHei UI", 10),
-            text_color=TEXT_MUTED,
+            c_head, text="原始 reasoning_content (未伪造)", font=ctk.CTkFont("Microsoft YaHei UI", 10),
+            text_color=self.colors["text_muted"],
         ).pack(side="left")
         ctk.CTkButton(
             c_head, text="复制思维链", width=70, height=22, corner_radius=6,
-            fg_color=BG_ROOT, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_SECONDARY,
+            fg_color=self.colors["bg_root"], border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
             font=ctk.CTkFont("Microsoft YaHei UI", 9),
             command=self._copy_cot,
         ).pack(side="right")
@@ -476,101 +647,14 @@ class AgentGUI:
         self.cot_box = self._readonly_box(cot_tab)
         self._append(self.cot_box, "模型实际返回的 reasoning_content 会实时显示在这里。\nprovider 未返回时明确提示，绝不伪造。")
 
-    def _build_composer(self, main: ctk.CTkFrame) -> None:
-        # Long-term Goal Strip
-        goal = ctk.CTkFrame(main, fg_color="transparent")
-        goal.grid(row=3, column=0, columnspan=2, padx=16, pady=(0, 6), sticky="ew")
-        goal.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(
-            goal, text="🎯 长期目标", font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
-            text_color=TEXT_SECONDARY,
-        ).grid(row=0, column=0, padx=(0, 8))
-
-        self.goal_entry = ctk.CTkEntry(
-            goal, placeholder_text="可选：输入长期目标后点击启动（支持断点续跑）",
-            corner_radius=8, height=30, fg_color=CARD_BG,
-            border_color=BORDER, text_color=TEXT_PRIMARY,
-            placeholder_text_color=TEXT_MUTED,
-            font=ctk.CTkFont("Microsoft YaHei UI", 11),
-        )
-        self.goal_entry.grid(row=0, column=1, sticky="ew")
-
-        ctk.CTkButton(
-            goal, text="启动", width=58, height=30, corner_radius=8,
-            fg_color=CARD_BG, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_PRIMARY,
-            font=ctk.CTkFont("Microsoft YaHei UI", 11),
-            command=self._start_goal,
-        ).grid(row=0, column=2, padx=6)
-
-        ctk.CTkButton(
-            goal, text="查看", width=58, height=30, corner_radius=8,
-            fg_color=CARD_BG, border_width=1, border_color=BORDER,
-            hover_color=CARD_HOVER, text_color=TEXT_PRIMARY,
-            font=ctk.CTkFont("Microsoft YaHei UI", 11),
-            command=self._show_goal,
-        ).grid(row=0, column=3)
-
-        # Main Prompt Input Composer Box
-        composer = ctk.CTkFrame(
-            main, corner_radius=14, fg_color=CARD_BG,
-            border_width=1, border_color=BORDER,
-        )
-        composer.grid(row=4, column=0, columnspan=2, padx=16, pady=(0, 8), sticky="ew")
-        composer.grid_columnconfigure(0, weight=1)
-
-        self.input = ctk.CTkTextbox(
-            composer, height=72, wrap="word", corner_radius=10,
-            fg_color=BG_ROOT, border_width=1, border_color=BORDER,
-            text_color=TEXT_PRIMARY,
-            font=ctk.CTkFont("Microsoft YaHei UI", 13),
-        )
-        self.input.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
-        self.input.bind("<Control-Return>", lambda _e: self._send() or "break")
-
-        # Action button column
-        buttons = ctk.CTkFrame(composer, fg_color="transparent")
-        buttons.grid(row=0, column=1, padx=(0, 10), pady=10)
-
-        self.send = ctk.CTkButton(
-            buttons, text="发送", width=86, height=32, corner_radius=8,
-            fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color="#ffffff",
-            font=ctk.CTkFont("Microsoft YaHei UI", 12, "bold"),
-            command=self._send,
-        )
-        self.send.pack()
-
-        self.stop = ctk.CTkButton(
-            buttons, text="中断", width=86, height=30, corner_radius=8,
-            fg_color=DANGER, hover_color=DANGER_HOVER, text_color="#ffffff",
-            font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
-            command=self._cancel, state="disabled",
-        )
-        self.stop.pack(pady=(8, 0))
-
-    def _build_statusbar(self, main: ctk.CTkFrame) -> None:
-        bar = ctk.CTkFrame(main, corner_radius=0, fg_color="#080c10", height=26)
-        bar.grid(row=5, column=0, columnspan=2, sticky="ew")
-
-        ctk.CTkLabel(
-            bar, textvariable=self.status, text_color=TEXT_MUTED,
-            font=ctk.CTkFont("Microsoft YaHei UI", 10),
-        ).pack(side="left", padx=16)
-
-        ctk.CTkLabel(
-            bar, text="Ctrl+Enter 发送 · Esc 中断 · 右上角切换活动抽屉",
-            text_color=TEXT_MUTED, font=ctk.CTkFont("Microsoft YaHei UI", 10),
-        ).pack(side="right", padx=16)
-
     # ------------------------------------------------------------------ Chat & Boxes
     def _readonly_box(self, parent) -> ctk.CTkTextbox:
         box = ctk.CTkTextbox(
-            parent, wrap="word", corner_radius=8, fg_color=BG_ROOT,
-            border_width=1, border_color=BORDER,
-            text_color=TEXT_PRIMARY, font=ctk.CTkFont("Consolas", 11),
+            parent, wrap="word", corner_radius=8, fg_color=self.colors["bg_root"],
+            border_width=1, border_color=self.colors["border"],
+            text_color=self.colors["text_primary"], font=ctk.CTkFont("Consolas", 11),
         )
-        box.pack(fill="both", expand=True, padx=4, pady=4)
+        box.pack(fill="both", expand=True, padx=2, pady=2)
         self._make_readonly_selectable(box)
         return box
 
@@ -602,32 +686,94 @@ class AgentGUI:
         widget.bind("<<Paste>>", lambda _event: "break")
         widget.bind("<<Cut>>", lambda _event: "break")
 
+    def _append_thought_block(self, reasoning_text: str) -> None:
+        """Render a collapsible Claude-style 'Thought process' card."""
+        if not reasoning_text.strip():
+            return
+
+        row = ctk.CTkFrame(self.chat, fg_color="transparent")
+        row._xiaopu_bubble = True
+        row.grid(sticky="w", padx=6, pady=4)
+        row.grid_columnconfigure(0, weight=1)
+
+        card = ctk.CTkFrame(
+            row, corner_radius=12, fg_color=self.colors["thought_bg"],
+            border_width=1, border_color=self.colors["thought_border"],
+        )
+        card.grid(row=0, column=0, sticky="w")
+        card.grid_columnconfigure(0, weight=1)
+
+        # Thought header with toggle
+        hdr = ctk.CTkFrame(card, fg_color="transparent")
+        hdr.grid(row=0, column=0, padx=12, pady=6, sticky="ew")
+        hdr.grid_columnconfigure(1, weight=1)
+
+        t_lbl = ctk.CTkLabel(
+            hdr, text="⏱  Thought process (思考过程)",
+            font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            text_color=self.colors["thought_text"],
+        )
+        t_lbl.grid(row=0, column=0, sticky="w")
+
+        done_badge = ctk.CTkLabel(
+            hdr, text="✓ Done", font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
+            text_color=self.colors["accent_emerald"],
+        )
+        done_badge.grid(row=0, column=1, padx=10, sticky="w")
+
+        body_box = ctk.CTkTextbox(
+            card, height=120, wrap="word", corner_radius=6,
+            fg_color=self.colors["bg_root"], border_width=0,
+            text_color=self.colors["text_secondary"], font=ctk.CTkFont("Consolas", 11),
+        )
+        body_box.grid(row=1, column=0, padx=12, pady=(0, 10), sticky="ew")
+        body_box.insert("1.0", reasoning_text.strip())
+        self._make_readonly_selectable(body_box)
+
+        def toggle():
+            if body_box.winfo_viewable():
+                body_box.grid_remove()
+            else:
+                body_box.grid()
+
+        t_btn = ctk.CTkButton(
+            hdr, text="折叠/展开", width=62, height=22, corner_radius=5,
+            fg_color="transparent", border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_muted"],
+            font=ctk.CTkFont("Microsoft YaHei UI", 9),
+            command=toggle,
+        )
+        t_btn.grid(row=0, column=2, sticky="e")
+
+        if hasattr(self.chat, "_parent_canvas"):
+            self.chat._parent_canvas.yview_moveto(1.0)
+
     def _append_chat(self, role: str, text: str) -> None:
         """Append a modern message bubble to the scrollable chat stream."""
         is_user = role in {"you", "你"}
         is_system = role in {"system", "系统", "撤销", "验证", "保存", "导出", "Goal", "错误"}
-        bubble_bg = USER_BG if is_user else (SYSTEM_BG if is_system else ASSISTANT_BG)
-        bubble_fg = USER_TEXT if is_user else (TEXT_PRIMARY if not is_system else "#93c5fd")
+        bubble_bg = self.colors["user_bg"] if is_user else (self.colors["system_bg"] if is_system else self.colors["assistant_bg"])
+        bubble_fg = self.colors["user_text"] if is_user else (self.colors["text_primary"] if not is_system else "#93c5fd")
         label = "你" if is_user else ("小朴" if role in {"小朴", "assistant"} else role)
 
         row = ctk.CTkFrame(self.chat, fg_color="transparent")
         row._xiaopu_bubble = True
-        row.grid(sticky="e" if is_user else ("ew" if is_system else "w"), padx=8, pady=6)
+        row.grid(sticky="e" if is_user else ("ew" if is_system else "w"), padx=6, pady=6)
         row.grid_columnconfigure(0, weight=1)
         row.grid_columnconfigure(1, weight=1)
 
         card = ctk.CTkFrame(
-            row, corner_radius=12, fg_color=bubble_bg,
-            border_width=1, border_color=BORDER,
+            row, corner_radius=14, fg_color=bubble_bg,
+            border_width=1, border_color=self.colors["border"],
         )
         if is_system:
-            card.grid(row=0, column=0, columnspan=2, sticky="ew", padx=30)
+            card.grid(row=0, column=0, columnspan=2, sticky="ew", padx=24)
         else:
             card.grid(row=0, column=1 if is_user else 0, sticky="e" if is_user else "w")
 
         card.grid_columnconfigure(0, weight=1)
 
-        # Header row with role tag, app icon, and copy button
+        # Header row with role tag, icon, and copy button
         hdr = ctk.CTkFrame(card, fg_color="transparent")
         hdr.grid(row=0, column=0, padx=14, pady=(8, 2), sticky="ew")
         hdr.grid_columnconfigure(0, weight=1)
@@ -639,7 +785,7 @@ class AgentGUI:
             if getattr(self, "_app_icon_small", None) is not None:
                 ctk.CTkLabel(tag_frame, text="", image=self._app_icon_small).pack(side="left", padx=(0, 6))
             else:
-                badge = ctk.CTkFrame(tag_frame, width=16, height=16, corner_radius=4, fg_color="#2563eb")
+                badge = ctk.CTkFrame(tag_frame, width=16, height=16, corner_radius=4, fg_color=self.colors["accent_blue"])
                 badge.pack(side="left", padx=(0, 6))
                 badge.pack_propagate(False)
                 ctk.CTkLabel(
@@ -647,7 +793,7 @@ class AgentGUI:
                     text_color="#ffffff",
                 ).place(relx=0.5, rely=0.5, anchor="center")
 
-        tag_color = "#34d399" if is_user else ("#60a5fa" if is_system else "#38bdf8")
+        tag_color = self.colors["accent_emerald"] if is_user else (self.colors["accent_blue"] if is_system else self.colors["accent"])
         ctk.CTkLabel(
             tag_frame, text=label, font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
             text_color=tag_color,
@@ -655,9 +801,9 @@ class AgentGUI:
 
         if not is_system:
             ctk.CTkButton(
-                hdr, text="复制", width=40, height=22, corner_radius=6,
-                fg_color="transparent", border_width=1, border_color=BORDER,
-                hover_color=CARD_HOVER, text_color=TEXT_MUTED,
+                hdr, text="复制", width=38, height=20, corner_radius=5,
+                fg_color="transparent", border_width=1, border_color=self.colors["border"],
+                hover_color=self.colors["card_hover"], text_color=self.colors["text_muted"],
                 font=ctk.CTkFont("Microsoft YaHei UI", 9),
                 command=lambda t=text: self._copy_text(t),
             ).grid(row=0, column=1, sticky="e")
@@ -665,7 +811,7 @@ class AgentGUI:
         # Message body
         body = ctk.CTkLabel(
             card, text=text, justify="left", anchor="w",
-            wraplength=660, font=ctk.CTkFont("Microsoft YaHei UI", 13),
+            wraplength=680, font=ctk.CTkFont("Microsoft YaHei UI", 13),
             text_color=bubble_fg,
         )
         body.grid(row=1, column=0, padx=14, pady=(2, 10), sticky="w")
@@ -719,13 +865,29 @@ class AgentGUI:
 
     def _toggle_activity(self) -> None:
         if self.activity_visible:
-            self.activity.grid_forget()
+            self.activity.grid_remove()
             self.activity_visible = False
-            self.activity_btn.configure(fg_color=CARD_BG, text_color=TEXT_PRIMARY)
+            self.activity_btn.configure(fg_color=self.colors["card_bg"], text_color=self.colors["text_secondary"])
         else:
-            self.activity.grid(row=2, column=1, rowspan=3, sticky="nsew", padx=(0, 16), pady=(0, 8))
+            self.activity.grid(row=0, column=2, sticky="nsew")
             self.activity_visible = True
-            self.activity_btn.configure(fg_color=ACCENT, text_color="#ffffff")
+            self.activity_btn.configure(fg_color=self.colors["accent"], text_color="#ffffff")
+
+    def _toggle_sidebar(self) -> None:
+        if self.sidebar_visible:
+            self.sidebar.grid_remove()
+            self.sidebar_visible = False
+        else:
+            self.sidebar.grid(row=0, column=0, sticky="nsew")
+            self.sidebar_visible = True
+
+    def _toggle_theme(self) -> None:
+        new_theme = "light" if self.theme_name == "dark" else "dark"
+        self.theme_name = new_theme
+        config.set_theme(new_theme)
+        self.colors = THEMES[new_theme]
+        ctk.set_appearance_mode(new_theme)
+        self.status.set(f"已切换主题为：{new_theme}")
 
     # ------------------------------------------------------------------ Streaming & Runtime
     def _on_stream_token(self, piece: str) -> None:
@@ -784,6 +946,9 @@ class AgentGUI:
     def _on_stream_piece(self, piece: str) -> None:
         self._stream_buffer = getattr(self, "_stream_buffer", "") + piece
         if not getattr(self, "_streaming_started", False):
+            # If we had reasoning stream, append the Thought process block first!
+            if self._reasoning_text.strip():
+                self._append_thought_block(self._reasoning_text)
             self._streaming_started = True
             self._append_chat("小朴", "")
             self._stream_bubble_label = self._last_chat_label
@@ -802,6 +967,8 @@ class AgentGUI:
             self._stream_bubble_label = None
             return
         if reply:
+            if self._reasoning_text.strip():
+                self._append_thought_block(self._reasoning_text)
             self._append_chat("小朴", reply)
 
     def _show_event(self, event) -> None:
@@ -811,7 +978,7 @@ class AgentGUI:
             if hasattr(self, "live_action"):
                 self.live_action.set("正在分析任务并选择路线…")
             if hasattr(self, "live_phase"):
-                self.live_phase.set("阶段：intake")
+                self.live_phase.set("Phase: intake")
             self._reasoning_text = ""
             self._trajectory = []
             self._refresh_status()
@@ -820,7 +987,7 @@ class AgentGUI:
             if hasattr(self, "live_action"):
                 self.live_action.set(f"决策：{p.get('action', 'planning')}")
             if hasattr(self, "live_phase"):
-                self.live_phase.set(f"阶段：{p.get('phase', '—')}")
+                self.live_phase.set(f"Phase: {p.get('phase', '—')}")
             line = f"决策 · {p.get('action')} · {p.get('reason', '')}"
             if hasattr(self, "_trajectory"):
                 self._trajectory.append(line)
@@ -834,7 +1001,7 @@ class AgentGUI:
             if hasattr(self, "live_action"):
                 self.live_action.set(str(p.get("next_action", "正在规划…")))
             if hasattr(self, "live_phase"):
-                self.live_phase.set(f"阶段：{p.get('stage', '—')}")
+                self.live_phase.set(f"Phase: {p.get('stage', '—')}")
             return
         if kind == EventKind.TOOL_STARTED:
             self.tool_started_count = getattr(self, "tool_started_count", 0) + 1
@@ -886,7 +1053,7 @@ class AgentGUI:
                 self._trajectory.append(line)
             self._append(getattr(self, "trajectory_box", None), line)
             if hasattr(self, "live_phase"):
-                self.live_phase.set(f"阶段：{p.get('to_phase', '—')}")
+                self.live_phase.set(f"Phase: {p.get('to_phase', '—')}")
             return
 
     def _set_running(self, value: bool) -> None:
@@ -903,12 +1070,12 @@ class AgentGUI:
             if hasattr(self, "live_action"):
                 self.live_action.set("已提交任务给模型…")
             if hasattr(self, "live_phase"):
-                self.live_phase.set("阶段：intake")
+                self.live_phase.set("Phase: intake")
             self._refresh_counts()
         else:
             self.started_at = None
             if hasattr(self, "live_action"):
-                self.live_action.set("任务完成，等待下一条指令")
+                self.live_action.set("就绪 · 等待指令")
         self._refresh_status()
 
     def _refresh_counts(self) -> None:
@@ -945,6 +1112,8 @@ class AgentGUI:
         if not task:
             return
         self.input.delete("1.0", "end")
+        if hasattr(self, "current_title") and self.current_title.get() == "新对话":
+            self.current_title.set(task[:18] + ("…" if len(task) > 18 else ""))
         self._append_chat("you", task)
         self._set_running(True)
 
@@ -962,14 +1131,41 @@ class AgentGUI:
         if hasattr(self, "status"):
             self.status.set("正在安全中断…")
 
-    # ------------------------------------------------------------------ Command Actions
-    def _start_goal(self) -> None:
-        objective = self.goal_entry.get().strip()
-        if objective:
+    # ------------------------------------------------------------------ Dialog Actions
+    def _show_goal_dialog(self) -> None:
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("长期目标管理 (Goal)")
+        dialog.geometry("480x260")
+        dialog.transient(self.root)
+
+        ctk.CTkLabel(dialog, text="🎯 长期目标设定与查看", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold")).pack(pady=(14, 6))
+        entry = ctk.CTkEntry(dialog, width=420, placeholder_text="输入目标描述，例如：全套产品发布会 PPT 制作")
+        entry.pack(pady=8)
+
+        def on_start():
+            val = entry.get().strip()
+            if val:
+                try:
+                    res = self.h.start_goal(val)
+                    self._append_chat("Goal", res)
+                    dialog.destroy()
+                except Exception as exc:
+                    messagebox.showerror("启动失败", str(exc))
+
+        def on_view():
             try:
-                self._append_chat("Goal", self.h.start_goal(objective))
+                summary = self.h.goal_summary()
+                messagebox.showinfo("当前目标", summary)
             except Exception as exc:
-                messagebox.showerror("Goal 启动失败", str(exc))
+                messagebox.showerror("获取失败", str(exc))
+
+        btn_row = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_row.pack(pady=12)
+        ctk.CTkButton(btn_row, text="启动新目标", command=on_start, width=100, fg_color=self.colors["accent"]).pack(side="left", padx=6)
+        ctk.CTkButton(btn_row, text="查看当前状态", command=on_view, width=100).pack(side="left", padx=6)
+
+    def _start_goal(self) -> None:
+        self._show_goal_dialog()
 
     def _show_goal(self) -> None:
         try:
@@ -977,6 +1173,20 @@ class AgentGUI:
             messagebox.showinfo("长期目标状态", summary)
         except Exception as exc:
             messagebox.showerror("获取 Goal 失败", str(exc))
+
+    def _show_doctor_dialog(self) -> None:
+        from .doctor import report
+        data = report()
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("小朴 · 环境诊断 (Doctor)")
+        dialog.geometry("520x360")
+        dialog.transient(self.root)
+
+        ctk.CTkLabel(dialog, text="⚙ 环境与依赖诊断报告", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold")).pack(pady=(12, 6))
+        box = ctk.CTkTextbox(dialog, wrap="word", font=ctk.CTkFont("Consolas", 11))
+        box.pack(fill="both", expand=True, padx=14, pady=(0, 14))
+        box.insert("1.0", json.dumps(data, indent=2, ensure_ascii=False))
+        self._make_readonly_selectable(box)
 
     def _new_session(self) -> None:
         if getattr(self, "running", False):
@@ -988,6 +1198,7 @@ class AgentGUI:
             pass
         self.h.reset()
         self._clear_chat()
+        self.current_title.set("新对话")
         self._append_chat("system", "已保存前序会话并创建全新会话。")
         self._refresh_sessions()
         self._refresh_status()
@@ -1042,32 +1253,32 @@ class AgentGUI:
             ctk.CTkLabel(
                 self.session_frame, text="暂无保存的会话",
                 font=ctk.CTkFont("Microsoft YaHei UI", 11),
-                text_color=TEXT_MUTED,
+                text_color=self.colors["text_muted"],
             ).grid(row=0, column=0, pady=16)
             return
 
         for index, record in enumerate(self._session_records[:50]):
             card = ctk.CTkFrame(
-                self.session_frame, corner_radius=8, fg_color=CARD_BG,
-                border_width=1, border_color=BORDER,
+                self.session_frame, corner_radius=8, fg_color=self.colors["card_bg"],
+                border_width=1, border_color=self.colors["border"],
             )
             card.grid(row=index, column=0, padx=4, pady=3, sticky="ew")
             card.grid_columnconfigure(0, weight=1)
 
-            title_text = record.title[:22] + ("…" if len(record.title) > 22 else "")
+            title_text = record.title[:20] + ("…" if len(record.title) > 20 else "")
             time_text = record.updated_at[:16] if getattr(record, "updated_at", None) else ""
 
-            btn_content = f"{title_text}\n{time_text}" if time_text else title_text
+            btn_content = f"💬  {title_text}\n     {time_text}" if time_text else f"💬  {title_text}"
             ctk.CTkButton(
                 card, text=btn_content, anchor="w",
                 height=36, corner_radius=6, fg_color="transparent",
-                hover_color=CARD_HOVER, text_color=TEXT_PRIMARY,
+                hover_color=self.colors["card_hover"], text_color=self.colors["text_primary"],
                 font=ctk.CTkFont("Microsoft YaHei UI", 11),
                 command=lambda i=index: self._resume_session(i),
             ).grid(row=0, column=0, sticky="ew", padx=4, pady=2)
 
             ctk.CTkButton(
-                card, text="✕", width=24, height=24, corner_radius=6,
+                card, text="✕", width=22, height=22, corner_radius=5,
                 fg_color="transparent", hover_color="#451a1a", text_color="#f87171",
                 font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
                 command=lambda i=index: self._delete_session(i),
@@ -1110,6 +1321,7 @@ class AgentGUI:
         if payload is None:
             messagebox.showerror("恢复失败", "无法读取会话文件。")
             return
+        self.current_title.set(record.title[:18] + ("…" if len(record.title) > 18 else ""))
         report = restore_harness(self.h, payload)
         self._render_history(payload)
         self._append_chat("system", f"✓ 已恢复会话 [{record.id[:8]}] · {report}")
