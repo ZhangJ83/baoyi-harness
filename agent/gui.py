@@ -139,6 +139,19 @@ class AgentGUI:
         self._build_sidebar()
         self._build_main()
 
+        # Set window icon (Blue square with styled glyph)
+        try:
+            from PIL import Image, ImageTk, ImageDraw
+            icon_img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(icon_img)
+            draw.rounded_rectangle([2, 2, 62, 62], radius=14, fill="#2563eb")
+            draw.rectangle([20, 16, 26, 48], fill="#ffffff")
+            draw.rounded_rectangle([20, 16, 44, 34], radius=6, outline="#ffffff", width=6)
+            self._icon_photo = ImageTk.PhotoImage(icon_img)
+            self.root.iconphoto(False, self._icon_photo)
+        except Exception:
+            pass
+
     def _build_sidebar(self) -> None:
         rail = ctk.CTkFrame(self.root, width=260, corner_radius=0, fg_color=SIDEBAR_BG,
                             border_width=1, border_color=BORDER)
@@ -147,19 +160,29 @@ class AgentGUI:
         rail.grid_columnconfigure(0, weight=1)
         rail.grid_rowconfigure(2, weight=1)
 
-        # Brand / Logo
+        # Brand / Logo with Blue Square Icon
         brand = ctk.CTkFrame(rail, fg_color="transparent")
         brand.grid(row=0, column=0, padx=16, pady=(18, 12), sticky="ew")
         title_row = ctk.CTkFrame(brand, fg_color="transparent")
         title_row.pack(fill="x")
-        ctk.CTkLabel(title_row, text="小朴", font=ctk.CTkFont("Microsoft YaHei UI", 24, "bold"),
+
+        # Blue square brand logo badge
+        icon_badge = ctk.CTkFrame(title_row, width=32, height=32, corner_radius=8, fg_color="#2563eb")
+        icon_badge.pack(side="left", padx=(0, 10))
+        icon_badge.pack_propagate(False)
+        ctk.CTkLabel(
+            icon_badge, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 15, "bold"),
+            text_color="#ffffff",
+        ).place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(title_row, text="小朴", font=ctk.CTkFont("Microsoft YaHei UI", 22, "bold"),
                      text_color=TEXT_PRIMARY).pack(side="left")
-        ctk.CTkLabel(title_row, text="●", font=ctk.CTkFont("Microsoft YaHei UI", 12),
+        ctk.CTkLabel(title_row, text="●", font=ctk.CTkFont("Microsoft YaHei UI", 10),
                      text_color=ACCENT).pack(side="left", padx=(6, 0), pady=(4, 0))
         ctk.CTkLabel(title_row, text="v0.2.0", font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
-                     text_color=TEXT_MUTED).pack(side="left", padx=(6, 0), pady=(4, 0))
+                     text_color=TEXT_MUTED).pack(side="left", padx=(4, 0), pady=(4, 0))
         ctk.CTkLabel(brand, text="智能代码与演示文稿助手", font=ctk.CTkFont("Microsoft YaHei UI", 11),
-                     text_color=TEXT_SECONDARY).pack(anchor="w", pady=(2, 0))
+                     text_color=TEXT_SECONDARY).pack(anchor="w", pady=(6, 0))
 
         # + New Session button
         ctk.CTkButton(
@@ -579,11 +602,24 @@ class AgentGUI:
         hdr.grid(row=0, column=0, padx=14, pady=(8, 2), sticky="ew")
         hdr.grid_columnconfigure(0, weight=1)
 
+        tag_frame = ctk.CTkFrame(hdr, fg_color="transparent")
+        tag_frame.grid(row=0, column=0, sticky="w")
+
+        if not is_user and not is_system:
+            # Blue square badge for Xiaopu
+            badge = ctk.CTkFrame(tag_frame, width=16, height=16, corner_radius=4, fg_color="#2563eb")
+            badge.pack(side="left", padx=(0, 6))
+            badge.pack_propagate(False)
+            ctk.CTkLabel(
+                badge, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 9, "bold"),
+                text_color="#ffffff",
+            ).place(relx=0.5, rely=0.5, anchor="center")
+
         tag_color = "#34d399" if is_user else ("#60a5fa" if is_system else "#38bdf8")
         ctk.CTkLabel(
-            hdr, text=label, font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            tag_frame, text=label, font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
             text_color=tag_color,
-        ).grid(row=0, column=0, sticky="w")
+        ).pack(side="left")
 
         if not is_system:
             ctk.CTkButton(
