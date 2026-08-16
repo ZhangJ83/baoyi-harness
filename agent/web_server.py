@@ -433,31 +433,40 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             if ws_root.is_dir():
                 candidate_exts = {".pptx", ".ppt", ".md", ".py", ".html", ".json", ".csv", ".xlsx", ".pdf", ".txt"}
                 try:
-                    for f in sorted(ws_root.glob("*"), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
+                    # Recursive discovery: task outputs live under tasks/<id>/output,
+                    # so a root-only scan hides the artifacts the agent just made.
+                    candidates = []
+                    for f in ws_root.rglob("*"):
                         if f.is_file() and f.suffix.lower() in candidate_exts:
-                            stat = f.stat()
-                            size_kb = stat.st_size / 1024
-                            size_str = f"{stat.st_size} B" if stat.st_size < 1024 else (f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.2f} MB")
-                            file_type = f.suffix.lower().lstrip(".")
-                            
-                            slides_count = None
-                            if file_type in ("pptx", "ppt") and hasattr(self.harness, "deck") and self.harness.deck:
-                                try:
-                                    slides_count = len(getattr(self.harness.deck, "slides", []))
-                                except Exception:
-                                    slides_count = None
+                            candidates.append(f)
+                            if len(candidates) >= 300:
+                                break
+                    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+                    for f in candidates[:200]:
+                        stat = f.stat()
+                        size_kb = stat.st_size / 1024
+                        size_str = f"{stat.st_size} B" if stat.st_size < 1024 else (f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.2f} MB")
+                        file_type = f.suffix.lower().lstrip(".")
 
-                            artifacts.append({
-                                "name": f.name,
-                                "path": str(f.resolve()),
-                                "type": file_type,
-                                "size": stat.st_size,
-                                "size_human": size_str,
-                                "updated_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
-                                "time_ago": _time_ago(datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()),
-                                "slides_count": slides_count,
-                                "is_pptx": file_type in ("pptx", "ppt"),
-                            })
+                        slides_count = None
+                        if file_type in ("pptx", "ppt"):
+                            try:
+                                from pptx import Presentation as _Presentation
+                                slides_count = len(_Presentation(str(f)).slides)
+                            except Exception:
+                                slides_count = None
+
+                        artifacts.append({
+                            "name": f.name,
+                            "path": str(f.resolve()),
+                            "type": file_type,
+                            "size": stat.st_size,
+                            "size_human": size_str,
+                            "updated_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+                            "time_ago": _time_ago(datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()),
+                            "slides_count": slides_count,
+                            "is_pptx": file_type in ("pptx", "ppt"),
+                        })
                 except Exception:
                     pass
 
@@ -618,10 +627,12 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
         self.send_error(404, "Not Found")
 
     def _handle_chat_stream(self, body: dict) -> None:
-        task = body.get("task", "")
+        # The browser frontend posts `prompt`; older API clients post `task`.
+        # Accept both so the web composer always reaches the harness.
+        task = body.get("task") or body.get("prompt") or ""
         session_id = body.get("session_id")
         model = body.get("model")
-        permission = body.get("permission")
+        permission = body.get("permission") or body.get("command_policy")
         reasoning_effort = body.get("reasoning_effort")
 
         if reasoning_effort:

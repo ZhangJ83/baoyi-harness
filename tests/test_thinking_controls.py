@@ -19,6 +19,15 @@ def test_thinking_defaults_on_and_can_be_disabled():
         assert config.thinking_enabled()
 
 
+def test_command_policy_setter_persists_valid_values_only():
+    with patch.dict(os.environ, {}, clear=True):
+        assert config.command_policy() == "ask"
+        config.set_command_policy("deny")
+        assert config.command_policy() == "deny"
+        config.set_command_policy("bogus")
+        assert config.command_policy() == "deny"
+
+
 def test_raw_reasoning_is_present_in_protocol_message_not_user_content():
     message = AssistantMessage(content="可公开的答案", reasoning_content="private")
     assert message.content == "可公开的答案"

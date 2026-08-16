@@ -650,6 +650,12 @@
     scrollToBottom();
   }
 
+  function appendAssistantMessage(text) {
+    const card = appendAssistantContainer();
+    card.innerHTML = formatMarkdown(text);
+    return card;
+  }
+
   function appendThoughtCard(initialContent = "") {
     removeWelcomeHero();
     const card = document.createElement("div");
@@ -844,11 +850,13 @@
   function handleStreamEvent(event, onToken) {
     const type = event.type;
     const payload = event.payload || {};
+    const directText = event.content || "";
 
     if (type === "token") {
-      onToken(payload.text || "");
-    } else if (type === "thought") {
-      const thoughtText = payload.text || "";
+      // Server streams {"type":"token","content":...}; tolerate payload.text too.
+      onToken(payload.text || directText || "");
+    } else if (type === "thought" || type === "reasoning") {
+      const thoughtText = payload.text || directText || "";
       rawReasoning += thoughtText;
       cotLog.innerText = rawReasoning;
 
@@ -861,6 +869,16 @@
         }
       }
       scrollToBottom();
+    } else if (type === "result") {
+      // Providers occasionally return no token deltas; render the final text
+      // so a completed turn is never invisible in the bubble.
+      const finalText = directText || "";
+      if (finalText && currentAssistantCard && !currentAssistantCard.innerText.trim()) {
+        currentAssistantCard.innerHTML = formatMarkdown(finalText);
+        scrollToBottom();
+      }
+    } else if (type === "error") {
+      appendSystemMessage(`请求异常: ${directText || payload.content || "未知错误"}`);
     } else if (type === "tool_started") {
       toolStarted++;
       refreshCounts(toolStarted, toolCompleted, toolFailed);

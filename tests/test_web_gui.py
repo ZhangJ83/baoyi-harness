@@ -41,6 +41,12 @@ def test_web_static_css_and_js(web_test_server):
     assert "application/javascript" in req_js.headers.get("Content-Type", "")
     content_js = req_js.read().decode("utf-8")
     assert "Thought process" in content_js
+    # Regression guards for the browser<->server contract discovered by the
+    # Playwright flow: the composer posts `prompt`, the server streams token
+    # events as event.content, and history needs appendAssistantMessage.
+    assert "prompt: prompt," in content_js
+    assert "payload.text || directText" in content_js
+    assert "function appendAssistantMessage" in content_js
 
 
 def test_web_api_config(web_test_server):
@@ -87,6 +93,61 @@ def test_web_api_sessions_and_chat_stream(web_test_server):
                 break
         raw_text = "".join(collected)
         assert "data:" in raw_text
+
+
+def test_web_api_chat_accepts_prompt_field_from_browser(web_test_server, monkeypatch):
+    """The web composer posts `prompt` (not `task`); the server must forward it."""
+    import agent.web_server as web_server
+    from types import SimpleNamespace
+
+    captured = {}
+
+    class FakeHarness:
+        def __init__(self):
+            self.session = SimpleNamespace(id="fake-session-id")
+            self.stream_callback = None
+            self.reasoning_callback = None
+
+        def run(self, task):
+            captured["task"] = task
+            if self.stream_callback:
+                self.stream_callback("OK")
+            return "OK"
+
+        def subscribe(self, callback):
+            return lambda: None
+
+    monkeypatch.setattr(web_server, "save_session",
+                        lambda harness: SimpleNamespace(id="fake-session-saved"))
+    monkeypatch.setattr(web_server.config, "set_command_policy",
+                        lambda value: captured.__setitem__("policy", value))
+    monkeypatch.setattr(XiaopuWebHandler, "harness", FakeHarness())
+
+    policy = web_server.config.command_policy()
+    post_data = json.dumps({
+        "prompt": "只回答两个字：OK",
+        "command_policy": policy,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        f"{web_test_server}/api/chat",
+        data=post_data,
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        assert resp.status == 200
+        assert "text/event-stream" in resp.headers.get("Content-Type", "")
+        raw_text = ""
+        for _ in range(50):
+            line = resp.readline().decode("utf-8")
+            if not line:
+                break
+            raw_text += line
+            if "[DONE]" in line:
+                break
+
+    assert captured["task"] == "只回答两个字：OK"
+    assert captured["policy"] == policy
+    assert "session_saved" in raw_text
 
 
 def test_web_api_tree(web_test_server):

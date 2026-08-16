@@ -172,6 +172,17 @@ def command_policy() -> str:
     return value if value in {"allow", "ask", "deny"} else "ask"
 
 
+def set_command_policy(value: str) -> None:
+    """Persist the shell command policy for this process.
+
+    Invalid values are ignored so UI/CLI callers fail closed to the
+    ``command_policy()`` default instead of crashing the request.
+    """
+    policy = str(value or "").strip().lower()
+    if policy in {"allow", "ask", "deny"}:
+        os.environ["COMMAND_POLICY"] = policy
+
+
 def isolated_benchmark() -> bool:
     return os.getenv("ISOLATED_BENCHMARK", "0").strip().lower() in {"1", "true", "yes"}
 

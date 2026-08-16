@@ -70,6 +70,51 @@ def test_delete_session(tmp_path, monkeypatch):
     assert session_store.load_session(record.id) is None
 
 
+def test_save_session_preserves_prior_history_after_task_reset(tmp_path, monkeypatch):
+    monkeypatch.setenv("XIAOPU_HOME", str(tmp_path))
+    from types import SimpleNamespace
+
+    h = DummyHarness()
+    h.session = SimpleNamespace(id="sess-keep-history")
+    h.messages = [
+        {"role": "user", "content": "旧任务"},
+        {"role": "assistant", "content": "旧回复"},
+    ]
+    first = session_store.save_session(h)
+
+    # A new task package resets model-local messages; the durable file must not
+    # lose the earlier user-visible turns.
+    h.messages = [
+        {"role": "user", "content": "新任务"},
+        {"role": "assistant", "content": "新回复"},
+    ]
+    second = session_store.save_session(h)
+
+    assert second.id == first.id
+    assert second.created_at == first.created_at
+    assert second.turn_count == 2
+    payload = session_store.load_session(second.id)
+    assert [m["content"] for m in payload["messages"]] == [
+        "旧任务", "旧回复", "新任务", "新回复",
+    ]
+
+    # Same-task continuation (current messages still contain the prior prefix)
+    # appends only the new tail instead of duplicating history.
+    h.messages = [
+        {"role": "user", "content": "旧任务"},
+        {"role": "assistant", "content": "旧回复"},
+        {"role": "user", "content": "新任务"},
+        {"role": "assistant", "content": "新回复"},
+        {"role": "user", "content": "继续"},
+        {"role": "assistant", "content": "好的"},
+    ]
+    third = session_store.save_session(h)
+    payload = session_store.load_session(third.id)
+    assert [m["content"] for m in payload["messages"]] == [
+        "旧任务", "旧回复", "新任务", "新回复", "继续", "好的",
+    ]
+
+
 def test_cli_lists_sessions_without_credential(tmp_path, monkeypatch):
     monkeypatch.setenv("XIAOPU_HOME", str(tmp_path))
     from agent import main

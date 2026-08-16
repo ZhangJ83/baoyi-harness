@@ -98,17 +98,58 @@ def snapshot_harness(harness) -> dict:
     }
 
 
+def _merge_with_prior(prior_messages: list[dict], current_messages: list[dict]) -> list[dict]:
+    """Merge a freshly snapshotted turn into the previously stored history.
+
+    A resumed interactive turn can legitimately reset the harness's model-local
+    ``messages`` (a new task package gets clean benchmark-style context), but
+    the durable session file must keep the full user-visible conversation.
+    The stored messages either (a) are a prefix of the current messages for a
+    same-task continuation, or (b) are absent when the new task reset them.
+    Detect the longest suffix-of-prior / prefix-of-current overlap and append
+    only the genuinely new tail; otherwise the whole prior history is prepended.
+    """
+    if not prior_messages:
+        return list(current_messages)
+    if not current_messages:
+        return list(prior_messages)
+    max_overlap = min(len(prior_messages), len(current_messages))
+    overlap = 0
+    for k in range(max_overlap, 0, -1):
+        if prior_messages[-k:] == current_messages[:k]:
+            overlap = k
+            break
+    return list(prior_messages) + list(current_messages[overlap:])
+
+
 def save_session(harness, title: str = "") -> SessionRecord:
     payload = snapshot_harness(harness)
     session_id = payload["id"]
+    path = _sessions_dir() / f"{session_id}.json"
+    created_at = payload["created_at"]
+
+    # Reopening an existing session must never erase its earlier turns.
+    if path.is_file():
+        try:
+            prior = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            prior = {}
+        if prior.get("id") == session_id:
+            payload["messages"] = _merge_with_prior(
+                prior.get("messages") or [], payload["messages"]
+            )
+            if prior.get("created_at"):
+                created_at = prior["created_at"]
+
+    payload["created_at"] = created_at
+    payload["updated_at"] = _now()
     title = (title or _derive_title(payload))[:80]
     payload["title"] = title
-    path = _sessions_dir() / f"{session_id}.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     turn_count = sum(1 for m in payload["messages"] if m.get("role") == "assistant")
     summary = (payload.get("final_summary") or "").strip()[:200]
-    return SessionRecord(id=session_id, title=title, created_at=payload["created_at"],
-                         updated_at=payload["created_at"], model=payload["model"],
+    return SessionRecord(id=session_id, title=title, created_at=created_at,
+                         updated_at=payload["updated_at"], model=payload["model"],
                          workspace=payload["workspace"], turn_count=turn_count,
                          path=path, summary=summary)
 
@@ -148,7 +189,8 @@ def list_sessions(workspace: str | None = None) -> list[SessionRecord]:
         title = payload.get("title") or _derive_title(payload)
         records.append(SessionRecord(
             id=payload.get("id", path.stem), title=title,
-            created_at=payload.get("created_at", ""), updated_at=payload.get("created_at", ""),
+            created_at=payload.get("created_at", ""),
+            updated_at=payload.get("updated_at") or payload.get("created_at", ""),
             model=payload.get("model", ""), workspace=rec_ws,
             turn_count=sum(1 for m in payload.get("messages", []) if m.get("role") == "assistant"),
             path=path, summary=(payload.get("final_summary") or "")[:200]))
