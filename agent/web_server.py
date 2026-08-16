@@ -181,19 +181,65 @@ def _time_ago(iso_str: str) -> str:
     except Exception:
         return "now"
 
+def _session_json(record) -> dict:
+    return {
+        "id": record.id,
+        "title": record.title,
+        "created_at": record.created_at,
+        "updated_at": record.updated_at,
+        "time_ago": _time_ago(record.updated_at),
+        "model": record.model,
+        "workspace": record.workspace,
+        "turn_count": record.turn_count,
+        "summary": record.summary,
+        "pinned": bool(record.pinned),
+        "status": record.status,
+    }
+
+
+def _workspace_json(record) -> dict:
+    return {
+        "path": record.path,
+        "name": record.name,
+        "display_name": record.display_name or record.name,
+        "last_used": record.last_used,
+        "pinned": bool(record.pinned),
+        "archived": bool(record.archived),
+        "removed_at": record.removed_at or "",
+    }
+
+
 from . import config
 from .events import EventKind, RuntimeEvent
 from .harness import Harness
 from .session_store import (
+    archive_session,
+    batch_session_action,
     delete_session,
     export_session,
     list_sessions,
     load_session,
+    purge_expired_sessions,
+    purge_session,
+    rename_session,
     restore_harness,
+    restore_session,
     save_session,
+    set_session_pinned,
+    trash_session,
 )
 from .tools.registry import dispatch
-from .workspace_store import list_workspaces, register_workspace
+from .workspace_store import (
+    archive_workspace,
+    list_workspaces,
+    purge_workspace,
+    register_workspace,
+    remove_workspace,
+    rename_workspace,
+    restore_workspace,
+    set_workspace_pinned,
+    touch_workspace,
+)
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
@@ -295,23 +341,48 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/workspaces":
-            workspaces = []
-            for w in list_workspaces():
-                w_path = getattr(w, "path", str(w))
-                if w_path and w_path not in workspaces:
-                    workspaces.append(w_path)
+            view = query.get("view", ["active"])[0]
+            records = list_workspaces(view=view)
             current = str(config.sandbox_root())
-            if current not in workspaces:
-                workspaces.insert(0, current)
-            self._send_json({"workspaces": workspaces, "current": current})
+            self._send_json({
+                "workspaces": [w.path for w in records],
+                "current": current,
+                "records": [_workspace_json(w) for w in records],
+                "archived": [_workspace_json(w) for w in list_workspaces(view="archived")],
+                "removed": [_workspace_json(w) for w in list_workspaces(view="removed")],
+            })
+            return
+
+        if path == "/api/workspaces/manage":
+            self._send_json({
+                "active": [_workspace_json(w) for w in list_workspaces(view="active")],
+                "archived": [_workspace_json(w) for w in list_workspaces(view="archived")],
+                "removed": [_workspace_json(w) for w in list_workspaces(view="removed")],
+                "current": str(config.sandbox_root()),
+            })
             return
 
         if path == "/api/tree":
+            # Trash self-cleans on read; cheap and avoids a background scheduler.
+            purge_expired_sessions(days=30)
+            view = query.get("view", ["active"])[0]
+            if view not in {"active", "archive", "trash", "all"}:
+                view = "active"
+            q = (query.get("q", [""])[0] or "").strip().casefold()
             current_ws = str(config.sandbox_root())
             known_workspaces = []
 
-            # 1. Registered workspaces
-            for w in list_workspaces():
+            # Workspaces explicitly archived/removed stay hidden even when they
+            # are the current workspace or own historical sessions.
+            hidden_workspaces: set[str] = set()
+            for w in list_workspaces(view="archived") + list_workspaces(view="removed"):
+                try:
+                    hidden_workspaces.add(str(Path(w.path).resolve()).casefold())
+                except Exception:
+                    pass
+
+            # 1. Registered active workspaces
+            for w in list_workspaces(view="active"):
                 w_path = getattr(w, "path", str(w))
                 if w_path and w_path not in known_workspaces:
                     try:
@@ -320,48 +391,61 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
 
-            # 2. Current workspace
+            # 2. Current workspace (unless the user archived/removed it)
             try:
                 curr_res = str(Path(current_ws).resolve())
-                if curr_res not in known_workspaces:
+                if curr_res.casefold() not in hidden_workspaces and curr_res not in known_workspaces:
                     known_workspaces.insert(0, curr_res)
             except Exception:
                 if current_ws not in known_workspaces:
                     known_workspaces.insert(0, current_ws)
 
             # 3. Auto-discover valid workspaces from all historical sessions
-            all_sessions = list_sessions()
-            for s in all_sessions:
+            active_sessions = list_sessions(view="active")
+            for s in active_sessions:
                 if s.workspace:
                     try:
                         p = Path(s.workspace)
                         if p.is_dir():
                             resolved = str(p.resolve())
-                            # Ignore temporary pytest directories
-                            if "pytest-" not in resolved and "Temp" not in resolved:
-                                if resolved not in known_workspaces:
-                                    known_workspaces.append(resolved)
+                            # Ignore temporary pytest directories and
+                            # explicitly archived/removed workspaces.
+                            if "pytest-" not in resolved and "Temp" not in resolved \
+                                    and resolved.casefold() not in hidden_workspaces \
+                                    and resolved not in known_workspaces:
+                                known_workspaces.append(resolved)
                     except Exception:
                         pass
 
+            # Workspace metadata (display alias, pin) keyed by resolved path.
+            ws_meta: dict[str, dict] = {}
+            for w in list_workspaces(view="all"):
+                try:
+                    ws_meta[str(Path(w.path).resolve()).casefold()] = _workspace_json(w)
+                except Exception:
+                    pass
+
+            def matches_query(session) -> bool:
+                if not q:
+                    return True
+                haystack = f"{session.title} {session.summary}".casefold()
+                return q in haystack
+
             assigned_session_ids = set()
             projects = []
+            view_sessions = list_sessions(view=view)
             for ws_path in known_workspaces:
                 p_path = Path(ws_path)
                 p_name = p_path.name or str(ws_path)
-                ws_sessions = list_sessions(workspace=ws_path)
+                ws_sessions = [s for s in list_sessions(workspace=ws_path, view=view) if matches_query(s)]
                 s_list = []
                 for r in ws_sessions:
                     assigned_session_ids.add(r.id)
-                    s_list.append({
-                        "id": r.id,
-                        "title": r.title,
-                        "updated_at": r.updated_at,
-                        "time_ago": _time_ago(r.updated_at),
-                        "turn_count": r.turn_count,
-                        "workspace": r.workspace,
-                    })
-                
+                    s_list.append(_session_json(r))
+                try:
+                    meta = ws_meta.get(str(Path(ws_path).resolve()).casefold(), {})
+                except Exception:
+                    meta = {}
                 is_curr = False
                 try:
                     is_curr = (Path(ws_path).resolve() == Path(current_ws).resolve())
@@ -369,49 +453,37 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
                     is_curr = (str(ws_path).casefold() == str(current_ws).casefold())
 
                 projects.append({
-                    "name": p_name,
+                    "name": meta.get("display_name") or p_name,
                     "path": ws_path,
                     "is_current": is_curr,
+                    "pinned": meta.get("pinned", False),
                     "sessions": s_list,
                 })
 
             general_sessions = []
-            for r in all_sessions:
-                if r.id not in assigned_session_ids:
-                    general_sessions.append({
-                        "id": r.id,
-                        "title": r.title,
-                        "updated_at": r.updated_at,
-                        "time_ago": _time_ago(r.updated_at),
-                        "turn_count": r.turn_count,
-                        "workspace": r.workspace,
-                    })
+            for r in view_sessions:
+                if r.id not in assigned_session_ids and matches_query(r):
+                    general_sessions.append(_session_json(r))
 
             self._send_json({
                 "projects": projects,
                 "conversations": general_sessions,
                 "current_workspace": current_ws,
+                "view": view,
+                "query": q,
+                "workspace_groups": {
+                    "active": [_workspace_json(w) for w in list_workspaces(view="active")],
+                    "archived": [_workspace_json(w) for w in list_workspaces(view="archived")],
+                    "removed": [_workspace_json(w) for w in list_workspaces(view="removed")],
+                },
             })
             return
 
         if path == "/api/sessions":
             ws = query.get("workspace", [None])[0]
-            records = list_sessions(workspace=ws)
-            self._send_json({
-                "sessions": [
-                    {
-                        "id": r.id,
-                        "title": r.title,
-                        "created_at": r.created_at,
-                        "updated_at": r.updated_at,
-                        "model": r.model,
-                        "workspace": r.workspace,
-                        "turn_count": r.turn_count,
-                        "summary": r.summary,
-                    }
-                    for r in records
-                ]
-            })
+            view = query.get("view", ["active"])[0]
+            records = list_sessions(workspace=ws, view=view)
+            self._send_json({"sessions": [_session_json(r) for r in records]})
             return
 
         if path.startswith("/api/session/"):
@@ -530,6 +602,76 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             self.send_error(400, "Missing workspace argument")
             return
 
+        if path == "/api/workspace/action":
+            ws_path = body.get("path")
+            action = body.get("action")
+            if not ws_path or not action:
+                self.send_error(400, "Missing path or action")
+                return
+            handlers = {
+                "rename": lambda: rename_workspace(ws_path, body.get("display_name", "")),
+                "pin": lambda: set_workspace_pinned(ws_path, bool(body.get("pinned", False))),
+                "archive": lambda: archive_workspace(ws_path),
+                "restore": lambda: restore_workspace(ws_path),
+                "remove": lambda: remove_workspace(ws_path),
+                "purge": lambda: purge_workspace(ws_path),
+            }
+            handler = handlers.get(action)
+            if handler is None:
+                self.send_error(400, f"Unsupported workspace action: {action}")
+                return
+            try:
+                ok = handler()
+            except Exception as exc:
+                self._send_json({"status": "error", "error": str(exc)}, status=400)
+                return
+            self._send_json({"status": "ok" if ok else "not_found", "action": action, "path": ws_path})
+            return
+
+        if path == "/api/session/action":
+            session_id = body.get("id")
+            action = body.get("action")
+            if not session_id or not action:
+                self.send_error(400, "Missing id or action")
+                return
+            if action == "rename":
+                ok = rename_session(session_id, body.get("title", ""))
+                result = {"status": "ok" if ok else "not_found", "action": action}
+            elif action == "pin":
+                ok = set_session_pinned(session_id, bool(body.get("pinned", False)))
+                result = {"status": "ok" if ok else "not_found", "action": action}
+            elif action in {"archive", "trash", "restore", "purge"}:
+                handlers = {
+                    "archive": archive_session,
+                    "trash": trash_session,
+                    "restore": restore_session,
+                    "purge": purge_session,
+                }
+                ok = handlers[action](session_id)
+                result = {"status": "ok" if ok else "not_found", "action": action}
+            elif action == "export":
+                try:
+                    out_file = config.sandbox_root() / f"xiaopu-session-{session_id[:8]}.md"
+                    exported = export_session(session_id, out_file)
+                    result = {"status": "ok", "action": action, "path": str(exported)}
+                except ValueError:
+                    result = {"status": "not_found", "action": action}
+            else:
+                self.send_error(400, f"Unsupported session action: {action}")
+                return
+            self._send_json(result)
+            return
+
+        if path == "/api/sessions/batch":
+            ids = [str(i) for i in body.get("ids", [])]
+            action = body.get("action", "")
+            if not ids or action not in {"archive", "trash", "restore", "purge"}:
+                self.send_error(400, "Missing ids or unsupported action")
+                return
+            result = batch_session_action(ids, action)
+            self._send_json({"status": "ok", **result})
+            return
+
         if path == "/api/cancel":
             self.harness.request_cancel()
             self._send_json({"status": "cancelled"})
@@ -618,11 +760,18 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
         self.send_error(404, "Not Found")
 
     def do_DELETE(self) -> None:
-        path = urllib.parse.urlparse(self.path).path
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
         if path.startswith("/api/session/"):
             session_id = path[len("/api/session/"):]
-            ok = delete_session(session_id)
-            self._send_json({"status": "deleted" if ok else "not_found"})
+            mode = urllib.parse.parse_qs(parsed.query).get("mode", ["trash"])[0]
+            if mode == "purge":
+                ok = delete_session(session_id)
+                status = "deleted"
+            else:
+                ok = trash_session(session_id)
+                status = "trashed"
+            self._send_json({"status": status if ok else "not_found"})
             return
         self.send_error(404, "Not Found")
 

@@ -29,6 +29,10 @@ def test_web_static_index_html(web_test_server):
     assert "小朴" in content
     assert "activity-drawer" in content
     assert "prompt-input" in content
+    # Sidebar management v2 controls
+    assert "sidebar-search" in content
+    assert "workspaces-modal" in content
+    assert "sidebar-batch-bar" in content
 
 
 def test_web_static_css_and_js(web_test_server):
@@ -162,6 +166,91 @@ def test_web_api_tree(web_test_server):
     assert "name" in p
     assert "path" in p
     assert "sessions" in p
+    assert "workspace_groups" in data
+
+
+def test_web_api_tree_view_and_search_params(web_test_server):
+    req = urllib.request.urlopen(f"{web_test_server}/api/tree?view=archive&q=no-such-session")
+    assert req.status == 200
+    data = json.loads(req.read().decode("utf-8"))
+    assert data["view"] == "archive"
+    assert data["query"] == "no-such-session"
+
+
+def test_web_api_workspace_manage(web_test_server):
+    req = urllib.request.urlopen(f"{web_test_server}/api/workspaces/manage")
+    assert req.status == 200
+    data = json.loads(req.read().decode("utf-8"))
+    for key in ("active", "archived", "removed", "current"):
+        assert key in data
+
+
+def test_web_api_session_action_routes(web_test_server, monkeypatch):
+    import agent.web_server as web_server
+    captured = {}
+
+    monkeypatch.setattr(web_server, "rename_session", lambda sid, title: captured.setdefault("rename", (sid, title)) or True)
+    monkeypatch.setattr(web_server, "set_session_pinned", lambda sid, pinned: captured.setdefault("pin", (sid, pinned)) or True)
+    monkeypatch.setattr(web_server, "archive_session", lambda sid: captured.setdefault("archive", sid) or True)
+    monkeypatch.setattr(web_server, "trash_session", lambda sid: captured.setdefault("trash", sid) or True)
+    monkeypatch.setattr(web_server, "restore_session", lambda sid: captured.setdefault("restore", sid) or True)
+    monkeypatch.setattr(web_server, "purge_session", lambda sid: captured.setdefault("purge", sid) or True)
+
+    def post(payload):
+        req = urllib.request.Request(
+            f"{web_test_server}/api/session/action",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    assert post({"id": "s1", "action": "rename", "title": "新标题"})["status"] == "ok"
+    assert post({"id": "s1", "action": "pin", "pinned": True})["status"] == "ok"
+    assert post({"id": "s1", "action": "archive"})["status"] == "ok"
+    assert post({"id": "s1", "action": "restore"})["status"] == "ok"
+    assert post({"id": "s1", "action": "trash"})["status"] == "ok"
+    assert post({"id": "s1", "action": "purge"})["status"] == "ok"
+    assert captured["rename"] == ("s1", "新标题")
+    assert captured["pin"] == ("s1", True)
+    assert captured["archive"] == "s1"
+
+
+def test_web_api_session_batch_and_workspace_action(web_test_server, monkeypatch):
+    import agent.web_server as web_server
+
+    captured = {}
+
+    def fake_batch(ids, action):
+        captured["batch"] = (ids, action)
+        return {"ok": ids, "missing": []}
+
+    def fake_rename_workspace(path, name):
+        captured["ws"] = (path, name)
+        return True
+
+    monkeypatch.setattr(web_server, "batch_session_action", fake_batch)
+    monkeypatch.setattr(web_server, "rename_workspace", fake_rename_workspace)
+
+    batch_req = urllib.request.Request(
+        f"{web_test_server}/api/sessions/batch",
+        data=json.dumps({"ids": ["a", "b"], "action": "archive"}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(batch_req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    assert data["status"] == "ok"
+    assert captured["batch"] == (["a", "b"], "archive")
+
+    ws_req = urllib.request.Request(
+        f"{web_test_server}/api/workspace/action",
+        data=json.dumps({"path": "C:/work", "action": "rename", "display_name": "Work"}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(ws_req, timeout=10) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    assert data["status"] == "ok"
+    assert captured["ws"] == ("C:/work", "Work")
 
 
 def test_web_api_choose_directory(web_test_server, monkeypatch, tmp_path):

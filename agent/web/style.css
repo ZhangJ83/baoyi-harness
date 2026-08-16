@@ -1673,3 +1673,291 @@ code:not(pre code) {
   from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: scale(1); }
 }
+
+/* ==========================================================================
+   Sidebar Management v2: search, views, batch bar, menus, workspace manager
+   ========================================================================== */
+.sidebar-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.sidebar-search-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+}
+.sidebar-search-row .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+.sidebar-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12.5px;
+}
+.sidebar-view-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.sidebar-view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  padding: 4px 9px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.sidebar-view-tab:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus, var(--border));
+}
+.sidebar-view-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.sidebar-view-tab.manage {
+  margin-left: auto;
+}
+.sidebar-view-tab .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.sidebar-batch-bar {
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-light);
+  background: var(--sidebar-bg);
+}
+.sidebar-batch-bar > span {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.sidebar-batch-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.batch-action-btn {
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  border-radius: var(--radius-xs);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.batch-action-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+.batch-action-btn.danger {
+  color: var(--danger);
+}
+.batch-action-btn.danger:hover {
+  border-color: var(--danger);
+}
+
+.pill-btn.danger {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.pill-btn.danger:hover {
+  filter: brightness(1.08);
+}
+
+.tree-session-item.selected {
+  background: var(--active-card);
+  outline: 1px solid var(--accent);
+}
+.tree-session-item.pinned .tree-session-title {
+  font-weight: 600;
+}
+.tree-pin-icon {
+  color: var(--accent);
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.meta-status-badge {
+  font-size: 9.5px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-full);
+  padding: 0 5px;
+}
+.tree-session-check {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  margin-right: 6px;
+}
+.tree-group-header {
+  padding: 8px 10px 3px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  position: sticky;
+  top: 0;
+  background: var(--sidebar-bg);
+  z-index: 2;
+}
+.session-menu-btn,
+.project-menu-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.tree-session-item:hover .session-menu-btn,
+.project-folder-header:hover .project-menu-btn {
+  display: inline-flex;
+}
+.session-menu-btn:hover,
+.project-menu-btn:hover {
+  background: var(--active-card);
+  color: var(--text-primary);
+}
+
+.inline-rename-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-xs);
+  background: var(--bg-root);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 2px 6px;
+  outline: none;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 168px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 5px;
+}
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  padding: 7px 9px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.context-menu-item:hover {
+  background: var(--active-card);
+}
+.context-menu-item.danger {
+  color: var(--danger);
+}
+.context-menu-separator {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 2px;
+}
+
+.workspaces-manage-body {
+  max-height: 62vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ws-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.ws-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: var(--bg-root);
+}
+.ws-row-info {
+  flex: 1;
+  min-width: 0;
+}
+.ws-row-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-row-path {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-row-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.ws-action-btn {
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.ws-action-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+.ws-action-btn.danger {
+  color: var(--danger);
+}

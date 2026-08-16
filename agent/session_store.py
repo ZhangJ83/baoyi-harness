@@ -1,20 +1,28 @@
-"""Durable session snapshots for the TUI/CLI.
+"""Durable session snapshots for the TUI/CLI and Web GUI.
 
 A snapshot keeps the model-visible conversation plus the auditable task facts;
 deck bytes and loop counters are intentionally not serialized, so a resumed
 session re-derives the deck from its working copy instead of trusting memory.
+
+Lifecycle layout (soft-delete friendly):
+
+    sessions/<id>.json           active conversations
+    sessions/archive/<id>.json   archived, hidden from the default list
+    sessions/trash/<id>.json     recently deleted, recoverable, auto-purgeable
 """
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
 from . import config
 from .redact import redact
+
+SESSION_VIEWS = ("active", "archive", "trash", "all")
 
 
 @dataclass
@@ -28,6 +36,8 @@ class SessionRecord:
     turn_count: int
     path: Path
     summary: str = ""
+    pinned: bool = False
+    status: str = "active"
 
 
 def _sessions_dir() -> Path:
@@ -36,8 +46,63 @@ def _sessions_dir() -> Path:
     return path
 
 
+def _status_dir(status: str) -> Path:
+    root = _sessions_dir()
+    if status == "archive":
+        return root / "archive"
+    if status == "trash":
+        return root / "trash"
+    return root
+
+
+def _status_for(path: Path) -> str:
+    parent = path.parent.name
+    if parent in ("archive", "trash"):
+        return parent
+    return "active"
+
+
+def _ensure_status_dirs() -> None:
+    _status_dir("archive").mkdir(parents=True, exist_ok=True)
+    _status_dir("trash").mkdir(parents=True, exist_ok=True)
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _read_payload(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _write_payload(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _locate_session_file(session_id: str) -> Path | None:
+    for status in SESSION_VIEWS[:3]:
+        candidate = _status_dir(status) / f"{session_id}.json"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _move_session_file(session_id: str, target_status: str) -> Path | None:
+    source = _locate_session_file(session_id)
+    if source is None:
+        return None
+    target = _status_dir(target_status) / f"{session_id}.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if source.resolve() == target.resolve():
+        return source
+    if target.exists():
+        target.unlink()
+    source.replace(target)
+    return target
 
 
 def snapshot_harness(harness) -> dict:
@@ -122,38 +187,6 @@ def _merge_with_prior(prior_messages: list[dict], current_messages: list[dict]) 
     return list(prior_messages) + list(current_messages[overlap:])
 
 
-def save_session(harness, title: str = "") -> SessionRecord:
-    payload = snapshot_harness(harness)
-    session_id = payload["id"]
-    path = _sessions_dir() / f"{session_id}.json"
-    created_at = payload["created_at"]
-
-    # Reopening an existing session must never erase its earlier turns.
-    if path.is_file():
-        try:
-            prior = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            prior = {}
-        if prior.get("id") == session_id:
-            payload["messages"] = _merge_with_prior(
-                prior.get("messages") or [], payload["messages"]
-            )
-            if prior.get("created_at"):
-                created_at = prior["created_at"]
-
-    payload["created_at"] = created_at
-    payload["updated_at"] = _now()
-    title = (title or _derive_title(payload))[:80]
-    payload["title"] = title
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    turn_count = sum(1 for m in payload["messages"] if m.get("role") == "assistant")
-    summary = (payload.get("final_summary") or "").strip()[:200]
-    return SessionRecord(id=session_id, title=title, created_at=created_at,
-                         updated_at=payload["updated_at"], model=payload["model"],
-                         workspace=payload["workspace"], turn_count=turn_count,
-                         path=path, summary=summary)
-
-
 def _derive_title(payload: dict) -> str:
     for message in payload.get("messages", []):
         if message.get("role") == "user":
@@ -163,29 +196,81 @@ def _derive_title(payload: dict) -> str:
     return "untitled"
 
 
-def list_sessions(workspace: str | None = None) -> list[SessionRecord]:
-    records = []
-    ws_target = None
-    if workspace:
-        try:
-            ws_target = str(Path(workspace).resolve()).casefold()
-        except Exception:
-            ws_target = str(workspace).casefold()
+def save_session(harness, title: str = "") -> SessionRecord:
+    payload = snapshot_harness(harness)
+    session_id = payload["id"]
+    _ensure_status_dirs()
+    path = _sessions_dir() / f"{session_id}.json"
+    created_at = payload["created_at"]
+    pinned = False
+    title_locked = False
 
-    for path in sorted(_sessions_dir().glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+    # Reopening an existing session must never erase its earlier turns or UI
+    # metadata, regardless of whether the prior snapshot was archived/trashed.
+    prior_path = _locate_session_file(session_id)
+    if prior_path is not None:
+        prior = _read_payload(prior_path) or {}
+        if prior.get("id") == session_id:
+            payload["messages"] = _merge_with_prior(
+                prior.get("messages") or [], payload["messages"]
+            )
+            if prior.get("created_at"):
+                created_at = prior["created_at"]
+            pinned = bool(prior.get("pinned", False))
+            title_locked = bool(prior.get("title_locked", False))
+            if title_locked and not title and prior.get("title"):
+                title = prior["title"]
+
+    payload["created_at"] = created_at
+    payload["updated_at"] = _now()
+    payload["pinned"] = pinned
+    payload["title_locked"] = title_locked
+    title = (title or _derive_title(payload))[:80]
+    payload["title"] = title
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # A restored/saved session is active again; drop shadow copies.
+    for status in ("archive", "trash"):
+        shadow = _status_dir(status) / f"{session_id}.json"
+        if shadow.is_file() and shadow.resolve() != path.resolve():
+            shadow.unlink(missing_ok=True)
+
+    turn_count = sum(1 for m in payload["messages"] if m.get("role") == "assistant")
+    summary = (payload.get("final_summary") or "").strip()[:200]
+    return SessionRecord(id=session_id, title=title, created_at=created_at,
+                         updated_at=payload["updated_at"], model=payload["model"],
+                         workspace=payload["workspace"], turn_count=turn_count,
+                         path=path, summary=summary, pinned=pinned, status="active")
+
+
+def _workspace_matches(rec_ws: str, ws_target: str | None) -> bool:
+    if ws_target is None:
+        return True
+    try:
+        return str(Path(rec_ws).resolve()).casefold() == str(Path(ws_target).resolve()).casefold()
+    except Exception:
+        return str(rec_ws).casefold() == str(ws_target).casefold()
+
+
+def list_sessions(workspace: str | None = None, view: str = "active") -> list[SessionRecord]:
+    if view not in SESSION_VIEWS:
+        view = "active"
+    _ensure_status_dirs()
+    roots = {"active": [str(_status_dir("active"))], "archive": [str(_status_dir("archive"))],
+             "trash": [str(_status_dir("trash"))], "all": [str(_status_dir(s)) for s in SESSION_VIEWS[:3]]}[view]
+    paths: list[Path] = []
+    for root in roots:
+        paths.extend(Path(root).glob("*.json"))
+    paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    records = []
+    for path in paths:
+        payload = _read_payload(path)
+        if payload is None:
             continue
         rec_ws = payload.get("workspace", "")
-        if ws_target is not None:
-            try:
-                rec_resolved = str(Path(rec_ws).resolve()).casefold()
-                if rec_resolved != ws_target:
-                    continue
-            except Exception:
-                if str(rec_ws).casefold() != ws_target:
-                    continue
+        if not _workspace_matches(rec_ws, workspace):
+            continue
         title = payload.get("title") or _derive_title(payload)
         records.append(SessionRecord(
             id=payload.get("id", path.stem), title=title,
@@ -193,28 +278,147 @@ def list_sessions(workspace: str | None = None) -> list[SessionRecord]:
             updated_at=payload.get("updated_at") or payload.get("created_at", ""),
             model=payload.get("model", ""), workspace=rec_ws,
             turn_count=sum(1 for m in payload.get("messages", []) if m.get("role") == "assistant"),
-            path=path, summary=(payload.get("final_summary") or "")[:200]))
+            path=path, summary=(payload.get("final_summary") or "")[:200],
+            pinned=bool(payload.get("pinned", False)), status=_status_for(path)))
     return records
 
 
 def load_session(session_id: str) -> dict | None:
-    path = _sessions_dir() / f"{session_id}.json"
-    if not path.is_file():
+    path = _locate_session_file(session_id)
+    if path is None:
         return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    payload = _read_payload(path)
+    if payload is None:
         return None
     payload["path"] = str(path)
+    payload["status"] = _status_for(path)
     return payload
 
 
+def _update_session(session_id: str, mutate) -> bool:
+    path = _locate_session_file(session_id)
+    if path is None:
+        return False
+    payload = _read_payload(path)
+    if payload is None:
+        return False
+    mutate(payload)
+    payload["updated_at"] = _now()
+    _write_payload(path, payload)
+    return True
+
+
+def rename_session(session_id: str, title: str) -> bool:
+    clean = " ".join(str(title).split())[:80] or "untitled"
+
+    def mutate(payload):
+        payload["title"] = clean
+        payload["title_locked"] = True
+
+    return _update_session(session_id, mutate)
+
+
+def set_session_pinned(session_id: str, pinned: bool) -> bool:
+    def mutate(payload):
+        payload["pinned"] = bool(pinned)
+
+    return _update_session(session_id, mutate)
+
+
+def archive_session(session_id: str) -> bool:
+    path = _move_session_file(session_id, "archive")
+    if path is None:
+        return False
+    payload = _read_payload(path)
+    if payload is None:
+        return False
+    payload["archived_at"] = _now()
+    payload["pinned"] = False
+    _write_payload(path, payload)
+    return True
+
+
+def trash_session(session_id: str) -> bool:
+    path = _move_session_file(session_id, "trash")
+    if path is None:
+        return False
+    payload = _read_payload(path)
+    if payload is None:
+        return False
+    payload["trashed_at"] = _now()
+    payload["pinned"] = False
+    _write_payload(path, payload)
+    return True
+
+
+def restore_session(session_id: str) -> bool:
+    source = _locate_session_file(session_id)
+    if source is None or _status_for(source) == "active":
+        return False
+    path = _move_session_file(session_id, "active")
+    if path is None:
+        return False
+    payload = _read_payload(path) or {}
+    payload.pop("archived_at", None)
+    payload.pop("trashed_at", None)
+    _write_payload(path, payload)
+    return True
+
+
+def purge_session(session_id: str) -> bool:
+    path = _locate_session_file(session_id)
+    if path is None:
+        return False
+    path.unlink(missing_ok=True)
+    return True
+
+
 def delete_session(session_id: str) -> bool:
+    """Legacy permanent delete (kept for CLI/native GUI compatibility)."""
     path = _sessions_dir() / f"{session_id}.json"
     if not path.is_file():
         return False
     path.unlink()
     return True
+
+
+def batch_session_action(session_ids: list[str], action: str) -> dict:
+    """Apply rename-free lifecycle actions to many sessions at once."""
+    actions = {
+        "archive": archive_session,
+        "trash": trash_session,
+        "restore": restore_session,
+        "purge": purge_session,
+    }
+    handler = actions.get(action)
+    if handler is None:
+        raise ValueError(f"unsupported batch action: {action}")
+    ok, missing = [], []
+    for session_id in session_ids:
+        if handler(session_id):
+            ok.append(session_id)
+        else:
+            missing.append(session_id)
+    return {"ok": ok, "missing": missing, "action": action}
+
+
+def purge_expired_sessions(days: int = 30) -> int:
+    """Permanently delete trash entries older than ``days``. Returns count."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    removed = 0
+    for path in _status_dir("trash").glob("*.json"):
+        payload = _read_payload(path)
+        if payload is None:
+            continue
+        trashed_at = payload.get("trashed_at", "")
+        try:
+            when = datetime.fromisoformat(trashed_at)
+        except (TypeError, ValueError):
+            when = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+        if when < cutoff:
+            path.unlink(missing_ok=True)
+            removed += 1
+    return removed
 
 
 def restore_harness(harness, payload: dict) -> str:

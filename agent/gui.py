@@ -1301,7 +1301,7 @@ class AgentGUI:
     def _refresh_workspaces(self) -> None:
         from .workspace_store import list_workspaces
 
-        values = [str(w) for w in list_workspaces()]
+        values = [w.path for w in list_workspaces()]
         current = self.workspace_var.get()
         if current not in values:
             values.insert(0, current)

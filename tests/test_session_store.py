@@ -115,6 +115,85 @@ def test_save_session_preserves_prior_history_after_task_reset(tmp_path, monkeyp
     ]
 
 
+def test_session_lifecycle_archive_trash_restore_rename_pin(tmp_path, monkeypatch):
+    monkeypatch.setenv("XIAOPU_HOME", str(tmp_path))
+    from types import SimpleNamespace
+
+    h = DummyHarness()
+    h.session = SimpleNamespace(id="sess-lifecycle")
+    h.messages = [{"role": "user", "content": "原始任务"}, {"role": "assistant", "content": "好的"}]
+    record = session_store.save_session(h)
+
+    # Rename locks the title against later auto-derivation.
+    assert session_store.rename_session(record.id, "手动标题")
+    assert session_store.list_sessions()[0].title == "手动标题"
+    h.messages = [{"role": "user", "content": "继续"}]
+    session_store.save_session(h)
+    assert session_store.list_sessions()[0].title == "手动标题"
+
+    # Pin survives save_session.
+    assert session_store.set_session_pinned(record.id, True)
+    assert session_store.list_sessions()[0].pinned is True
+    session_store.save_session(h)
+    assert session_store.list_sessions()[0].pinned is True
+
+    # Archive hides from active and moves to the archive view.
+    assert session_store.archive_session(record.id)
+    assert session_store.list_sessions(view="active") == []
+    archived = session_store.list_sessions(view="archive")
+    assert [s.id for s in archived] == [record.id]
+    assert archived[0].status == "archive"
+
+    # Trash moves archive/active into the recoverable trash.
+    assert session_store.trash_session(record.id)
+    assert session_store.list_sessions(view="archive") == []
+    trashed = session_store.list_sessions(view="trash")
+    assert [s.id for s in trashed] == [record.id]
+    assert session_store.load_session(record.id)["trashed_at"]
+
+    # Restore returns to active and clears lifecycle stamps.
+    assert session_store.restore_session(record.id)
+    active = session_store.list_sessions(view="active")
+    assert [s.id for s in active] == [record.id]
+    assert "trashed_at" not in session_store.load_session(record.id)
+
+    # Purge permanently deletes.
+    assert session_store.purge_session(record.id)
+    assert session_store.load_session(record.id) is None
+
+
+def test_session_batch_and_expired_purge(tmp_path, monkeypatch):
+    monkeypatch.setenv("XIAOPU_HOME", str(tmp_path))
+    from types import SimpleNamespace
+
+    ids = []
+    for i in range(3):
+        h = DummyHarness()
+        h.session = SimpleNamespace(id=f"sess-batch-{i}")
+        h.messages = [{"role": "user", "content": f"task {i}"}]
+        ids.append(session_store.save_session(h).id)
+
+    result = session_store.batch_session_action(ids, "archive")
+    assert len(result["ok"]) == 3
+    assert not session_store.list_sessions(view="active")
+
+    result = session_store.batch_session_action(ids, "restore")
+    assert len(result["ok"]) == 3
+    assert len(session_store.list_sessions(view="active")) == 3
+
+    # An old trash entry is purged; a fresh one survives.
+    session_store.trash_session(ids[0])
+    old_path = session_store._locate_session_file(ids[0])
+    payload = session_store._read_payload(old_path)
+    payload["trashed_at"] = "2000-01-01T00:00:00+00:00"
+    session_store._write_payload(old_path, payload)
+    session_store.trash_session(ids[1])
+
+    assert session_store.purge_expired_sessions(days=30) == 1
+    assert session_store.load_session(ids[0]) is None
+    assert session_store.load_session(ids[1]) is not None
+
+
 def test_cli_lists_sessions_without_credential(tmp_path, monkeypatch):
     monkeypatch.setenv("XIAOPU_HOME", str(tmp_path))
     from agent import main

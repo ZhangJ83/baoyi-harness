@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>小朴 Agent · Xiaopu (Coding & PPT Assistant)</title>
   <link rel="icon" type="image/png" href="/assets/icon.png">
-  <link rel="stylesheet" href="/style.css?v=4">
+  <link rel="stylesheet" href="/style.css?v=5">
 </head>
 <body>
   <div id="app-container">
@@ -17,6 +17,23 @@
         </div>
         <div class="brand-title">小朴 Xiaopu</div>
         <div class="brand-badge">v0.2.0</div>
+      </div>
+
+      <!-- Sidebar Management Toolbar: search, lifecycle views, workspace manager -->
+      <div class="sidebar-toolbar">
+        <div class="sidebar-search-row">
+          <span class="icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+          <input id="sidebar-search" class="sidebar-search-input" type="text" placeholder="搜索对话…" autocomplete="off">
+        </div>
+        <div class="sidebar-view-tabs">
+          <button class="sidebar-view-tab active" data-view="active">全部</button>
+          <button class="sidebar-view-tab" data-view="archive">归档</button>
+          <button class="sidebar-view-tab" data-view="trash">回收站</button>
+          <button id="btn-manage-workspaces" class="sidebar-view-tab manage" title="管理工作区（重命名/置顶/归档/移除）">
+            <span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></span>
+            <span>工作区</span>
+          </button>
+        </div>
       </div>
 
       <div class="sidebar-tree-container">
@@ -53,6 +70,18 @@
             </div>
           </div>
           <div id="conversations-tree-list" class="conversations-tree-list"></div>
+        </div>
+      </div>
+
+      <!-- Batch selection action bar -->
+      <div id="sidebar-batch-bar" class="sidebar-batch-bar" style="display: none;">
+        <span id="batch-count">已选 0 项</span>
+        <div class="sidebar-batch-actions">
+          <button id="btn-batch-archive" class="batch-action-btn">归档</button>
+          <button id="btn-batch-trash" class="batch-action-btn danger">移入回收站</button>
+          <button id="btn-batch-restore" class="batch-action-btn">恢复</button>
+          <button id="btn-batch-purge" class="batch-action-btn danger">彻底删除</button>
+          <button id="btn-batch-cancel" class="batch-action-btn">取消</button>
         </div>
       </div>
 
@@ -355,10 +384,52 @@
     </div>
   </div>
 
+  <!-- Workspace Management Modal -->
+  <div id="workspaces-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card workspaces-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="icon" style="color: var(--accent);"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+          <span class="modal-title">工作区管理 (Workspace Manager)</span>
+        </div>
+        <button id="workspaces-modal-close" class="drawer-close-btn">
+          <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+        </button>
+      </div>
+      <div class="modal-body workspaces-manage-body" id="workspaces-manage-body"></div>
+      <div class="modal-footer">
+        <button id="workspaces-modal-done" class="pill-btn primary">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generic Confirm Dialog -->
+  <div id="confirm-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card confirm-modal-card">
+      <div class="modal-header">
+        <div class="modal-title" id="confirm-title">确认操作</div>
+        <button id="confirm-modal-close" class="drawer-close-btn">
+          <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-text" style="white-space: pre-line;"></p>
+        <input id="confirm-input" type="text" class="settings-input" style="display: none;" placeholder="输入 DELETE 确认" autocomplete="off">
+      </div>
+      <div class="modal-footer">
+        <button id="confirm-cancel-btn" class="pill-btn">取消</button>
+        <button id="confirm-ok-btn" class="pill-btn danger">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar Context Menu -->
+  <div id="context-menu" class="context-menu" style="display: none;"></div>
+
   <!-- Global Toast -->
   <div id="toast"></div>
 
   <!-- JavaScript Application Logic -->
-  <script src="/app.js?v=5"></script>
+  <script src="/app.js?v=6"></script>
 </body>
 </html>

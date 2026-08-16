@@ -77,6 +77,30 @@
 
   const toast = document.getElementById("toast");
 
+  // Sidebar Management v2
+  const sidebarSearch = document.getElementById("sidebar-search");
+  const sidebarViewTabs = document.querySelectorAll(".sidebar-view-tab[data-view]");
+  const btnManageWorkspaces = document.getElementById("btn-manage-workspaces");
+  const sidebarBatchBar = document.getElementById("sidebar-batch-bar");
+  const batchCount = document.getElementById("batch-count");
+  const btnBatchArchive = document.getElementById("btn-batch-archive");
+  const btnBatchTrash = document.getElementById("btn-batch-trash");
+  const btnBatchRestore = document.getElementById("btn-batch-restore");
+  const btnBatchPurge = document.getElementById("btn-batch-purge");
+  const btnBatchCancel = document.getElementById("btn-batch-cancel");
+  const contextMenu = document.getElementById("context-menu");
+  const workspacesModal = document.getElementById("workspaces-modal");
+  const workspacesModalClose = document.getElementById("workspaces-modal-close");
+  const workspacesModalDone = document.getElementById("workspaces-modal-done");
+  const workspacesManageBody = document.getElementById("workspaces-manage-body");
+  const confirmModal = document.getElementById("confirm-modal");
+  const confirmModalClose = document.getElementById("confirm-modal-close");
+  const confirmTitle = document.getElementById("confirm-title");
+  const confirmText = document.getElementById("confirm-text");
+  const confirmInput = document.getElementById("confirm-input");
+  const confirmOkBtn = document.getElementById("confirm-ok-btn");
+  const confirmCancelBtn = document.getElementById("confirm-cancel-btn");
+
   // ------------------------------------------------------------------ Application State
   let activeSessionId = null;
   let activeWorkspacePath = null;
@@ -93,6 +117,10 @@
   let sortReverse = false;
   const collapsedFolders = new Set();
   let cachedArtifacts = [];
+  let sidebarView = "active";
+  let sidebarQuery = "";
+  const selectedSessionIds = new Set();
+  let confirmCallback = null;
 
   // ------------------------------------------------------------------ Icons SVG constants
   const ICONS = {
@@ -110,6 +138,7 @@
     verify: `<svg viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
     undo: `<svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>`,
     reveal: `<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><circle cx="12" cy="14" r="2"/></svg>`,
+    more: `<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>`,
   };
 
   // ------------------------------------------------------------------ Init & Config
@@ -405,7 +434,8 @@
   // ------------------------------------------------------------------ Tree Management
   async function refreshTree() {
     try {
-      const res = await fetch("/api/tree");
+      const params = new URLSearchParams({ view: sidebarView, q: sidebarQuery });
+      const res = await fetch(`/api/tree?${params.toString()}`);
       const data = await res.json();
       if (!data) return;
 
@@ -413,11 +443,9 @@
       const projects = data.projects || [];
       const conversations = data.conversations || [];
 
-      if (sortReverse) {
-        projects.reverse();
-      }
+      if (sortReverse) projects.reverse();
 
-      // 1. Render Projects
+      // 1. Render Projects (workspace folders with nested sessions)
       if (projects.length === 0) {
         projectsTreeList.innerHTML = `<div class="empty-tree-placeholder">暂无工作区项目</div>`;
       } else {
@@ -426,8 +454,9 @@
           const isCurrentWs = (p.is_current || (activeWorkspacePath && p.path && p.path.toLowerCase() === activeWorkspacePath.toLowerCase()));
           const count = (p.sessions && p.sessions.length) || 0;
           const sessionsHtml = count > 0
-            ? p.sessions.map(s => renderSessionRow(s)).join("")
+            ? renderGroupedSessions(p.sessions)
             : `<div class="empty-tree-placeholder">(暂无会话)</div>`;
+          const pinnedIcon = p.pinned ? `<span class="tree-pin-icon">📌</span>` : "";
 
           return `
             <div class="project-node ${isCollapsed ? "collapsed" : ""} ${isCurrentWs ? "active-ws" : ""}" data-path="${escapeAttr(p.path)}">
@@ -435,10 +464,13 @@
                 <div class="project-folder-info" title="${escapeAttr(p.path)}">
                   <span class="icon project-chevron-icon">${ICONS.chevron}</span>
                   <span class="icon project-folder-icon">${ICONS.folder}</span>
-                  <span class="project-folder-name">${escapeHtml(p.name)}</span>
+                  <span class="project-folder-name">${escapeHtml(p.name)}${pinnedIcon}</span>
                 </div>
                 <div class="project-header-actions">
                   <span class="project-count-badge">${count}</span>
+                  <button class="project-menu-btn" data-path="${escapeAttr(p.path)}" title="工作区管理">
+                    <span class="icon">${ICONS.more}</span>
+                  </button>
                   <button class="project-add-chat-btn" data-path="${escapeAttr(p.path)}" title="在此项目下新建对话">
                     <span class="icon">${ICONS.plus}</span>
                   </button>
@@ -456,28 +488,67 @@
       if (conversations.length === 0) {
         conversationsTreeList.innerHTML = `<div class="empty-tree-placeholder">暂无独立对话</div>`;
       } else {
-        conversationsTreeList.innerHTML = conversations.map(s => renderSessionRow(s)).join("");
+        conversationsTreeList.innerHTML = renderGroupedSessions(conversations);
       }
 
+      updateBatchBar();
       bindTreeEvents();
     } catch (e) {
       console.error("Refresh tree error:", e);
     }
   }
 
+  function groupKeyFor(updatedAt) {
+    if (!updatedAt) return "更早";
+    const dt = new Date(updatedAt);
+    if (Number.isNaN(dt.getTime())) return "更早";
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startYesterday = startToday - 86400000;
+    const startWeek = startToday - 6 * 86400000;
+    if (dt.getTime() >= startToday) return "今天";
+    if (dt.getTime() >= startYesterday) return "昨天";
+    if (dt.getTime() >= startWeek) return "近 7 天";
+    return "更早";
+  }
+
+  function renderGroupedSessions(sessions) {
+    const pinned = sessions.filter(s => s.pinned);
+    const rest = sessions.filter(s => !s.pinned);
+    const groups = [];
+    if (pinned.length) groups.push(["📌 置顶", pinned]);
+    const order = sidebarView === "active" ? ["今天", "昨天", "近 7 天", "更早"] : ["会话"];
+    if (sidebarView === "active") {
+      for (const key of order) {
+        const items = rest.filter(s => groupKeyFor(s.updated_at) === key);
+        if (items.length) groups.push([key, items]);
+      }
+    } else if (rest.length) {
+      groups.push([sidebarView === "archive" ? "已归档" : "回收站", rest]);
+    }
+    return groups.map(([label, items]) => {
+      const rows = items.map(renderSessionRow).join("");
+      return `<div class="tree-group-header">${escapeHtml(label)}</div>${rows}`;
+    }).join("");
+  }
+
   function renderSessionRow(s) {
     const isActive = (s.id === activeSessionId);
+    const selected = selectedSessionIds.has(s.id);
     const timeDisplay = isActive ? "now" : (s.time_ago || "now");
-    const showDot = !isActive;
+    const pinnedIcon = s.pinned ? `<span class="tree-pin-icon">📌</span>` : "";
+    const statusBadge = s.status && s.status !== "active"
+      ? `<span class="meta-status-badge">${escapeHtml(s.status === "archive" ? "归档" : "回收站")}</span>` : "";
 
     return `
-      <div class="tree-session-item ${isActive ? "active" : ""}" data-id="${s.id}" data-ws="${escapeAttr(s.workspace || "")}">
-        <span class="tree-session-title" title="${escapeAttr(s.title || "未命名对话")}">${escapeHtml(s.title || "未命名对话")}</span>
+      <div class="tree-session-item ${isActive ? "active" : ""} ${s.pinned ? "pinned" : ""} ${selected ? "selected" : ""}" data-id="${escapeAttr(s.id)}" data-ws="${escapeAttr(s.workspace || "")}" data-title="${escapeAttr(s.title || "")}" data-status="${escapeAttr(s.status || "active")}">
+        <input type="checkbox" class="tree-session-check" data-id="${escapeAttr(s.id)}" title="批量选择" ${selected ? "checked" : ""}>
+        <span class="tree-session-title" title="${escapeAttr(s.title || "未命名对话")}">${escapeHtml(s.title || "未命名对话")}${pinnedIcon}</span>
         <div class="tree-session-meta">
+          ${statusBadge}
           <span class="meta-time-text">${escapeHtml(timeDisplay)}</span>
-          ${showDot ? `<span class="meta-status-dot"></span>` : ""}
-          <button class="tree-session-del-btn" data-id="${s.id}" title="删除会话">
-            <span class="icon">${ICONS.close}</span>
+          <button class="session-menu-btn" data-id="${escapeAttr(s.id)}" title="会话管理">
+            <span class="icon">${ICONS.more}</span>
           </button>
         </div>
       </div>
@@ -487,7 +558,7 @@
   function bindTreeEvents() {
     document.querySelectorAll(".project-folder-header").forEach(hdr => {
       hdr.addEventListener("click", async (e) => {
-        if (e.target.closest(".project-add-chat-btn")) return;
+        if (e.target.closest(".project-add-chat-btn") || e.target.closest(".project-menu-btn")) return;
         const projectNode = hdr.closest(".project-node");
         if (!projectNode) return;
         const ws = projectNode.getAttribute("data-path");
@@ -514,25 +585,36 @@
 
     document.querySelectorAll(".tree-session-item").forEach(el => {
       el.addEventListener("click", (e) => {
-        if (e.target.closest(".tree-session-del-btn")) return;
+        if (e.target.closest(".tree-session-check") || e.target.closest(".session-menu-btn")) return;
         const id = el.getAttribute("data-id");
         const ws = el.getAttribute("data-ws");
         loadSession(id, ws);
       });
     });
 
-    document.querySelectorAll(".tree-session-del-btn").forEach(btn => {
-      btn.addEventListener("click", async (e) => {
+    document.querySelectorAll(".tree-session-check").forEach(box => {
+      box.addEventListener("click", (e) => {
         e.stopPropagation();
-        const id = btn.getAttribute("data-id");
-        if (confirm("确认删除该历史会话？")) {
-          await fetch(`/api/session/${id}`, { method: "DELETE" });
-          if (activeSessionId === id) {
-            newSessionInProject(activeWorkspacePath);
-          } else {
-            refreshTree();
-          }
-        }
+        const id = box.getAttribute("data-id");
+        if (box.checked) selectedSessionIds.add(id);
+        else selectedSessionIds.delete(id);
+        const row = box.closest(".tree-session-item");
+        if (row) row.classList.toggle("selected", box.checked);
+        updateBatchBar();
+      });
+    });
+
+    document.querySelectorAll(".session-menu-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openSessionMenu(btn.getAttribute("data-id"), e.clientX, e.clientY);
+      });
+    });
+
+    document.querySelectorAll(".project-menu-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openWorkspaceMenu(btn.getAttribute("data-path"), e.clientX, e.clientY);
       });
     });
 
@@ -543,6 +625,403 @@
         await switchWorkspace(ws);
         newSessionInProject(ws);
         fetchArtifacts();
+      });
+    });
+  }
+
+  // ------------------------------------------------------------------ Sidebar Management v2
+  function closeContextMenu() {
+    if (contextMenu) contextMenu.style.display = "none";
+  }
+
+  function openContextMenu(x, y, items) {
+    closeContextMenu();
+    contextMenu.innerHTML = items.map((item, index) => {
+      if (item.separator) return `<div class="context-menu-separator"></div>`;
+      return `<button class="context-menu-item ${item.danger ? "danger" : ""}" data-cm-index="${index}">${escapeHtml(item.label)}</button>`;
+    }).join("");
+    contextMenu.style.display = "block";
+    const rect = contextMenu.getBoundingClientRect();
+    contextMenu.style.left = `${Math.min(x, window.innerWidth - rect.width - 12)}px`;
+    contextMenu.style.top = `${Math.min(y, window.innerHeight - rect.height - 12)}px`;
+    contextMenu.querySelectorAll(".context-menu-item").forEach(btn => {
+      btn.addEventListener("click", () => {
+        closeContextMenu();
+        const item = items[Number(btn.getAttribute("data-cm-index"))];
+        if (item && item.action) item.action();
+      });
+    });
+  }
+
+  function openSessionMenu(id, x, y) {
+    const row = document.querySelector(`.tree-session-item[data-id="${CSS.escape(id)}"]`);
+    const status = row ? row.getAttribute("data-status") : "active";
+    const title = row ? row.getAttribute("data-title") : "";
+    const items = [];
+    if (status === "active" || status === "archive") {
+      items.push({ label: "✏ 重命名", action: () => startInlineRename(row) });
+    }
+    items.push({
+      label: status === "active" ? "📌 置顶" : "📌 取消置顶",
+      action: async () => {
+        const current = row && row.classList.contains("pinned");
+        await sessionAction(id, "pin", { pinned: !current });
+      }
+    });
+    if (status === "active") {
+      items.push({ label: "🗂 归档", action: () => confirmThenSession(id, "archive") });
+    }
+    if (status !== "active") {
+      items.push({ label: "↩ 恢复到全部", action: () => sessionAction(id, "restore") });
+    }
+    items.push({ label: "⬇ 导出 MD", action: () => sessionAction(id, "export") });
+    if (status === "active" || status === "archive") {
+      items.push({ separator: true });
+      items.push({ label: "🗑 移入回收站", danger: true, action: () => confirmThenSession(id, "trash") });
+    }
+    if (status === "trash") {
+      items.push({ separator: true });
+      items.push({ label: "⛔ 彻底删除", danger: true, action: () => confirmThenSession(id, "purge") });
+    }
+    openContextMenu(x, y, items);
+  }
+
+  function openWorkspaceMenu(path, x, y) {
+    const row = [...document.querySelectorAll(".project-node")].find(n => n.getAttribute("data-path") === path);
+    const isCurrent = row && row.classList.contains("active-ws");
+    const items = [];
+    if (!isCurrent) {
+      items.push({ label: "◎ 设为当前工作区", action: async () => { await switchWorkspace(path); refreshTree(); } });
+    }
+    items.push({ label: "✏ 重命名显示名", action: () => startWorkspaceRename(path, row) });
+    items.push({ label: row && row.classList.contains("pinned") ? "📌 取消置顶" : "📌 置顶", action: async () => {
+      const current = row && row.classList.contains("pinned");
+      await workspaceAction(path, "pin", { pinned: !current });
+    }});
+    items.push({ label: "🗂 归档工作区", action: () => confirmThenWorkspace(path, "archive") });
+    items.push({ label: "🚫 从侧栏移除", danger: true, action: () => confirmThenWorkspace(path, "remove") });
+    items.push({ separator: true });
+    items.push({ label: "＋ 新建对话", action: async () => { await switchWorkspace(path); newSessionInProject(path); } });
+    openContextMenu(x, y, items);
+  }
+
+  function startInlineRename(row) {
+    if (!row) return;
+    const titleEl = row.querySelector(".tree-session-title");
+    const id = row.getAttribute("data-id");
+    if (!titleEl || !id) return;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "inline-rename-input";
+    input.value = titleEl.getAttribute("title") || titleEl.innerText.replace("📌", "").trim();
+    titleEl.innerHTML = "";
+    titleEl.appendChild(input);
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = async (save) => {
+      if (done) return;
+      done = true;
+      if (save && input.value.trim()) {
+        await sessionAction(id, "rename", { title: input.value.trim() });
+      } else {
+        refreshTree();
+      }
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); finish(true); }
+      else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener("blur", () => finish(true));
+  }
+
+  function startWorkspaceRename(path, row) {
+    const nameEl = row ? row.querySelector(".project-folder-name") : null;
+    if (!nameEl || !path) return;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "inline-rename-input";
+    input.value = nameEl.innerText.replace("📌", "").trim();
+    nameEl.innerHTML = "";
+    nameEl.appendChild(input);
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = async (save) => {
+      if (done) return;
+      done = true;
+      if (save && input.value.trim()) {
+        await workspaceAction(path, "rename", { display_name: input.value.trim() });
+      } else {
+        refreshTree();
+      }
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); finish(true); }
+      else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener("blur", () => finish(true));
+  }
+
+  async function sessionAction(id, action, extra = {}) {
+    try {
+      const res = await fetch("/api/session/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action, ...extra })
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        if (action === "export") {
+          showToast(`已导出：${data.path || "OK"}`);
+        } else {
+          showToast(actionLabel(action, "session", true));
+        }
+        if (activeSessionId === id && (action === "trash" || action === "archive" || action === "purge")) {
+          activeSessionId = null;
+          newSessionInProject(activeWorkspacePath);
+        }
+        selectedSessionIds.delete(id);
+        await refreshTree();
+      } else {
+        showToast(actionLabel(action, "session", false));
+      }
+    } catch (e) {
+      showToast(`操作失败: ${e.message}`);
+    }
+  }
+
+  async function workspaceAction(path, action, extra = {}) {
+    try {
+      const res = await fetch("/api/workspace/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, action, ...extra })
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        showToast(actionLabel(action, "workspace", true));
+        let currentWasHidden = false;
+        if ((action === "archive" || action === "remove" || action === "purge")
+            && activeWorkspacePath && path.toLowerCase() === activeWorkspacePath.toLowerCase()) {
+          activeWorkspacePath = null;
+          currentWasHidden = true;
+        }
+        await refreshTree();
+        if (currentWasHidden) {
+          // Move the UI onto another visible workspace instead of leaving it
+          // silently bound to a hidden one.
+          const first = document.querySelector(".project-node[data-path]");
+          if (first) await switchWorkspace(first.getAttribute("data-path"));
+        }
+        if (workspacesModal && workspacesModal.style.display === "flex") {
+          await openWorkspaceManager(true);
+        }
+      } else {
+        showToast("工作区操作失败（未找到或已变更）");
+      }
+    } catch (e) {
+      showToast(`工作区操作失败: ${e.message}`);
+    }
+  }
+
+  function actionLabel(action, kind, ok) {
+    const labels = {
+      rename: ok ? "已重命名" : "重命名失败",
+      pin: ok ? "已更新置顶状态" : "置顶更新失败",
+      archive: ok ? (kind === "workspace" ? "工作区已归档" : "已归档") : "归档失败",
+      restore: ok ? "已恢复" : "恢复失败",
+      trash: ok ? "已移入回收站（30 天内可恢复）" : "移入回收站失败",
+      purge: ok ? "已彻底删除" : "删除失败",
+      remove: ok ? "已从侧栏移除（磁盘目录未动）" : "移除失败",
+      export: ok ? "已导出" : "导出失败",
+    };
+    return labels[action] || (ok ? "操作成功" : "操作失败");
+  }
+
+  function confirmThenSession(id, action) {
+    const texts = {
+      archive: "归档后会话将从“全部”列表隐藏，可随时恢复。",
+      trash: "移入回收站后保留 30 天，期间可以恢复。",
+      purge: "彻底删除后无法恢复，是否继续？",
+    };
+    showConfirm({
+      title: action === "purge" ? "彻底删除会话" : (action === "trash" ? "移入回收站" : "归档会话"),
+      text: texts[action],
+      danger: true,
+      requireText: action === "purge" ? "DELETE" : null,
+      onConfirm: () => sessionAction(id, action),
+    });
+  }
+
+  function confirmThenWorkspace(path, action) {
+    const texts = {
+      archive: "归档后该工作区默认不再显示在侧栏，目录和产物不会受影响，可恢复。",
+      remove: "仅从侧栏移除注册，磁盘目录、任务与产物完全保留。",
+    };
+    showConfirm({
+      title: action === "archive" ? "归档工作区" : "从侧栏移除工作区",
+      text: texts[action],
+      danger: action === "remove",
+      onConfirm: () => workspaceAction(path, action),
+    });
+  }
+
+  function updateBatchBar() {
+    const ids = [...selectedSessionIds];
+    sidebarBatchBar.style.display = ids.length ? "flex" : "none";
+    batchCount.innerText = `已选 ${ids.length} 项`;
+    btnBatchRestore.style.display = (sidebarView !== "active") ? "inline-block" : "none";
+    btnBatchArchive.style.display = sidebarView === "active" ? "inline-block" : "none";
+    btnBatchTrash.style.display = sidebarView !== "trash" ? "inline-block" : "none";
+    btnBatchPurge.style.display = sidebarView === "trash" ? "inline-block" : "none";
+  }
+
+  async function batchApply(action) {
+    const ids = [...selectedSessionIds];
+    if (!ids.length) return;
+    const labels = {
+      archive: ["批量归档", "归档后可在“归档”视图恢复。"],
+      trash: ["批量移入回收站", `将 ${ids.length} 个会话移入回收站，30 天内可恢复。`],
+      restore: ["批量恢复", "恢复后会话将回到“全部”视图。"],
+      purge: ["批量彻底删除", `将永久删除 ${ids.length} 个会话，无法恢复。`],
+    };
+    showConfirm({
+      title: labels[action][0],
+      text: labels[action][1],
+      danger: action === "trash" || action === "purge",
+      requireText: (action === "purge" && ids.length >= 10) ? "DELETE" : null,
+      onConfirm: async () => {
+        const res = await fetch("/api/sessions/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids, action })
+        });
+        const data = await res.json();
+        selectedSessionIds.clear();
+        if (action === "archive" || action === "trash" || action === "restore") {
+          for (const id of data.ok || []) selectedSessionIds.delete(id);
+        }
+        showToast(`批量${labels[action][0]}：成功 ${(data.ok || []).length}，失败 ${(data.missing || []).length}`);
+        await refreshTree();
+      }
+    });
+  }
+
+  function showConfirm({ title, text, danger = false, requireText = null, onConfirm }) {
+    confirmTitle.innerText = title;
+    confirmText.innerText = text;
+    confirmInput.style.display = requireText ? "block" : "none";
+    confirmInput.value = "";
+    confirmOkBtn.classList.toggle("danger", danger);
+    confirmCallback = onConfirm;
+    confirmModal.style.display = "flex";
+    if (requireText) confirmInput.focus();
+  }
+
+  function hideConfirm() {
+    confirmModal.style.display = "none";
+    confirmCallback = null;
+  }
+
+  async function openWorkspaceManager(silent = false) {
+    try {
+      const res = await fetch("/api/workspaces/manage");
+      const data = await res.json();
+      renderWorkspaceManager(data);
+      workspacesModal.style.display = "flex";
+    } catch (e) {
+      if (!silent) showToast(`工作区管理加载失败: ${e.message}`);
+    }
+  }
+
+  function renderWorkspaceManager(data) {
+    const groups = [
+      ["active", "当前工作区", data.active || []],
+      ["archived", "已归档", data.archived || []],
+      ["removed", "已从侧栏移除", data.removed || []],
+    ];
+    workspacesManageBody.innerHTML = groups.map(([key, label, rows]) => {
+      if (!rows.length) return "";
+      const rowsHtml = rows.map(w => {
+        const isCurrent = data.current && w.path.toLowerCase() === data.current.toLowerCase();
+        return `
+          <div class="ws-row" data-path="${escapeAttr(w.path)}">
+            <div class="ws-row-info">
+              <div class="ws-row-title">${escapeHtml(w.display_name || w.name)}${w.pinned ? " 📌" : ""}${isCurrent ? " · 当前" : ""}</div>
+              <div class="ws-row-path" title="${escapeAttr(w.path)}">${escapeHtml(w.path)}</div>
+            </div>
+            <div class="ws-row-actions">
+              ${key === "active" ? `
+                <button class="ws-action-btn" data-ws-action="rename">重命名</button>
+                <button class="ws-action-btn" data-ws-action="pin">${w.pinned ? "取消置顶" : "置顶"}</button>
+                <button class="ws-action-btn" data-ws-action="archive">归档</button>
+                <button class="ws-action-btn danger" data-ws-action="remove">移出侧栏</button>
+              ` : `
+                <button class="ws-action-btn" data-ws-action="restore">恢复</button>
+                <button class="ws-action-btn danger" data-ws-action="purge">删除注册</button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join("");
+      return `<div><div class="ws-group-title">${escapeHtml(label)}</div>${rowsHtml}</div>`;
+    }).join("") || `<div class="empty-tree-placeholder">没有已注册的工作区</div>`;
+
+    workspacesManageBody.querySelectorAll("[data-ws-action]").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const row = btn.closest(".ws-row");
+        const path = row.getAttribute("data-path");
+        const action = btn.getAttribute("data-ws-action");
+        if (action === "rename") {
+          const titleEl = row.querySelector(".ws-row-title");
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "inline-rename-input";
+          input.value = titleEl.innerText.replace("📌", "").replace(" · 当前", "").trim();
+          titleEl.innerHTML = "";
+          titleEl.appendChild(input);
+          input.focus();
+          input.select();
+          let done = false;
+          const finish = async (save) => {
+            if (done) return;
+            done = true;
+            if (save && input.value.trim()) await workspaceAction(path, "rename", { display_name: input.value.trim() });
+            else await openWorkspaceManager(true);
+          };
+          input.addEventListener("keydown", (ev) => {
+            if (ev.key === "Enter") { ev.preventDefault(); finish(true); }
+            else if (ev.key === "Escape") { ev.preventDefault(); finish(false); }
+          });
+          input.addEventListener("blur", () => finish(true));
+          return;
+        }
+        if (action === "pin") {
+          const pinned = btn.innerText.includes("取消");
+          await workspaceAction(path, "pin", { pinned: !pinned });
+          return;
+        }
+        if (action === "archive" || action === "remove") {
+          confirmThenWorkspace(path, action);
+          return;
+        }
+        if (action === "restore") {
+          await workspaceAction(path, "restore");
+          return;
+        }
+        if (action === "purge") {
+          showConfirm({
+            title: "删除工作区注册",
+            text: "只会删除注册记录，不会触碰磁盘目录。确定？",
+            danger: true,
+            onConfirm: async () => {
+              await workspaceAction(path, "purge");
+              openWorkspaceManager(true);
+            }
+          });
+        }
       });
     });
   }
@@ -562,6 +1041,10 @@
   function newSessionInProject(workspacePath) {
     if (isRunning) return;
     activeSessionId = null;
+    if (sidebarView !== "active") {
+      sidebarView = "active";
+      sidebarViewTabs.forEach(t => t.classList.toggle("active", (t.getAttribute("data-view") || "active") === "active"));
+    }
     currentTitle.innerText = "新对话";
     
     chatContainer.innerHTML = "";
@@ -1011,6 +1494,69 @@
 
     newConversationBtn.addEventListener("click", () => {
       newSessionInProject(activeWorkspacePath);
+    });
+
+    // Sidebar management: search, lifecycle views, batch operations
+    let searchTimer = null;
+    if (sidebarSearch) {
+      sidebarSearch.addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          sidebarQuery = sidebarSearch.value.trim();
+          selectedSessionIds.clear();
+          refreshTree();
+        }, 180);
+      });
+    }
+    sidebarViewTabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        sidebarView = tab.getAttribute("data-view") || "active";
+        sidebarViewTabs.forEach(t => t.classList.toggle("active", t === tab));
+        selectedSessionIds.clear();
+        refreshTree();
+      });
+    });
+    if (btnManageWorkspaces) {
+      btnManageWorkspaces.addEventListener("click", () => openWorkspaceManager());
+    }
+    if (btnBatchArchive) btnBatchArchive.addEventListener("click", () => batchApply("archive"));
+    if (btnBatchTrash) btnBatchTrash.addEventListener("click", () => batchApply("trash"));
+    if (btnBatchRestore) btnBatchRestore.addEventListener("click", () => batchApply("restore"));
+    if (btnBatchPurge) btnBatchPurge.addEventListener("click", () => batchApply("purge"));
+    if (btnBatchCancel) {
+      btnBatchCancel.addEventListener("click", () => {
+        selectedSessionIds.clear();
+        refreshTree();
+      });
+    }
+    if (workspacesModalClose) workspacesModalClose.addEventListener("click", () => { workspacesModal.style.display = "none"; });
+    if (workspacesModalDone) workspacesModalDone.addEventListener("click", () => { workspacesModal.style.display = "none"; refreshTree(); });
+    if (confirmModalClose) confirmModalClose.addEventListener("click", hideConfirm);
+    if (confirmCancelBtn) confirmCancelBtn.addEventListener("click", hideConfirm);
+    if (confirmOkBtn) {
+      confirmOkBtn.addEventListener("click", () => {
+        if (confirmInput.style.display !== "none" && confirmInput.value.trim() !== "DELETE") {
+          showToast("请输入 DELETE 确认彻底删除");
+          confirmInput.focus();
+          return;
+        }
+        const cb = confirmCallback;
+        hideConfirm();
+        if (cb) cb();
+      });
+    }
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#context-menu")) closeContextMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeContextMenu();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        if (sidebarSearch) { e.preventDefault(); sidebarSearch.focus(); }
+      }
+      if (e.key === "F2") {
+        const active = document.querySelector(".tree-session-item.active");
+        if (active) { e.preventDefault(); startInlineRename(active); }
+      }
     });
 
     // Composer Input
