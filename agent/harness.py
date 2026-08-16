@@ -116,6 +116,7 @@ class Harness:
         "manifest_batch_goal", "ppt_full_check_downgraded",
         "bound_task_identity", "ppt_repair_observation_calls",
         "repair_observation_grant", "auto_evaluator_coverage_applied",
+        "auto_evaluator_coverage_applied_epoch",
     }
 
     def _clear_task_facts(self) -> None:
