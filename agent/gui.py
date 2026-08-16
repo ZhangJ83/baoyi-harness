@@ -1,12 +1,10 @@
-"""Modern CustomTkinter GUI for Xiaopu Harness with Workspace-centric Session Management.
+"""Modern GUI Launcher for Xiaopu Harness.
 
-Key Features:
-- Left sidebar: Organized by workspace. Select a workspace to see all its conversations.
-  Create new sessions under the active workspace, switch workspaces, or delete sessions.
-- Center chat: Real-time streaming, collapsible 'Thought process (思考过程)' card with
-  genuine provider reasoning, multi-turn history viewing & continuation, clean Markdown bubbles.
-- Right drawer: Progress metrics, working folder status, timeline tool-call logs, and raw CoT.
-- Functional & Clean: No empty/dummy buttons. Auto-saves after each turn under the active workspace.
+By default, launches the modern Claude Desktop / Cowork-inspired Web GUI on localhost
+with real-time Server-Sent Events (SSE) streaming, collapsible Thought process cards,
+workspace session management, PPT tools, and dark/light themes.
+
+Pass `--native` to fall back to the CustomTkinter desktop interface.
 """
 from __future__ import annotations
 
@@ -180,7 +178,6 @@ class AgentGUI:
         ctk.set_default_color_theme("blue")
         self.root.configure(fg_color=self.colors["bg_root"])
 
-        # Load & apply custom app icon
         self._apply_window_icon()
 
         self.root.grid_columnconfigure(0, weight=0)
@@ -224,7 +221,7 @@ class AgentGUI:
         self.sidebar.grid_columnconfigure(0, weight=1)
         self.sidebar.grid_rowconfigure(3, weight=1)
 
-        # 1. Brand Header
+        # Brand Header
         header = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         header.grid(row=0, column=0, padx=14, pady=(14, 8), sticky="ew")
         header.grid_columnconfigure(1, weight=1)
@@ -243,7 +240,7 @@ class AgentGUI:
             text_color=self.colors["text_primary"],
         ).grid(row=0, column=1, sticky="w")
 
-        # 2. + New Session Action Button
+        # + New Session Action Button
         ctk.CTkButton(
             self.sidebar, text="＋  新建对话 (New Session)", height=34, corner_radius=8,
             fg_color=self.colors["accent"], hover_color=self.colors["accent_hover"],
@@ -252,7 +249,7 @@ class AgentGUI:
             command=self._new_session,
         ).grid(row=1, column=0, padx=12, pady=(0, 10), sticky="ew")
 
-        # 3. Workspace Manager (Primary Organization Root)
+        # Workspace Manager
         ws_card = ctk.CTkFrame(
             self.sidebar, corner_radius=10, fg_color=self.colors["card_bg"],
             border_width=1, border_color=self.colors["border"],
@@ -286,7 +283,7 @@ class AgentGUI:
         )
         self.workspace_menu.pack(fill="x", padx=10, pady=(0, 8))
 
-        # 4. Workspace Conversations (Filtered by active workspace)
+        # Workspace Sessions
         sessions_container = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         sessions_container.grid(row=3, column=0, padx=12, pady=(0, 6), sticky="nsew")
         sessions_container.grid_columnconfigure(0, weight=1)
@@ -307,7 +304,7 @@ class AgentGUI:
         self.session_frame.grid(row=1, column=0, sticky="nsew")
         self.session_frame.grid_columnconfigure(0, weight=1)
 
-        # 5. Bottom Footer: Gateway status + Theme Toggle
+        # Footer
         footer = ctk.CTkFrame(
             self.sidebar, corner_radius=0, fg_color=self.colors["bg_root"],
             border_width=1, border_color=self.colors["border"], height=40,
@@ -338,12 +335,10 @@ class AgentGUI:
 
         self._build_topbar(self.main_panel)
 
-        # Center Chat Scrollable Surface
         self.chat = ctk.CTkScrollableFrame(self.main_panel, fg_color=self.colors["bg_root"], corner_radius=0)
         self.chat.grid(row=1, column=0, sticky="nsew", padx=(20, 20), pady=(0, 6))
         self.chat.grid_columnconfigure(0, weight=1)
 
-        # Floating Bottom Composer & Status Footer
         self._build_composer(self.main_panel)
         self._build_statusbar(self.main_panel)
 
@@ -354,7 +349,6 @@ class AgentGUI:
         bar.grid(row=0, column=0, padx=16, pady=(10, 4), sticky="ew")
         bar.grid_columnconfigure(0, weight=1)
 
-        # Left: Session Title Pill
         left = ctk.CTkFrame(bar, fg_color="transparent")
         left.grid(row=0, column=0, sticky="w")
 
@@ -366,7 +360,6 @@ class AgentGUI:
             text_color=self.colors["text_primary"],
         ).pack(side="left", padx=(10, 6), pady=4)
 
-        # Right Functional Toolbar
         right = ctk.CTkFrame(bar, fg_color="transparent")
         right.grid(row=0, column=1, sticky="e")
 
@@ -427,12 +420,10 @@ class AgentGUI:
         self.input.grid(row=0, column=0, padx=12, pady=(10, 4), sticky="ew")
         self.input.bind("<Control-Return>", lambda _e: self._send() or "break")
 
-        # Bottom row inside composer
         bottom_bar = ctk.CTkFrame(composer_outer, fg_color="transparent")
         bottom_bar.grid(row=1, column=0, padx=10, pady=(0, 8), sticky="ew")
-        bottom_bar.grid_columnconfigure(0, weight=1)
+        bottom_bar.grid_columnconfigure(1, weight=1)
 
-        # Left tools in composer: Goal launcher
         c_left = ctk.CTkFrame(bottom_bar, fg_color="transparent")
         c_left.grid(row=0, column=0, sticky="w")
 
@@ -444,7 +435,6 @@ class AgentGUI:
             command=self._show_goal_dialog,
         ).pack(side="left")
 
-        # Right tools in composer: Model + Permissions + Send button
         c_right = ctk.CTkFrame(bottom_bar, fg_color="transparent")
         c_right.grid(row=0, column=1, sticky="e")
 
@@ -506,7 +496,6 @@ class AgentGUI:
         self.activity.grid_columnconfigure(0, weight=1)
         self.activity.grid_rowconfigure(2, weight=1)
 
-        # Drawer Header
         header = ctk.CTkFrame(self.activity, fg_color="transparent")
         header.grid(row=0, column=0, padx=14, pady=(14, 6), sticky="ew")
         ctk.CTkLabel(
@@ -522,7 +511,6 @@ class AgentGUI:
             command=self._toggle_activity,
         ).pack(side="right")
 
-        # Progress / State Metric Strip
         p_card = ctk.CTkFrame(
             self.activity, corner_radius=10, fg_color=self.colors["card_bg"],
             border_width=1, border_color=self.colors["border"],
@@ -546,7 +534,6 @@ class AgentGUI:
             text_color=self.colors["accent_emerald"],
         ).pack(side="right")
 
-        # 2 High-value Tabs: 时间线 (Timeline) + 思维链 (Reasoning)
         self.activity_tabs = ctk.CTkTabview(
             self.activity, corner_radius=10,
             fg_color=self.colors["card_bg"], segmented_button_fg_color=self.colors["bg_root"],
@@ -558,7 +545,6 @@ class AgentGUI:
         self.activity_tabs.add("时间线")
         self.activity_tabs.add("思维链")
 
-        # Tab 1: Timeline
         timeline_tab = self.activity_tabs.tab("时间线")
         t_head = ctk.CTkFrame(timeline_tab, fg_color="transparent")
         t_head.pack(fill="x", padx=2, pady=(0, 4))
@@ -576,7 +562,6 @@ class AgentGUI:
 
         self.trajectory_box = self._readonly_box(timeline_tab)
 
-        # Tab 2: Reasoning (CoT)
         cot_tab = self.activity_tabs.tab("思维链")
         c_head = ctk.CTkFrame(cot_tab, fg_color="transparent")
         c_head.pack(fill="x", padx=2, pady=(0, 4))
@@ -635,7 +620,6 @@ class AgentGUI:
         widget.bind("<<Cut>>", lambda _event: "break")
 
     def _append_thought_block(self, reasoning_text: str) -> None:
-        """Render a collapsible Claude-style 'Thought process' card."""
         if not reasoning_text.strip():
             return
 
@@ -651,7 +635,6 @@ class AgentGUI:
         card.grid(row=0, column=0, sticky="w")
         card.grid_columnconfigure(0, weight=1)
 
-        # Thought header with toggle
         hdr = ctk.CTkFrame(card, fg_color="transparent")
         hdr.grid(row=0, column=0, padx=12, pady=6, sticky="ew")
         hdr.grid_columnconfigure(1, weight=1)
@@ -697,7 +680,6 @@ class AgentGUI:
             self.chat._parent_canvas.yview_moveto(1.0)
 
     def _append_chat(self, role: str, text: str) -> None:
-        """Append a modern message bubble to the scrollable chat stream."""
         is_user = role in {"you", "你"}
         is_system = role in {"system", "系统", "撤销", "验证", "保存", "导出", "Goal", "错误"}
         bubble_bg = self.colors["user_bg"] if is_user else (self.colors["system_bg"] if is_system else self.colors["assistant_bg"])
@@ -721,7 +703,6 @@ class AgentGUI:
 
         card.grid_columnconfigure(0, weight=1)
 
-        # Header row with role tag, icon, and copy button
         hdr = ctk.CTkFrame(card, fg_color="transparent")
         hdr.grid(row=0, column=0, padx=14, pady=(8, 2), sticky="ew")
         hdr.grid_columnconfigure(0, weight=1)
@@ -756,7 +737,6 @@ class AgentGUI:
                 command=lambda t=text: self._copy_text(t),
             ).grid(row=0, column=1, sticky="e")
 
-        # Message body
         body = ctk.CTkLabel(
             card, text=text, justify="left", anchor="w",
             wraplength=680, font=ctk.CTkFont("Microsoft YaHei UI", 13),
@@ -1187,7 +1167,6 @@ class AgentGUI:
             child.destroy()
 
         current_ws = self.workspace_var.get()
-        # Filter sessions by current workspace
         self._session_records = list_sessions(workspace=current_ws)
 
         if hasattr(self, "sessions_count_lbl"):
@@ -1245,7 +1224,6 @@ class AgentGUI:
 
     @staticmethod
     def _history_messages(payload: dict) -> list[tuple[str, str]]:
-        """Visible conversation turns from a session snapshot."""
         pairs = []
         for message in payload.get("messages", []):
             role = message.get("role")
@@ -1295,7 +1273,6 @@ class AgentGUI:
         title = record.title or "对话"
         self.current_title.set(title[:18] + ("…" if len(title) > 18 else ""))
 
-        # Restore workspace and harness state
         ws = payload.get("workspace") or record.workspace
         if ws and ws != self.workspace_var.get():
             self.workspace_var.set(ws)
@@ -1337,7 +1314,6 @@ class AgentGUI:
         self.workspace_var.set(value)
         config.set_sandbox_root(value)
         self.status.set(f"工作区已切换为：{value}")
-        # Reset and reload sessions for the newly selected workspace
         self._new_session()
         self._refresh_sessions()
 
@@ -1363,6 +1339,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agent-gui", description="Launch the modern Xiaopu GUI")
     parser.add_argument("--workspace", type=str, default=None, help="working directory")
     parser.add_argument("--model", type=str, default=None, help="model override")
+    parser.add_argument("--native", action="store_true", help="launch Tkinter desktop UI instead of Web GUI")
+    parser.add_argument("--port", type=int, default=8765, help="web server port")
+    parser.add_argument("--no-browser", action="store_true", help="do not auto-open browser")
     return parser
 
 
@@ -1376,9 +1355,15 @@ def main() -> int:
             print(f"WORKSPACE ERROR: directory does not exist: {path}")
             return 2
         os.environ["WORKSPACE"] = str(path)
-    root = ctk.CTk()
-    AgentGUI(root, model=args.model)
-    root.mainloop()
+
+    if args.native:
+        root = ctk.CTk()
+        AgentGUI(root, model=args.model)
+        root.mainloop()
+        return 0
+
+    from .web_server import run_web_gui
+    run_web_gui(port=args.port, open_browser=not args.no_browser, model=args.model)
     return 0
 
 

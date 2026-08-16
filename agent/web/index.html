@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小朴 Agent · Xiaopu (Coding & PPT Assistant)</title>
+  <link rel="icon" type="image/png" href="/assets/icon.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app-container">
+    <!-- Left Sidebar: Workspace & Sessions -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-icon">
+          <img src="/assets/icon.png" alt="Logo" onerror="this.parentElement.innerHTML='朴'">
+        </div>
+        <div class="brand-title">小朴 Xiaopu</div>
+        <div class="brand-badge">v0.2.0</div>
+      </div>
+
+      <button id="new-session-btn" class="new-session-btn" title="保存并开启全新会话">
+        <span>＋</span> 新建对话 (New Session)
+      </button>
+
+      <!-- Workspace Management Section -->
+      <div class="workspace-section">
+        <div class="workspace-header">
+          <div class="workspace-title">📁 当前工作区</div>
+          <button id="choose-workspace-btn" class="workspace-choose-btn" title="选择其他工作区目录">切换目录…</button>
+        </div>
+        <select id="workspace-select" class="workspace-select"></select>
+      </div>
+
+      <!-- Workspace Sessions List -->
+      <div class="sessions-container">
+        <div class="sessions-header">
+          <span id="sessions-count-title">工作区对话</span>
+        </div>
+        <div id="session-list" class="session-list">
+          <div class="empty-sessions">暂无历史对话<br>点击上方“新建对话”开始</div>
+        </div>
+      </div>
+
+      <!-- Footer: Gateway & Theme -->
+      <div class="sidebar-footer">
+        <div class="gateway-status">
+          <span style="color: var(--accent-emerald);">●</span> Gateway 在线
+        </div>
+        <button id="theme-toggle-btn" class="theme-toggle-btn">🌓 主题</button>
+      </div>
+    </aside>
+
+    <!-- Center Main Column -->
+    <main id="main-panel">
+      <!-- Topbar -->
+      <header class="main-topbar">
+        <div class="topbar-left">
+          <div class="session-title-badge">
+            <span id="current-title">新对话</span>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <button id="btn-verify" class="pill-btn" title="运行 PPT 结构校验">🔍 校验</button>
+          <button id="btn-save-ppt" class="pill-btn" title="保存 PPTX 文件">💾 保存 PPT</button>
+          <button id="btn-undo" class="pill-btn" title="撤销最近一次 PPT 修改">↩ 撤销</button>
+          <button id="btn-export" class="pill-btn" title="导出 Markdown 会话">📤 导出</button>
+          <button id="btn-toggle-activity" class="pill-btn primary" title="切换右侧活动与上下文抽屉">◫ 活动</button>
+        </div>
+      </header>
+
+      <!-- Scrollable Chat Stream Area -->
+      <div id="chat-area" class="chat-scroll-area">
+        <div class="chat-row system">
+          <div class="message-card system">小朴已就绪。输入任务描述开始执行，支持代码编写、文档生成与 PPT 自动化。</div>
+        </div>
+      </div>
+
+      <!-- Floating Bottom Composer Card (Claude Style) -->
+      <div class="composer-container">
+        <div class="composer-card">
+          <textarea id="prompt-input" class="composer-input" placeholder="输入任务描述或指令（Ctrl+Enter 发送）..."></textarea>
+          <div class="composer-bottom">
+            <div class="composer-tools">
+              <button id="btn-goal-dialog" class="pill-btn" style="font-size: 11px; padding: 3px 8px;">🎯 长期目标</button>
+            </div>
+            <div class="composer-actions">
+              <select id="model-select" class="select-pill" title="切换模型"></select>
+              <select id="perm-select" class="select-pill" title="Shell 命令策略">
+                <option value="allow">allow (允许)</option>
+                <option value="ask" selected>ask (询问)</option>
+                <option value="deny">deny (禁止)</option>
+              </select>
+              <button id="btn-stop" class="stop-btn">⏹ 中断</button>
+              <button id="btn-send" class="send-btn" title="发送 (Ctrl+Enter)">↑</button>
+            </div>
+          </div>
+        </div>
+        <div class="composer-footer-text">小朴 Agent · AI 智能代码与演示文稿助手 · Ctrl+Enter 发送</div>
+      </div>
+    </main>
+
+    <!-- Right Activity & Context Drawer -->
+    <aside id="activity-drawer">
+      <div class="drawer-header">
+        <div class="drawer-title">活动与上下文 (Context)</div>
+        <button id="drawer-close-btn" class="drawer-close-btn">✕</button>
+      </div>
+      <div class="drawer-content">
+        <!-- Progress Card -->
+        <div class="progress-card">
+          <div id="live-action" class="progress-action">就绪 · 等待指令</div>
+          <div class="progress-sub">
+            <span id="live-phase">Phase: intake</span>
+            <span id="live-elapsed" class="progress-timer">0 秒</span>
+          </div>
+        </div>
+
+        <!-- 2 High-value Tabs -->
+        <div class="drawer-tabs">
+          <button id="tab-timeline-btn" class="tab-btn active">时间线</button>
+          <button id="tab-cot-btn" class="tab-btn">思维链</button>
+        </div>
+
+        <!-- Tab 1: Timeline -->
+        <div id="tab-timeline-panel" class="tab-panel">
+          <div class="panel-header">
+            <span id="live-counts">工具 0 · 完成 0 · 失败 0</span>
+            <button id="copy-timeline-btn" class="pill-btn" style="font-size: 10px; padding: 2px 6px;">复制时间线</button>
+          </div>
+          <div id="timeline-log" class="tab-log-box"></div>
+        </div>
+
+        <!-- Tab 2: Reasoning / CoT -->
+        <div id="tab-cot-panel" class="tab-panel" style="display: none;">
+          <div class="panel-header">
+            <span>原始 reasoning_content (未伪造)</span>
+            <button id="copy-cot-btn" class="pill-btn" style="font-size: 10px; padding: 2px 6px;">复制思维链</button>
+          </div>
+          <div id="cot-log" class="tab-log-box">模型实际返回的 reasoning_content 会实时显示在这里。&#10;provider 未返回时明确提示，绝不伪造。</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- JavaScript Application Logic -->
+  <script src="/app.js"></script>
+</body>
+</html>

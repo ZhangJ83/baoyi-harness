@@ -1,0 +1,374 @@
+"""Lightweight Web GUI Server for Xiaopu Harness.
+
+Serves the modern Claude Desktop / Cowork-inspired HTML5/CSS3 frontend and provides
+REST + SSE (Server-Sent Events) APIs for real-time streaming, tool calls, and workspace session management.
+"""
+from __future__ import annotations
+
+import json
+import os
+import queue
+import sys
+import threading
+import time
+import urllib.parse
+import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+from . import config
+from .events import EventKind, RuntimeEvent
+from .harness import Harness
+from .session_store import (
+    delete_session,
+    export_session,
+    list_sessions,
+    load_session,
+    restore_harness,
+    save_session,
+)
+from .tools.registry import dispatch
+from .workspace_store import list_workspaces, register_workspace
+
+WEB_DIR = Path(__file__).resolve().parent / "web"
+ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+
+
+class XiaopuWebHandler(BaseHTTPRequestHandler):
+    harness: Harness = None  # Class-level shared harness instance
+    active_stream_queue: queue.Queue | None = None
+
+    def log_message(self, format, *args):
+        # Suppress routine GET logging for clean console output
+        pass
+
+    def _send_json(self, data: Any, status: int = 200) -> None:
+        payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _send_file(self, file_path: Path, content_type: str) -> None:
+        if not file_path.is_file():
+            self.send_error(404, "File Not Found")
+            return
+        content = file_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _read_json_body(self) -> dict:
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            if length <= 0:
+                return {}
+            body = self.rfile.read(length).decode("utf-8")
+            return json.loads(body)
+        except Exception:
+            return {}
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_GET(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
+
+        # Static asset routing
+        if path in {"/", "/index.html"}:
+            self._send_file(WEB_DIR / "index.html", "text/html; charset=utf-8")
+            return
+        elif path == "/style.css":
+            self._send_file(WEB_DIR / "style.css", "text/css; charset=utf-8")
+            return
+        elif path == "/app.js":
+            self._send_file(WEB_DIR / "app.js", "application/javascript; charset=utf-8")
+            return
+        elif path == "/assets/icon.png":
+            self._send_file(ASSETS_DIR / "icon.png", "image/png")
+            return
+        elif path == "/assets/icon.ico":
+            self._send_file(ASSETS_DIR / "icon.ico", "image/x-icon")
+            return
+
+        # API routing
+        if path == "/api/config":
+            self._send_json({
+                "known_models": config.known_models(),
+                "current_model": getattr(self.harness.llm, "model", config.model()),
+                "command_policy": config.command_policy(),
+                "provider": config.provider(),
+            })
+            return
+
+        if path == "/api/workspaces":
+            workspaces = [str(w) for w in list_workspaces()]
+            current = str(config.sandbox_root())
+            if current not in workspaces:
+                workspaces.insert(0, current)
+            self._send_json({"workspaces": workspaces, "current": current})
+            return
+
+        if path == "/api/sessions":
+            ws = query.get("workspace", [None])[0]
+            records = list_sessions(workspace=ws)
+            self._send_json({
+                "sessions": [
+                    {
+                        "id": r.id,
+                        "title": r.title,
+                        "created_at": r.created_at,
+                        "updated_at": r.updated_at,
+                        "model": r.model,
+                        "workspace": r.workspace,
+                        "turn_count": r.turn_count,
+                        "summary": r.summary,
+                    }
+                    for r in records
+                ]
+            })
+            return
+
+        if path.startswith("/api/session/"):
+            session_id = path[len("/api/session/"):]
+            payload = load_session(session_id)
+            if payload is None:
+                self.send_error(404, "Session not found")
+                return
+            self._send_json(payload)
+            return
+
+        if path == "/api/goal":
+            self._send_json({"summary": self.harness.goal_summary()})
+            return
+
+        self.send_error(404, "Not Found")
+
+    def do_POST(self) -> None:
+        path = urllib.parse.urlparse(self.path).path
+        body = self._read_json_body()
+
+        if path == "/api/workspace":
+            new_ws = body.get("workspace")
+            if new_ws:
+                os.environ["WORKSPACE"] = str(new_ws)
+                config.set_sandbox_root(new_ws)
+                try:
+                    register_workspace(new_ws)
+                except Exception:
+                    pass
+                self.harness.reset()
+                self._send_json({"status": "ok", "workspace": str(config.sandbox_root())})
+                return
+            self.send_error(400, "Missing workspace argument")
+            return
+
+        if path == "/api/cancel":
+            self.harness.request_cancel()
+            self._send_json({"status": "cancelled"})
+            return
+
+        if path == "/api/ppt/verify":
+            try:
+                res = dispatch("ppt_check", json.dumps({"policy": "auto"}), self.harness)
+                self._send_json({"result": res})
+            except Exception as e:
+                self._send_json({"result": f"校验失败: {e}"}, status=500)
+            return
+
+        if path == "/api/ppt/save":
+            save_path = body.get("path", "presentation.pptx")
+            try:
+                res = dispatch("ppt_save", json.dumps({"path": save_path}), self.harness)
+                self._send_json({"result": res})
+            except Exception as e:
+                self._send_json({"result": f"保存失败: {e}"}, status=500)
+            return
+
+        if path == "/api/ppt/undo":
+            try:
+                res = self.harness.undo()
+                self._send_json({"result": res})
+            except Exception as e:
+                self._send_json({"result": f"撤销失败: {e}"}, status=500)
+            return
+
+        if path == "/api/session/export":
+            session_id = body.get("session_id")
+            if not session_id:
+                rec = save_session(self.harness)
+                session_id = rec.id
+            out_file = config.sandbox_root() / f"xiaopu-session-{session_id[:8]}.md"
+            exported = export_session(session_id, out_file)
+            self._send_json({"path": str(exported)})
+            return
+
+        if path == "/api/goal":
+            objective = body.get("objective", "")
+            if objective:
+                res = self.harness.start_goal(objective)
+                self._send_json({"result": res})
+                return
+            self.send_error(400, "Missing objective")
+            return
+
+        if path == "/api/chat":
+            self._handle_chat_stream(body)
+            return
+
+        self.send_error(404, "Not Found")
+
+    def do_DELETE(self) -> None:
+        path = urllib.parse.urlparse(self.path).path
+        if path.startswith("/api/session/"):
+            session_id = path[len("/api/session/"):]
+            ok = delete_session(session_id)
+            self._send_json({"status": "deleted" if ok else "not_found"})
+            return
+        self.send_error(404, "Not Found")
+
+    def _handle_chat_stream(self, body: dict) -> None:
+        task = body.get("task", "")
+        session_id = body.get("session_id")
+        model = body.get("model")
+        permission = body.get("permission")
+
+        if model:
+            if config.provider() == "anthropic":
+                os.environ["ANTHROPIC_MODEL"] = model
+            else:
+                os.environ["OPENAI_MODEL"] = model
+            if getattr(self.harness, "llm", None):
+                self.harness.llm.model = model
+
+        if permission:
+            config.set_command_policy(permission)
+            os.environ["COMMAND_POLICY"] = permission
+
+        # If resuming a specific session ID
+        if session_id and (not hasattr(self.harness, "session") or self.harness.session.id != session_id):
+            payload = load_session(session_id)
+            if payload:
+                restore_harness(self.harness, payload)
+
+        # Set up SSE Streaming headers
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        event_queue: queue.Queue = queue.Queue()
+
+        def stream_token(piece: str):
+            event_queue.put({"type": "token", "content": piece})
+
+        def reasoning_token(piece: str):
+            event_queue.put({"type": "reasoning", "content": piece})
+
+        def runtime_listener(event: RuntimeEvent):
+            p = getattr(event, "payload", {})
+            kind = getattr(event, "kind", None)
+            if kind == EventKind.TOOL_STARTED:
+                event_queue.put({
+                    "type": "tool_started",
+                    "payload": {"tool": p.get("tool"), "arguments": p.get("arguments", "")[:240]},
+                })
+            elif kind == EventKind.TOOL_COMPLETED:
+                event_queue.put({
+                    "type": "tool_completed",
+                    "payload": {"tool": p.get("tool"), "output": str(p.get("output", ""))[:400]},
+                })
+            elif kind == EventKind.TOOL_FAILED:
+                event_queue.put({
+                    "type": "tool_failed",
+                    "payload": {"tool": p.get("tool"), "error": str(p.get("error", ""))[:240]},
+                })
+            elif kind == EventKind.PHASE_CHANGED:
+                event_queue.put({
+                    "type": "phase_changed",
+                    "payload": {"from_phase": p.get("from_phase"), "to_phase": p.get("to_phase")},
+                })
+
+        self.harness.stream_callback = stream_token
+        self.harness.reasoning_callback = reasoning_token
+        unsub = self.harness.subscribe(runtime_listener)
+
+        worker_done = threading.Event()
+        worker_error: list[str] = []
+
+        def worker():
+            try:
+                res = self.harness.run(task)
+                event_queue.put({"type": "result", "content": res})
+                rec = save_session(self.harness)
+                event_queue.put({"type": "session_saved", "session_id": rec.id})
+            except Exception as exc:
+                worker_error.append(str(exc))
+                event_queue.put({"type": "error", "content": f"{type(exc).__name__}: {exc}"})
+            finally:
+                worker_done.set()
+
+        threading.Thread(target=worker, name="xiaopu-web-worker", daemon=True).start()
+
+        try:
+            while not worker_done.is_set() or not event_queue.empty():
+                try:
+                    ev = event_queue.get(timeout=0.1)
+                    line = f"data: {json.dumps(ev, ensure_ascii=False)}\n\n".encode("utf-8")
+                    self.wfile.write(line)
+                    self.wfile.flush()
+                except queue.Empty:
+                    continue
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            unsub()
+            self.close_connection = True
+
+
+def run_web_gui(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, model: str | None = None) -> None:
+    XiaopuWebHandler.harness = Harness(model=model, interactive=True)
+    server = ThreadingHTTPServer((host, port), XiaopuWebHandler)
+    url = f"http://{host}:{port}"
+    print(f"\n=======================================================")
+    print(f"  小朴 Xiaopu Web GUI is running at: {url}")
+    print(f"=======================================================\n")
+
+    if open_browser:
+        try:
+            # Try launching in app mode if MS Edge or Chrome is available
+            import subprocess
+            if sys.platform == "win32":
+                try:
+                    subprocess.Popen(["msedge", f"--app={url}"])
+                except Exception:
+                    webbrowser.open(url)
+            else:
+                webbrowser.open(url)
+        except Exception:
+            webbrowser.open(url)
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping Xiaopu Web GUI server...")
+        server.shutdown()
+
+
+if __name__ == "__main__":
+    run_web_gui()
