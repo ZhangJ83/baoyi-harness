@@ -383,28 +383,26 @@ class Harness:
             if multi_page_build:
                 fast_path_hint = (
                     "\n--- New-deck creation fast path (multi-page custom build) ---\n"
-                    "There is no existing presentation to open; do not guess filenames or call ppt_open. "
-                    "Build ALL requested pages as finished, high-density content:\n"
-                    "- Start with new_deck once, then compose each page with the matching semantic builder:\n"
-                    "  * For workflows / processes / architectures: use ppt_compose(kind='workflow_pipeline', title='...', steps=[{'title': '...', 'action': '...', 'bullets': [...], 'tag': '...'}]) with step badges 01/02 and detail bullets. Never use plain text bullet lists for workflows.\n"
-                    "  * For HTML / Web UI / dashboard styles: use ppt_compose(kind='html_mockup', title='...', cards=[{'title': '...', 'status': 'ACTIVE', 'metric': '...', 'bullets': [...], 'html_anchor': '...'}]) to render authentic browser window chrome, sidebar, and cards.\n"
-                    "  * For dashboards / metrics: use quadrant or hero_split.\n"
-                    "- Slide-numbered ppt_compose (with slide_number=1) targets page 1 in place and converts the new_deck cover scaffold; never leave a bare cover as page 1 of a multi-page content deck.\n"
-                    "- Make each slide content-rich (150-400 chars, structured cards with badges and multi-level points), then ppt_save and ppt_check once the deck is complete.\n"
+                    "This is a from-scratch new deck task. Do NOT call ppt_open on leftover files in the workspace. "
+                    "Compose ALL requested pages directly with ppt_compose:\n"
+                    "- Slide 1 (Native PPT elements / Workflows): call ppt_compose(kind='workflow_pipeline', slide_number=1, title='...', steps=[{'title': '...', 'action': '...', 'bullets': [...], 'tag': '...'}]) with step badges 01/02 and detail bullets. Never use plain text bullet lists for workflows.\n"
+                    "- Slide 2 (HTML / Web UI style): call ppt_compose(kind='html_mockup', slide_number=2, title='...', cards=[{'title': '...', 'status': 'ACTIVE', 'metric': '...', 'bullets': [...], 'html_anchor': '...'}], url_bar='...') to render authentic browser window chrome (🔴🟡🟢), navigation sidebar, and cards.\n"
+                    "- For other layouts, choose quadrant, hero_split, comparison, or table as appropriate.\n"
+                    "- Slide-numbered ppt_compose targets or appends that page automatically.\n"
+                    "- Make each slide content-rich (150-400 chars, structured cards with badges and multi-level points), then call ppt_save(), then ppt_check(policy='full'), then finish().\n"
                 )
             else:
                 fast_path_hint = (
                     "\n--- New-deck creation fast path ---\n"
-                    "There is no existing presentation to open; do not guess filenames or call ppt_open. "
-                    "Create it from scratch: call new_deck once for the cover, then compose each page with "
-                    "ppt_compose using the layout that best matches the content:\n"
-                    "- workflow_pipeline for processes/architectures/workflows\n"
-                    "- html_mockup for Web UI/console styles\n"
+                    "This is a from-scratch new deck task. Do NOT call ppt_open on leftover files in the workspace. "
+                    "Compose each page with ppt_compose using the layout that best matches the content:\n"
+                    "- workflow_pipeline (with slide_number) for processes/architectures/workflows\n"
+                    "- html_mockup (with slide_number) for Web UI/console styles\n"
                     "- hero_split for key highlight + breakdown\n"
                     "- quadrant for 2x2 executive dashboards\n"
                     "- comparison for side-by-side contrasts\n"
                     "Make every slide content-rich with container cards, badges, and substantive bullet points (150-400 chars per slide). "
-                    "Then ppt_save and ppt_check once the deck is complete.\n"
+                    "Then call ppt_save() and ppt_check(policy='full') once the deck is complete.\n"
                 )
         return (
             "Identity (non-negotiable): You are 小朴 (Xiaopu), the product's autonomous coding and PowerPoint agent. "

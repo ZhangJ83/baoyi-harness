@@ -826,6 +826,23 @@ class PowerPointTests(unittest.TestCase):
         self.assertIn("no structural issues found", check_pass)
         self.assertNotIn("ppt_structural", h.state.unresolved_checks)
 
+    def test_save_deck_produces_clean_zip_with_no_duplicate_slide_parts(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp}):
+            h = DummyHarness()
+            dispatch("new_deck", json.dumps({"title": "Clean PPT"}), h)
+            dispatch("add_slide", json.dumps({"title": "Slide 2", "bullets": ["B1"]}), h)
+            dispatch("delete_slide", json.dumps({"slide_number": 1}), h)
+            dispatch("add_slide", json.dumps({"title": "Slide 3", "bullets": ["B2"]}), h)
+            save_path = Path(tmp) / "clean.pptx"
+            dispatch("save_deck", json.dumps({"path": str(save_path)}), h)
+
+            with zipfile.ZipFile(save_path, "r") as z:
+                names = z.namelist()
+                slide_names = [n for n in names if n.startswith("ppt/slides/slide") and n.endswith(".xml")]
+                self.assertEqual(len(slide_names), len(set(slide_names)))
+                self.assertEqual(len(slide_names), 2)
+
     def test_mutation_registry_covers_all_stateful_ppt_operations(self):
         expected = {
             "new_deck", "add_slide", "add_two_column_slide", "compose_quadrant_slide", "add_metric_slide",

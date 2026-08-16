@@ -35,6 +35,58 @@ _W = 13.333
 _H = 7.5
 
 
+def _patch_pptx_slide_partname_uniqueness() -> None:
+    """Ensure python-pptx generates unique slide partnames even after slide deletions."""
+    try:
+        from pptx.parts.presentation import PresentationPart
+        from pptx.opc.packuri import PackURI
+
+        def _safe_next_slide_partname(self):
+            used = {p.partname for p in self.package.iter_parts()}
+            for rel in self._rels.values():
+                if not rel.is_external and getattr(rel, "target_part", None):
+                    used.add(rel.target_part.partname)
+            n = 1
+            while True:
+                candidate = PackURI(f"/ppt/slides/slide{n}.xml")
+                if candidate not in used:
+                    return candidate
+                n += 1
+
+        PresentationPart._next_slide_partname = property(_safe_next_slide_partname)
+    except Exception:
+        pass
+
+
+_patch_pptx_slide_partname_uniqueness()
+
+
+def _ensure_deck_package_clean(prs: Presentation) -> Presentation:
+    """Detect and heal any duplicate slide partnames before writing to disk."""
+    try:
+        parts = list(prs.part.package.iter_parts())
+        names = [p.partname for p in parts]
+        if len(names) == len(set(names)):
+            return prs
+    except Exception:
+        return prs
+
+    # Duplicate partnames detected (corrupted package graph); rebuild clean Presentation
+    clean = Presentation()
+    clean.slide_width = prs.slide_width
+    clean.slide_height = prs.slide_height
+    for s in prs.slides:
+        layout_idx = 6 if len(clean.slide_layouts) > 6 else 0
+        new_s = clean.slides.add_slide(clean.slide_layouts[layout_idx])
+        for sh in s.shapes:
+            new_s.shapes._spTree.insert_element_before(deepcopy(sh._element), "p:extLst")
+        if getattr(s, "has_notes_slide", False):
+            notes = s.notes_slide.notes_text_frame.text.strip()
+            if notes:
+                new_s.notes_slide.notes_text_frame.text = notes
+    return clean
+
+
 def _schema(name: str, description: str, params: dict[str, dict], required: list[str]):
     return {
         "type": "function",
@@ -2683,9 +2735,10 @@ def _save(h, path: str | None) -> str:
         target = root / "deck.pptx"
     target.parent.mkdir(parents=True, exist_ok=True)
     prs = _deck(h)
+    prs = _ensure_deck_package_clean(prs)
     prs, normalized = _normalize_minimal_container(prs)
+    h.deck = prs
     if normalized:
-        h.deck = prs
         h.state.record_fact("ppt_container_normalized", "minimal template migrated to standard PowerPoint container")
     prs.save(str(target))
     try:
