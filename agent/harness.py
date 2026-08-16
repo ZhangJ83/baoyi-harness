@@ -403,8 +403,12 @@ class Harness:
                     "\n--- New-deck creation fast path ---\n"
                     "There is no existing presentation to open; do not guess filenames or call ppt_open. "
                     "Create it from scratch: call new_deck once for the cover, then one ppt_compose "
-                    "(content/comparison/table/quadrant) per additional slide, then ppt_save and "
-                    "ppt_check once the deck is complete.\n"
+                    "(content/comparison/table/quadrant/flowchart) per additional slide. "
+                    "Make every slide content-rich with 3-8 substantive points per page; "
+                    "each point should be a complete phrase or sentence, not a single word. "
+                    "Use the layout type that best matches the content: flowchart for processes, "
+                    "quadrant for dashboards, comparison for contrasts, content for general topics. "
+                    "Then ppt_save and ppt_check once the deck is complete.\n"
                 )
         return (
             "Identity (non-negotiable): You are 小朴 (Xiaopu), the product's autonomous coding and PowerPoint agent. "
@@ -1899,7 +1903,7 @@ class Harness:
                     and not self.state.facts.get("repair_observation_grant") == "1"
                 ):
                     blockers = set(self.state.unresolved_checks)
-                    budget = 2 if blockers & {"ppt_contract", "task_evaluator"} else 1
+                    budget = 4 if blockers & {"ppt_contract", "task_evaluator"} else 3
                     used = int(self.state.facts.get("ppt_repair_observation_calls", "0"))
                     if used >= budget:
                         # If the deck has unverified mutations, the shortest
@@ -2051,7 +2055,7 @@ class Harness:
                         " A one-shot observation grant was issued: call ppt_inspect once for the cited "
                         "slide to read the CURRENT text, then retry the edit with those exact strings."
                     )
-                if class_count >= 3:
+                if class_count >= 5:
                     hint += (
                         f" Circuit breaker: {class_count} failures of this tool/error class; "
                         "change strategy instead of trying an equivalent call."
@@ -2076,8 +2080,8 @@ class Harness:
                 if history is None:
                     history = self._rejection_history = []
                 history.append(signature)
-                del history[:-3]
-                stuck = len(history) == 3 and history[0] == history[1] == history[2]
+                del history[:-5]
+                stuck = len(history) == 5 and len(set(history)) == 1
                 if stuck:
                     saved = self._save_draft_before_pause()
                     blocker_text = ", ".join(sorted(blockers)) or str(exc)[:120]

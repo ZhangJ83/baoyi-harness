@@ -632,7 +632,7 @@ def test_exhausted_observation_quota_resets_when_gate_is_resolved(tmp_path, monk
     h.deck = deck
     h.state.record_change("deck:edit")
     h.state.unresolved_checks.add("ppt_structural")
-    h.state.facts["ppt_repair_observation_calls"] = "1"
+    h.state.facts["ppt_repair_observation_calls"] = "3"
     h.state.facts["required_output_pptx"] = "tasks/demo/output/final.pptx"
     h.state.facts["official_evaluator_present"] = "true"
 

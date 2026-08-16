@@ -38,8 +38,8 @@ TASK_PROFILES: tuple[TaskProfile, ...] = (
         "create_deck", "New-deck generation", "Create a concise deck with semantic slide layouts and a clear audience-facing hierarchy.",
         ("workspace_discovery", "source_read", "semantic_layout", "content_compose", "artifact_provenance"),
         ("ppt_structural", "ppt_render", "ppt_visual", "ppt_provenance"),
-        "editorial-minimal; one-message-per-slide; no decorative density",
-        ("create", "generate", "new deck", "presentation", "workshop", "deck", "生成", "创建", "制作", "演示文稿", "幻灯片"),
+        "content-rich; 3-8 substantive points per slide; use semantic layouts (flowchart/quadrant/comparison)",
+        ("create", "generate", "new deck", "presentation", "workshop", "deck", "生成", "创建", "制作", "演示文稿", "幻灯片", "PPT", "pptx", "ppt", "页", "page", "slides"),
     ),
     TaskProfile(
         "layout_reflow", "Layout reflow", "Recompose an existing page to improve hierarchy, density, and spatial balance without losing content.",
@@ -214,6 +214,10 @@ def classify_task(task: str) -> TaskProfile:
     )
     score, _, profile = candidates[0]
     if score == 0:
+        # Default to create_deck for PPT tasks instead of edit_existing
+        ppt_keywords = ('ppt', 'pptx', 'powerpoint', '幻灯片', '演示文稿', '制作', 'slide', '页')
+        if any(kw in task.lower() for kw in ppt_keywords):
+            return next((p for p in TASK_PROFILES if p.name == 'create_deck'), TASK_PROFILES[0])
         return TASK_PROFILES[0]
     # A concrete repair request wins over broad create/edit markers.
     repair = next((item for item in TASK_PROFILES if item.name == "repair_deck"), None)

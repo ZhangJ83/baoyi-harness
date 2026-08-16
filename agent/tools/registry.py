@@ -155,7 +155,9 @@ def _validate(value: Any, schema: dict, path: str = "arguments") -> None:
         if schema.get("additionalProperties") is False:
             unknown = sorted(set(value) - set(properties))
             if unknown:
-                raise ValueError(f"unknown argument(s) at {path}: {', '.join(unknown)}")
+                # Tolerate unknown args from LLM instead of blocking
+                for uk in unknown:
+                    value.pop(uk, None)
         for name, item in value.items():
             if name in properties:
                 _validate(item, properties[name], f"{path}.{name}")

@@ -470,8 +470,9 @@ class PowerPointTests(unittest.TestCase):
     def test_facade_schemas_reject_unknown_or_incomplete_arguments(self):
         h = DummyHarness()
         dispatch("new_deck", json.dumps({"title": "Strict"}), h)
-        with self.assertRaisesRegex(ValueError, "unknown argument"):
-            dispatch("ppt_check", json.dumps({"polciy": "auto"}), h)
+        # Unknown args are now silently dropped (tolerant to LLM typos)
+        result = dispatch("ppt_check", json.dumps({"polciy": "auto"}), h)
+        self.assertIsInstance(result, str)  # should succeed, not raise
         with self.assertRaisesRegex(ValueError, "at least 4|exactly four"):
             dispatch("ppt_compose", json.dumps({"kind": "quadrant", "quadrants": []}), h)
 
