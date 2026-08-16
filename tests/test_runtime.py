@@ -154,6 +154,17 @@ def test_atomic_skill_closes_inspection_after_two_novel_observations():
     state.record_fact("selected_skill", "ppt.atomic_edit")
     controller.note_tool_result(state, "ppt_inspect", '{"detail":"summary"}', "deck summary")
     controller.note_tool_result(state, "ppt_inspect", '{"slide_number":2,"detail":"shapes"}', "target shapes")
+    state.mutation_epoch = 1
     names = controller.tool_names_for_phase(state, True, task="完成 tasks/3-003")
     assert "ppt_inspect" not in names
     assert {"ppt_edit_text", "ppt_save", "ppt_check", "finish"}.issubset(names)
+
+
+def test_first_candidate_can_reopen_observation_before_any_mutation():
+    controller = RuntimeController()
+    state = RunState(phase=RuntimePhase.PRODUCE, content_brief="ready")
+    state.record_fact("selected_skill", "ppt.atomic_edit")
+    controller.note_tool_result(state, "ppt_inspect", '{"detail":"summary"}', "deck summary")
+    controller.note_tool_result(state, "ppt_inspect", '{"slide_number":2,"detail":"shapes"}', "target shapes")
+    names = controller.tool_names_for_phase(state, True, task="完成 tasks/3-003")
+    assert "ppt_inspect" in names

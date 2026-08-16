@@ -249,7 +249,7 @@ class RuntimeController:
             # after one full-deck summary + one targeted shapes view, close
             # inspection and force mutate/save/check. Source-sync tasks use the
             # summary's stable shape names for set_shape_text/set_table.
-            if ppt_task and int(state.facts.get("ppt_inspect_count", "0")) >= 2 and not state.unresolved_checks:
+            if ppt_task and int(state.facts.get("ppt_inspect_count", "0")) >= 2 and not state.unresolved_checks and state.mutation_epoch > 0:
                 facade.discard("ppt_inspect")
             if ppt_task and state.phase == RuntimePhase.VERIFY and state.facts.get("official_evaluator_present") == "true":
                 facade.add("run_task_evaluator")
@@ -265,7 +265,7 @@ class RuntimeController:
             # Observation is bounded for every PPT skill. After one overview +
             # one targeted shapes view, close inspection and force
             # mutate/save/check; the overview carries stable shape names.
-            if int(state.facts.get("ppt_inspect_count", "0")) >= 2 and not state.unresolved_checks:
+            if int(state.facts.get("ppt_inspect_count", "0")) >= 2 and not state.unresolved_checks and state.mutation_epoch > 0:
                 facade.discard("ppt_inspect")
             # Workspace observation remains available only until ContentIR
             # closes discovery; legacy PPT primitives stay registered/hidden.
@@ -292,6 +292,8 @@ class RuntimeController:
             return scoped(set(OBSERVE_TOOLS) | set(MUTATE_TOOLS))
         if state.phase == RuntimePhase.PRODUCE:
             mutate = set(MUTATE_TOOLS)
+            if state.mutation_epoch == 0:
+                mutate.add("ppt_inspect")
             if state.content_brief:
                 # Once ContentIR closes discovery, office work should use the
                 # typed artifact tools. Generic shell/script calls reopen the
