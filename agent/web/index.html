@@ -9,7 +9,7 @@
 </head>
 <body>
   <div id="app-container">
-    <!-- Left Sidebar: Workspace & Sessions -->
+    <!-- Left Sidebar: Projects & Conversations Tree -->
     <aside id="sidebar">
       <div class="sidebar-header">
         <div class="brand-icon">
@@ -19,26 +19,28 @@
         <div class="brand-badge">v0.2.0</div>
       </div>
 
-      <button id="new-session-btn" class="new-session-btn" title="保存并开启全新会话">
-        <span>＋</span> 新建对话 (New Session)
-      </button>
-
-      <!-- Workspace Management Section -->
-      <div class="workspace-section">
-        <div class="workspace-header">
-          <div class="workspace-title">📁 当前工作区</div>
-          <button id="choose-workspace-btn" class="workspace-choose-btn" title="选择其他工作区目录">切换目录…</button>
+      <div class="sidebar-tree-container">
+        <!-- Projects Section -->
+        <div class="tree-section">
+          <div class="tree-section-header">
+            <span class="tree-section-title">Projects</span>
+            <div class="tree-section-actions">
+              <button id="sort-projects-btn" class="tree-icon-btn" title="排序/筛选">☰</button>
+              <button id="add-project-btn" class="tree-icon-btn" title="添加工作区目录/项目">📁⁺</button>
+            </div>
+          </div>
+          <div id="projects-tree-list" class="projects-tree-list"></div>
         </div>
-        <select id="workspace-select" class="workspace-select"></select>
-      </div>
 
-      <!-- Workspace Sessions List -->
-      <div class="sessions-container">
-        <div class="sessions-header">
-          <span id="sessions-count-title">工作区对话</span>
-        </div>
-        <div id="session-list" class="session-list">
-          <div class="empty-sessions">暂无历史对话<br>点击上方“新建对话”开始</div>
+        <!-- Conversations Section -->
+        <div class="tree-section">
+          <div class="tree-section-header">
+            <span class="tree-section-title">Conversations</span>
+            <div class="tree-section-actions">
+              <button id="new-conversation-btn" class="tree-icon-btn" title="新建独立对话">＋</button>
+            </div>
+          </div>
+          <div id="conversations-tree-list" class="conversations-tree-list"></div>
         </div>
       </div>
 

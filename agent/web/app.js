@@ -1,4 +1,4 @@
-// Xiaopu Modern Web UI Application Logic
+// Xiaopu Modern Web UI Application Logic with Hierarchical Tree Management
 (() => {
   // DOM Elements
   const chatArea = document.getElementById("chat-area");
@@ -7,13 +7,15 @@
   const btnStop = document.getElementById("btn-stop");
   const modelSelect = document.getElementById("model-select");
   const permSelect = document.getElementById("perm-select");
-  const workspaceSelect = document.getElementById("workspace-select");
-  const sessionList = document.getElementById("session-list");
   const currentTitle = document.getElementById("current-title");
-  const sessionsCountTitle = document.getElementById("sessions-count-title");
-  const newSessionBtn = document.getElementById("new-session-btn");
-  const chooseWorkspaceBtn = document.getElementById("choose-workspace-btn");
   const themeToggleBtn = document.getElementById("theme-toggle-btn");
+
+  // Tree Elements
+  const projectsTreeList = document.getElementById("projects-tree-list");
+  const conversationsTreeList = document.getElementById("conversations-tree-list");
+  const addProjectBtn = document.getElementById("add-project-btn");
+  const sortProjectsBtn = document.getElementById("sort-projects-btn");
+  const newConversationBtn = document.getElementById("new-conversation-btn");
 
   // Activity Drawer Elements
   const activityDrawer = document.getElementById("activity-drawer");
@@ -41,12 +43,14 @@
 
   // App State
   let activeSessionId = null;
+  let activeWorkspacePath = null;
   let isRunning = false;
   let abortController = null;
   let timerInterval = null;
   let startTime = null;
   let toolStarted = 0, toolCompleted = 0, toolFailed = 0;
   let rawReasoning = "";
+  let sortReverse = false;
 
   // ------------------------------------------------------------------ Theme
   const savedTheme = localStorage.getItem("xiaopu-theme") || "light";
@@ -119,102 +123,169 @@
 
       permSelect.value = cfg.command_policy || "ask";
 
-      // 2. Load workspaces
-      const wsRes = await fetch("/api/workspaces");
-      const wsData = await wsRes.json();
-      
-      workspaceSelect.innerHTML = wsData.workspaces.map(w => 
-        `<option value="${w}" ${w === wsData.current ? "selected" : ""}>${w}</option>`
-      ).join("");
-
-      // 3. Load sessions for current workspace
-      await refreshSessions(wsData.current);
+      // 2. Load tree hierarchy (Projects & Conversations)
+      await refreshTree();
     } catch (e) {
       console.error("Init failed:", e);
     }
   }
 
-  // ------------------------------------------------------------------ Workspaces & Sessions
-  async function refreshSessions(workspacePath) {
+  // ------------------------------------------------------------------ Tree Hierarchy Rendering
+  async function refreshTree() {
     try {
-      const res = await fetch(`/api/sessions?workspace=${encodeURIComponent(workspacePath)}`);
+      const res = await fetch("/api/tree");
       const data = await res.json();
-      const sessions = data.sessions || [];
+      activeWorkspacePath = data.current_workspace;
 
-      sessionsCountTitle.innerText = `工作区对话 (${sessions.length})`;
+      const projects = data.projects || [];
+      const conversations = data.conversations || [];
 
-      if (sessions.length === 0) {
-        sessionList.innerHTML = `<div class="empty-sessions">该工作区暂无历史对话<br>点击上方“新建对话”开始</div>`;
-        return;
+      if (sortReverse) {
+        projects.reverse();
       }
 
-      sessionList.innerHTML = sessions.map(s => {
-        const isActive = s.id === activeSessionId;
-        const timeStr = (s.updated_at || "").slice(5, 16).replace("T", " ");
-        return `
-          <div class="session-item ${isActive ? "active" : ""}" data-id="${s.id}">
-            <div class="session-info">
-              <div class="session-name">💬 ${escapeHtml(s.title || "未命名对话")}</div>
-              <div class="session-meta">${timeStr} · ${s.turn_count || 0} 轮</div>
+      // 1. Render Projects
+      if (projects.length === 0) {
+        projectsTreeList.innerHTML = `<div class="empty-tree-placeholder">暂无项目</div>`;
+      } else {
+        projectsTreeList.innerHTML = projects.map(p => {
+          const sessionsHtml = (p.sessions && p.sessions.length > 0)
+            ? p.sessions.map(s => renderSessionRow(s)).join("")
+            : `<div class="empty-tree-placeholder" style="padding: 4px 10px;">(暂无会话)</div>`;
+
+          return `
+            <div class="project-node" data-path="${escapeAttr(p.path)}">
+              <div class="project-folder-header">
+                <div class="project-folder-info" title="${escapeAttr(p.path)}">
+                  <span class="project-folder-icon">📁</span>
+                  <span class="project-folder-name">${escapeHtml(p.name)}</span>
+                </div>
+                <button class="project-add-chat-btn" data-path="${escapeAttr(p.path)}" title="在此项目下新建对话">＋</button>
+              </div>
+              <div class="project-sessions-list">
+                ${sessionsHtml}
+              </div>
             </div>
-            <button class="session-del-btn" data-id="${s.id}" title="删除会话">✕</button>
-          </div>
-        `;
-      }).join("");
+          `;
+        }).join("");
+      }
 
-      // Bind click events
-      sessionList.querySelectorAll(".session-item").forEach(el => {
-        el.addEventListener("click", (e) => {
-          if (e.target.classList.contains("session-del-btn")) return;
-          loadSession(el.getAttribute("data-id"));
-        });
-      });
+      // 2. Render Conversations (Standalone/Unassigned)
+      if (conversations.length === 0) {
+        conversationsTreeList.innerHTML = `<div class="empty-tree-placeholder" style="padding: 4px 10px;">暂无独立对话</div>`;
+      } else {
+        conversationsTreeList.innerHTML = conversations.map(s => renderSessionRow(s)).join("");
+      }
 
-      sessionList.querySelectorAll(".session-del-btn").forEach(btn => {
-        btn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          const id = btn.getAttribute("data-id");
-          if (confirm(`确认删除该会话记录？`)) {
-            await fetch(`/api/session/${id}`, { method: "DELETE" });
-            if (activeSessionId === id) {
-              newSession();
-            } else {
-              refreshSessions(workspaceSelect.value);
-            }
-          }
-        });
-      });
+      // 3. Bind Tree Click & Delete Handlers
+      bindTreeEvents();
     } catch (e) {
-      console.error("Refresh sessions failed:", e);
+      console.error("Refresh tree failed:", e);
     }
   }
 
-  workspaceSelect.addEventListener("change", async () => {
-    const ws = workspaceSelect.value;
-    await fetch("/api/workspace", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspace: ws })
-    });
-    newSession();
-    refreshSessions(ws);
-  });
+  function renderSessionRow(s) {
+    const isActive = (s.id === activeSessionId);
+    const timeDisplay = isActive ? "now" : (s.time_ago || "now");
+    const showDot = !isActive;
 
-  chooseWorkspaceBtn.addEventListener("click", async () => {
-    const ws = prompt("请输入或粘贴工作区目录绝对路径：", workspaceSelect.value);
-    if (ws && ws.trim()) {
-      await fetch("/api/workspace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspace: ws.trim() })
+    return `
+      <div class="tree-session-item ${isActive ? "active" : ""}" data-id="${s.id}" data-ws="${escapeAttr(s.workspace || "")}">
+        <span class="tree-session-title" title="${escapeAttr(s.title || "未命名对话")}">${escapeHtml(s.title || "未命名对话")}</span>
+        <div class="tree-session-meta">
+          <span class="meta-time-text">${escapeHtml(timeDisplay)}</span>
+          ${showDot ? `<span class="meta-status-dot"></span>` : ""}
+          <button class="tree-session-del-btn" data-id="${s.id}" title="删除会话">✕</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindTreeEvents() {
+    // Click on session row -> load session
+    document.querySelectorAll(".tree-session-item").forEach(el => {
+      el.addEventListener("click", (e) => {
+        if (e.target.classList.contains("tree-session-del-btn")) return;
+        const id = el.getAttribute("data-id");
+        const ws = el.getAttribute("data-ws");
+        loadSession(id, ws);
       });
-      init();
+    });
+
+    // Delete button
+    document.querySelectorAll(".tree-session-del-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute("data-id");
+        if (confirm("确认删除该会话记录？")) {
+          await fetch(`/api/session/${id}`, { method: "DELETE" });
+          if (activeSessionId === id) {
+            newSessionInProject(activeWorkspacePath);
+          } else {
+            refreshTree();
+          }
+        }
+      });
+    });
+
+    // Click on "+" in project header -> new chat in that project
+    document.querySelectorAll(".project-add-chat-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const ws = btn.getAttribute("data-path");
+        await switchWorkspace(ws);
+        newSessionInProject(ws);
+      });
+    });
+
+    // Click on folder header -> switch active workspace
+    document.querySelectorAll(".project-folder-header").forEach(hdr => {
+      hdr.addEventListener("click", async (e) => {
+        if (e.target.classList.contains("project-add-chat-btn")) return;
+        const projectNode = hdr.closest(".project-node");
+        if (projectNode) {
+          const ws = projectNode.getAttribute("data-path");
+          if (ws && ws !== activeWorkspacePath) {
+            await switchWorkspace(ws);
+            showToast(`已切换工作区到：${ws}`);
+            refreshTree();
+          }
+        }
+      });
+    });
+  }
+
+  // ------------------------------------------------------------------ Tree Action Buttons
+  addProjectBtn.addEventListener("click", async () => {
+    const ws = prompt("请输入或粘贴要添加的工作区/项目目录绝对路径：", activeWorkspacePath || "");
+    if (ws && ws.trim()) {
+      await switchWorkspace(ws.trim());
+      newSessionInProject(ws.trim());
+      showToast(`已添加并切换至项目：${ws.trim()}`);
     }
   });
 
-  newSessionBtn.addEventListener("click", newSession);
+  sortProjectsBtn.addEventListener("click", () => {
+    sortReverse = !sortReverse;
+    refreshTree();
+    showToast(sortReverse ? "已切换为倒序排列" : "已切换为顺序排列");
+  });
 
-  function newSession() {
+  newConversationBtn.addEventListener("click", () => {
+    newSessionInProject(activeWorkspacePath);
+  });
+
+  async function switchWorkspace(workspacePath) {
+    if (!workspacePath) return;
+    activeWorkspacePath = workspacePath;
+    await fetch("/api/workspace", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspace: workspacePath })
+    });
+  }
+
+  function newSessionInProject(workspacePath) {
     if (isRunning) return;
     activeSessionId = null;
     currentTitle.innerText = "新对话";
@@ -227,12 +298,15 @@
     cotLog.innerText = "模型实际返回的 reasoning_content 会实时显示在这里。";
     rawReasoning = "";
     refreshCounts(0, 0, 0);
-    refreshSessions(workspaceSelect.value);
+    refreshTree();
   }
 
-  async function loadSession(sessionId) {
+  async function loadSession(sessionId, workspacePath) {
     if (isRunning) return;
     try {
+      if (workspacePath && workspacePath !== activeWorkspacePath) {
+        await switchWorkspace(workspacePath);
+      }
       const res = await fetch(`/api/session/${sessionId}`);
       const data = await res.json();
       if (!data || !data.messages) return;
@@ -240,7 +314,7 @@
       activeSessionId = sessionId;
       currentTitle.innerText = data.title || "对话";
       renderHistory(data);
-      refreshSessions(workspaceSelect.value);
+      refreshTree();
       showToast("会话已加载，可接着继续对话");
     } catch (e) {
       console.error("Load session failed:", e);
@@ -399,7 +473,7 @@
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
+          if (!jsonStr || jsonStr === "[DONE]") continue;
 
           try {
             const event = JSON.parse(jsonStr);
@@ -430,7 +504,7 @@
       }
     } finally {
       setRunning(false);
-      refreshSessions(workspaceSelect.value);
+      refreshTree();
     }
   }
 
@@ -566,9 +640,15 @@
 
   // ------------------------------------------------------------------ Helpers
   function escapeHtml(str) {
+    if (!str) return "";
     const div = document.createElement("div");
     div.innerText = str;
     return div.innerHTML;
+  }
+
+  function escapeAttr(str) {
+    if (!str) return "";
+    return String(str).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   function formatMarkdown(text) {

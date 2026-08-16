@@ -13,9 +13,34 @@ import threading
 import time
 import urllib.parse
 import webbrowser
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+
+
+def _time_ago(iso_str: str) -> str:
+    if not iso_str:
+        return "now"
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        now = datetime.now(timezone.utc)
+        diff = now - dt
+        seconds = max(0, int(diff.total_seconds()))
+        if seconds < 60:
+            return "now"
+        elif seconds < 3600:
+            return f"{seconds // 60}m"
+        elif seconds < 86400:
+            return f"{seconds // 3600}h"
+        elif seconds < 2592000:
+            return f"{seconds // 86400}d"
+        elif seconds < 31536000:
+            return f"{seconds // 2592000}mo"
+        else:
+            return f"{seconds // 31536000}y"
+    except Exception:
+        return "now"
 
 from . import config
 from .events import EventKind, RuntimeEvent
@@ -118,6 +143,57 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             if current not in workspaces:
                 workspaces.insert(0, current)
             self._send_json({"workspaces": workspaces, "current": current})
+            return
+
+        if path == "/api/tree":
+            current_ws = str(config.sandbox_root())
+            raw_workspaces = [str(w) for w in list_workspaces()]
+            if current_ws not in raw_workspaces:
+                raw_workspaces.insert(0, current_ws)
+
+            all_sessions = list_sessions()
+            assigned_session_ids = set()
+
+            projects = []
+            for ws_path in raw_workspaces:
+                p_path = Path(ws_path)
+                p_name = p_path.name or str(ws_path)
+                ws_sessions = list_sessions(workspace=ws_path)
+                s_list = []
+                for r in ws_sessions:
+                    assigned_session_ids.add(r.id)
+                    s_list.append({
+                        "id": r.id,
+                        "title": r.title,
+                        "updated_at": r.updated_at,
+                        "time_ago": _time_ago(r.updated_at),
+                        "turn_count": r.turn_count,
+                        "workspace": r.workspace,
+                    })
+                projects.append({
+                    "name": p_name,
+                    "path": ws_path,
+                    "is_current": (str(Path(ws_path).resolve()).casefold() == str(Path(current_ws).resolve()).casefold()),
+                    "sessions": s_list,
+                })
+
+            general_sessions = []
+            for r in all_sessions:
+                if r.id not in assigned_session_ids:
+                    general_sessions.append({
+                        "id": r.id,
+                        "title": r.title,
+                        "updated_at": r.updated_at,
+                        "time_ago": _time_ago(r.updated_at),
+                        "turn_count": r.turn_count,
+                        "workspace": r.workspace,
+                    })
+
+            self._send_json({
+                "projects": projects,
+                "conversations": general_sessions,
+                "current_workspace": current_ws,
+            })
             return
 
         if path == "/api/sessions":

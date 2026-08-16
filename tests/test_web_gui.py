@@ -88,3 +88,17 @@ def test_web_api_sessions_and_chat_stream(web_test_server):
         raw_text = "".join(collected)
         assert "data:" in raw_text
 
+
+def test_web_api_tree(web_test_server):
+    req = urllib.request.urlopen(f"{web_test_server}/api/tree")
+    assert req.status == 200
+    data = json.loads(req.read().decode("utf-8"))
+    assert "projects" in data
+    assert "conversations" in data
+    assert "current_workspace" in data
+    assert len(data["projects"]) >= 1
+    p = data["projects"][0]
+    assert "name" in p
+    assert "path" in p
+    assert "sessions" in p
+
