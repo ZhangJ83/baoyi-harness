@@ -102,10 +102,22 @@ def compile_task(request: str, facts: dict[str, str] | None = None, brief: str =
     # trajectory text often contain every slide number.  Scope comes from the
     # user's request or authoritative instruction only.
     source = _slides(f"{request}\n{instruction}".casefold())
-    mode = "edit_existing" if primary or ".pptx" in text else "new_deck"
+    capability = facts.get("task_capability", "").casefold().strip()
+    # A template deck is source material for a NEW deck, not an artifact to
+    # edit in place. Keyword-driven template/xmind/outline builds must not be
+    # downgraded to edit_existing merely because intake bound the template as
+    # the discovered input deck. An explicit task-card capability always wins
+    # over noisy keywords in instruction/brief text.
+    template_build_requested = bool(not capability) and any(
+        marker in text for marker in ("template", "xmind", "outline", "模板", "大纲")
+    )
+    mode = (
+        "new_deck"
+        if template_build_requested
+        else ("edit_existing" if primary or ".pptx" in text else "new_deck")
+    )
     intent = "atomic_edit"
     skill = "ppt.atomic_edit"
-    capability = facts.get("task_capability", "").casefold().strip()
     # Task cards may carry more than one capability (``;``, ``/``, ``、`` or
     # ``+`` separated).  Each segment is matched against the frozen table so a
     # compound capability resolves to the first supported PPT skill.
@@ -121,6 +133,8 @@ def compile_task(request: str, facts: dict[str, str] | None = None, brief: str =
     if contract_skill:
         skill = contract_skill
         intent = skill.removeprefix("ppt.")
+        if skill == "ppt.template_build":
+            mode = "new_deck"
     elif any(x in text for x in ("xlsx", "source_sync", "源数据", "数据更新", "同步到", "excel")):
         intent, skill = "source_sync", "ppt.source_sync"
     elif any(x in text for x in ("overlap", "overlap repair", "图片重叠", "内容修改并修复")):

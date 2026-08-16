@@ -114,7 +114,8 @@ class Harness:
         "execution_capability", "code_language", "code_test_runner",
         "primary_input", "output_path", "manifest_task_id",
         "manifest_batch_goal", "ppt_full_check_downgraded",
-        "bound_task_identity",
+        "bound_task_identity", "ppt_repair_observation_calls",
+        "repair_observation_grant", "auto_evaluator_coverage_applied",
     }
 
     def _clear_task_facts(self) -> None:
@@ -1316,7 +1317,10 @@ class Harness:
                 lacks_completion = action_task and not self._has_completion_evidence(execution_task)
                 if lacks_completion:
                     no_tool_streak += 1
-                    if no_tool_streak <= 2:
+                    no_tool_limit = (
+                        5 if self.state.facts.get("official_evaluator_present") == "true" else 2
+                    )
+                    if no_tool_streak <= no_tool_limit:
                         self.messages.append({"role": "assistant", "content": answer})
                         self.messages.append({
                             "role": "user",
@@ -1398,6 +1402,8 @@ class Harness:
             if self._obligation_progress():
                 self.state.no_progress_streak = 0
                 self.state.controller_redirects = 0
+                self.state.facts.pop("ppt_repair_observation_calls", None)
+                self.state.facts.pop("repair_observation_grant", None)
             else:
                 checkpoint = getattr(self, "_obligation_checkpoint", None)
                 now = self._obligation_snapshot()
@@ -1405,6 +1411,10 @@ class Harness:
                     self._obligation_checkpoint = now
                     self.state.no_progress_streak = 0
                     self.state.controller_redirects = 0
+                    # A brand-new counterexample set re-arms the bounded
+                    # observation budget for its own repair iteration.
+                    self.state.facts.pop("ppt_repair_observation_calls", None)
+                    self.state.facts.pop("repair_observation_grant", None)
                 else:
                     self.state.no_progress_streak += 1
             no_tool_streak = 0
@@ -1435,6 +1445,29 @@ class Harness:
                 else:
                     visible_limit = 14000 if tc.function.name == "read_many" else 5000
                 self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": bounded_tool_result(text, visible_limit)})
+            # Observation closure is a transition, not a dead end. If the model
+            # answered the closure error with MORE observation calls, replace
+            # the next planning pass with an explicit action directive so it
+            # emits a mutation from evidence it already holds.
+            if (
+                ppt_task
+                and msg.tool_calls
+                and all("observation closed" in results.get(tc.id, "") for tc in msg.tool_calls)
+                and self.state.unresolved_checks
+            ):
+                blockers = sorted(self.state.unresolved_checks)
+                self.messages.append({
+                    "role": "user",
+                    "content": (
+                        "Observation stays closed; those observation calls did not execute and will not "
+                        "execute on the next attempt. The immediately preceding ppt_inspect / ppt_check / "
+                        "run_task_evaluator outputs already contain the CURRENT shape names, table contents "
+                        "and exact old/new strings for every failed check. Do not reason about inspecting "
+                        f"again. Emit one concrete ppt_edit_text (set_shape_text / set_table / batch_updates) "
+                        f"or ppt_metadata call now to repair: {', '.join(blockers)}. Then ppt_save and rerun "
+                        "the failed verifier once."
+                    ),
+                })
             if self._done:
                 return self._done
             # Read-only benchmark tasks need evidence, not an open-ended agent
@@ -1456,7 +1489,9 @@ class Harness:
                 # keeps issuing no-op equivalent edits while a saved, freshly
                 # verified draft already exists, the shortest path is to run the
                 # official evaluator and finish instead of pausing mid-loop.
-                can_redirect = self.state.controller_redirects <= 2 and (
+                official_eval = self.state.facts.get("official_evaluator_present") == "true"
+                redirect_limit = 8 if official_eval else 2
+                can_redirect = self.state.controller_redirects <= redirect_limit and (
                     self.state.mutation_epoch == 0
                     or (self.state.fresh_evidence() and self.state.mutation_epoch > 0)
                 )
@@ -1633,25 +1668,64 @@ class Harness:
         self.state.tool_calls += len(calls)
 
         def execute(tc) -> str:
+            from .controller_policies import MUTATION_TOOLS as _MUTATION_TOOLS
+
             arguments = tc.function.arguments
             signature = canonical_call(tc.function.name, arguments)
             try:
                 if self.cancel_requested():
                     return "CANCELLED: user interrupted the current task before this tool ran"
                 # Repair-phase observation closure: once verifier counterexamples
-                # exist and an observation turn has already passed, further
-                # inspect/open calls are equivalent-loop fuel, not repair work.
+                # exist, observations are budgeted per repair iteration. A
+                # contract/evaluator counterexample usually names text that no
+                # longer matches the live deck, so the model gets up to two
+                # targeted observations to re-sync before the closure forces a
+                # mutation. A failed text replacement additionally grants one
+                # fresh observation (the edit proved the cached text is stale).
                 if (
                     tc.function.name in {"ppt_inspect", "ppt_open"}
                     and self.state.unresolved_checks
-                    and self.state.no_progress_streak >= 1
+                    and not self.state.facts.get("repair_observation_grant") == "1"
                 ):
-                    blockers = ", ".join(sorted(self.state.unresolved_checks))
-                    return (
-                        "TOOL ERROR (RuntimeError): observation closed while repair obligations remain "
-                        f"({blockers}). Apply the cited repairs now with ppt_edit_text / ppt_metadata / "
-                        "ppt_arrange; do not inspect or reopen again until after a mutation changes the deck."
-                    )
+                    blockers = set(self.state.unresolved_checks)
+                    budget = 2 if blockers & {"ppt_contract", "task_evaluator"} else 1
+                    used = int(self.state.facts.get("ppt_repair_observation_calls", "0"))
+                    if used >= budget:
+                        # If the deck has unverified mutations, the shortest
+                        # legal path is save+check, not more observations and
+                        # not more edits. Resolve the gate deterministically
+                        # here so the model returns to concrete repairs.
+                        if self._mutation_gated("ppt_edit_text"):
+                            try:
+                                from .tools.registry import dispatch as _lifecycle_dispatch
+                                _lifecycle_dispatch("ppt_save", json.dumps({}), self)
+                                _lifecycle_dispatch("ppt_check", json.dumps({"policy": "auto"}), self)
+                            except Exception as lifecycle_exc:
+                                return (
+                                    "TOOL ERROR (RuntimeError): observation closed AND the automatic "
+                                    f"save/check also failed ({type(lifecycle_exc).__name__}: {lifecycle_exc}). "
+                                    "Fix the reported structural findings before further edits."
+                                )
+                            if not self._mutation_gated("ppt_edit_text"):
+                                self.state.facts.pop("ppt_repair_observation_calls", None)
+                                return (
+                                    "verify-before-continue gate resolved by the harness: the current draft was "
+                                    "saved and ppt_check passed with fresh structural evidence. Now apply the "
+                                    "cited contract repairs with ppt_edit_text / ppt_metadata / ppt_arrange."
+                                )
+                        return (
+                            "TOOL ERROR (RuntimeError): observation closed while repair obligations remain "
+                            f"({', '.join(sorted(blockers))}). You already used {used}/{budget} targeted "
+                            "observations for this repair iteration. Apply the cited repairs now with "
+                            "ppt_edit_text / ppt_metadata / ppt_arrange using the exact strings from the "
+                            "most recent ppt_check / run_task_evaluator output above; do not inspect or "
+                            "reopen again until after a mutation changes the deck."
+                        )
+                    self.state.record_fact("ppt_repair_observation_calls", str(used + 1))
+                elif tc.function.name in {"ppt_inspect", "ppt_open"} and self.state.facts.get("repair_observation_grant") == "1":
+                    # One-shot re-observation grant issued after a concrete
+                    # mutation failed because its target text no longer exists.
+                    self.state.facts.pop("repair_observation_grant", None)
                 if self._mutation_gated(tc.function.name):
                     # The verify-before-continue gate is a loop invariant, but
                     # commit + verification are harness-owned lifecycle steps.
@@ -1710,6 +1784,11 @@ class Harness:
                 previous_phase = self.state.phase
                 novel = self.runtime.note_tool_result(self.state, tc.function.name, arguments, text)
                 self._advance_execution_plan(tc.function.name)
+                # A real mutation re-arms the observation budget: the deck
+                # changed, so the next repair iteration may re-observe scope.
+                if tc.function.name in _MUTATION_TOOLS:
+                    self.state.facts.pop("ppt_repair_observation_calls", None)
+                    self.state.facts.pop("repair_observation_grant", None)
                 self._publish_phase_change(previous_phase, f"tool result: {tc.function.name}")
                 if getattr(self, "recorder", None):
                     self.recorder.event("tool_completed", call_id=tc.id, tool=tc.function.name, novel=novel, output=text)
@@ -1748,6 +1827,15 @@ class Harness:
                 known_deck = self.state.facts.get("ppt_input_deck", "")
                 if tc.function.name == "ppt_open" and known_deck:
                     hint += f" The harness-discovered input is '{known_deck}'; do not guess another filename."
+                if tc.function.name in _MUTATION_TOOLS and "text not found" in str(exc).casefold():
+                    # The concrete edit proved the cached observation is stale.
+                    # Re-open exactly one targeted observation instead of
+                    # trapping the model in a repair-without-sight loop.
+                    self.state.record_fact("repair_observation_grant", "1")
+                    hint += (
+                        " A one-shot observation grant was issued: call ppt_inspect once for the cited "
+                        "slide to read the CURRENT text, then retry the edit with those exact strings."
+                    )
                 if class_count >= 3:
                     hint += (
                         f" Circuit breaker: {class_count} failures of this tool/error class; "

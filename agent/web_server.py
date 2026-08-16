@@ -885,7 +885,7 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
 
 
 def run_web_gui(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, model: str | None = None) -> None:
-    XiaopuWebHandler.harness = Harness(model=model, interactive=True)
+    XiaopuWebHandler.harness = Harness(model=model, interactive=True, max_steps=50)
     server = ThreadingHTTPServer((host, port), XiaopuWebHandler)
     url = f"http://{host}:{port}"
     print(f"\n=======================================================")
