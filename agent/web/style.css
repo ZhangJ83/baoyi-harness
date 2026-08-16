@@ -1962,10 +1962,22 @@ code:not(pre code) {
   color: var(--danger);
 }
 
-.history-verdict-card {
-  background: linear-gradient(135deg, rgba(192, 112, 48, 0.08), rgba(192, 112, 48, 0.02));
-  border: 1px solid var(--accent);
-  color: var(--text-primary);
-  font-weight: 600;
-  line-height: 1.5;
+.tool-step-args {
+  margin: 6px 10px 0 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-root);
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-status-pill.done {
+  color: #16a34a;
+  border-color: #16a34a;
+}
+.tool-status-pill.failed {
+  color: var(--danger);
+  border-color: var(--danger);
 }

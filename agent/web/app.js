@@ -1083,59 +1083,119 @@
     }
   }
 
-  function historyVerdict(payload) {
-    const facts = payload.facts || {};
-    const unresolved = (payload.unresolved_checks || []).filter(Boolean);
-    const restoredBest = facts.restored_best_artifact === "1" || facts.task_evaluator_output === "passed";
-    if (restoredBest && unresolved.length) {
-      return `📌 本会话结论：这一轮工作未完成（未解决：${unresolved.join("、")}）。交付产物使用已冻结的最优验证版本，官方评分保持 1.0。`;
-    }
-    if (restoredBest) {
-      return "✅ 本会话结论：官方评估通过（1.0），产物已冻结为最优验证版本。";
-    }
-    if (unresolved.length) {
-      return `⚠ 本会话结论：运行在验证阶段暂停，未解决：${unresolved.join("、")}。`;
-    }
-    return "";
-  }
-
   function renderHistory(payload) {
     chatContainer.innerHTML = "";
     timelineLog.innerText = "";
     cotLog.innerText = "";
     rawReasoning = "";
 
-    const verdict = historyVerdict(payload);
-    if (verdict) {
-      const row = document.createElement("div");
-      row.className = "chat-row system history-verdict-row";
-      row.innerHTML = `<div class="message-card system history-verdict-card">${escapeHtml(verdict)}</div>`;
-      chatContainer.appendChild(row);
+    const messages = payload.messages || [];
+    const toolOutputs = {};
+    for (const msg of messages) {
+      if (msg.role === "tool" && msg.tool_call_id) {
+        toolOutputs[msg.tool_call_id] = msg.content || "";
+      }
     }
 
-    const messages = payload.messages || [];
     for (const msg of messages) {
       const role = msg.role;
       const content = msg.content || "";
       const reasoning = msg.reasoning_content;
 
-      if (role === "user" && content) {
-        appendUserMessage(content);
+      if (role === "user") {
+        if (content && !looksLikeHarnessInjected(content)) {
+          appendUserMessage(content);
+        }
       } else if (role === "assistant") {
         if (reasoning && reasoning.trim()) {
           appendThoughtCard(reasoning);
         }
-        if (content) {
-          appendAssistantMessage(content);
-        } else if (msg.tool_calls && msg.tool_calls.length) {
-          const toolNames = msg.tool_calls.map(tc => tc.function?.name || "tool").join(", ");
-          appendAssistantMessage(`✓ 调用了工具: ${toolNames}`);
+        if (msg.tool_calls && msg.tool_calls.length) {
+          for (const tc of msg.tool_calls) {
+            const fn = tc.function || {};
+            const output = toolOutputs[tc.id] || "";
+            const failed = /TOOL ERROR|RuntimeError|ValueError|TypeError/.test(output);
+            appendHistoryToolCard(fn.name || "tool", fn.arguments || "", output, failed);
+          }
         }
-      } else if (role === "system" && content && !content.startsWith("Identity (non-negotiable):")) {
+        if (content && !content.trim()) {
+          // empty assistant content is normal for a pure tool-call turn
+        } else if (content) {
+          appendAssistantMessage(content);
+        }
+      } else if (role === "tool") {
+        // already rendered next to its assistant tool_calls
+      } else if (role === "system") {
+        if (content.startsWith("Identity (non-negotiable):") || looksLikeRuntimeState(content)) {
+          continue;
+        }
         appendSystemMessage(content);
       }
     }
+
+    // The model's own final summary is authoritative; never synthesize a
+    // harness verdict for it.
+    const finalSummary = (payload.final_summary || "").trim();
+    if (finalSummary) {
+      const last = messages[messages.length - 1];
+      const alreadyShown = last && last.role === "assistant" && (last.content || "") === finalSummary;
+      if (!alreadyShown) {
+        appendAssistantMessage(finalSummary);
+      }
+    }
+
     scrollToBottom();
+  }
+
+  function looksLikeHarnessInjected(text) {
+    const t = text.trim().toLowerCase();
+    return (
+      t.startsWith("continue the active task")
+      || t.startsWith("cegar-h detected")
+      || t.startsWith("observation stays closed")
+      || t.startsWith("ppt observation is closed")
+      || t.startsWith("this action task is not complete")
+    );
+  }
+
+  function looksLikeRuntimeState(text) {
+    const t = text.trim().toLowerCase();
+    return (
+      t.startsWith("long history compacted")
+      || t.startsWith("cegar-h runtime decision")
+      || t.startsWith("bound source paths:")
+    );
+  }
+
+  function appendHistoryToolCard(toolName, args, output, failed) {
+    removeWelcomeHero();
+    const card = document.createElement("div");
+    card.className = "tool-step-card history";
+    let argsHtml = "";
+    if (args) {
+      try {
+        const parsed = JSON.parse(args);
+        argsHtml = `<div class="tool-step-args">${escapeHtml(JSON.stringify(parsed, null, 1))}</div>`;
+      } catch (e) {
+        argsHtml = `<div class="tool-step-args">${escapeHtml(args)}</div>`;
+      }
+    }
+    const outputHtml = output ? `<div class="tool-step-output">${escapeHtml(output.slice(0, 2000))}</div>` : "";
+    const status = failed ? `<span class="tool-status-pill failed">失败</span>` : `<span class="tool-status-pill done">完成</span>`;
+    card.innerHTML = `
+      <div class="tool-step-header">
+        <div class="tool-badge">
+          <span class="icon" style="color: var(--accent);">${ICONS.tool}</span>
+          <span>${escapeHtml(toolName)}</span>
+        </div>
+        ${status}
+      </div>
+      ${argsHtml}
+      ${outputHtml}
+    `;
+    chatContainer.appendChild(card);
+    scrollToBottom();
+    return card;
   }
 
   // ------------------------------------------------------------------ Message & Stream Rendering
