@@ -277,7 +277,11 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/workspaces":
-            workspaces = [str(w) for w in list_workspaces()]
+            workspaces = []
+            for w in list_workspaces():
+                w_path = getattr(w, "path", str(w))
+                if w_path and w_path not in workspaces:
+                    workspaces.append(w_path)
             current = str(config.sandbox_root())
             if current not in workspaces:
                 workspaces.insert(0, current)
@@ -286,15 +290,45 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
 
         if path == "/api/tree":
             current_ws = str(config.sandbox_root())
-            raw_workspaces = [str(w) for w in list_workspaces()]
-            if current_ws not in raw_workspaces:
-                raw_workspaces.insert(0, current_ws)
+            known_workspaces = []
 
+            # 1. Registered workspaces
+            for w in list_workspaces():
+                w_path = getattr(w, "path", str(w))
+                if w_path and w_path not in known_workspaces:
+                    try:
+                        if Path(w_path).is_dir():
+                            known_workspaces.append(str(Path(w_path).resolve()))
+                    except Exception:
+                        pass
+
+            # 2. Current workspace
+            try:
+                curr_res = str(Path(current_ws).resolve())
+                if curr_res not in known_workspaces:
+                    known_workspaces.insert(0, curr_res)
+            except Exception:
+                if current_ws not in known_workspaces:
+                    known_workspaces.insert(0, current_ws)
+
+            # 3. Auto-discover valid workspaces from all historical sessions
             all_sessions = list_sessions()
-            assigned_session_ids = set()
+            for s in all_sessions:
+                if s.workspace:
+                    try:
+                        p = Path(s.workspace)
+                        if p.is_dir():
+                            resolved = str(p.resolve())
+                            # Ignore temporary pytest directories
+                            if "pytest-" not in resolved and "Temp" not in resolved:
+                                if resolved not in known_workspaces:
+                                    known_workspaces.append(resolved)
+                    except Exception:
+                        pass
 
+            assigned_session_ids = set()
             projects = []
-            for ws_path in raw_workspaces:
+            for ws_path in known_workspaces:
                 p_path = Path(ws_path)
                 p_name = p_path.name or str(ws_path)
                 ws_sessions = list_sessions(workspace=ws_path)
@@ -309,10 +343,17 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
                         "turn_count": r.turn_count,
                         "workspace": r.workspace,
                     })
+                
+                is_curr = False
+                try:
+                    is_curr = (Path(ws_path).resolve() == Path(current_ws).resolve())
+                except Exception:
+                    is_curr = (str(ws_path).casefold() == str(current_ws).casefold())
+
                 projects.append({
                     "name": p_name,
                     "path": ws_path,
-                    "is_current": (str(Path(ws_path).resolve()).casefold() == str(Path(current_ws).resolve()).casefold()),
+                    "is_current": is_curr,
                     "sessions": s_list,
                 })
 
