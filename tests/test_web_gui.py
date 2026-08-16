@@ -144,3 +144,30 @@ def test_web_api_reveal_file(web_test_server, tmp_path):
         data = json.loads(resp.read().decode("utf-8"))
         assert data["status"] == "ok"
 
+
+def test_web_api_settings(web_test_server):
+    # GET settings
+    req = urllib.request.urlopen(f"{web_test_server}/api/settings")
+    assert req.status == 200
+    data = json.loads(req.read().decode("utf-8"))
+    assert "provider" in data
+    assert "api_base" in data
+    assert "model" in data
+    assert "reasoning_effort" in data
+
+    # POST settings
+    post_req = urllib.request.Request(
+        f"{web_test_server}/api/settings",
+        data=json.dumps({
+            "provider": "openai",
+            "model": "deepseek-v4-flash",
+            "reasoning_effort": "max",
+            "command_policy": "ask"
+        }).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(post_req) as resp:
+        assert resp.status == 200
+        res = json.loads(resp.read().decode("utf-8"))
+        assert res["status"] == "ok"
+

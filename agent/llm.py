@@ -128,14 +128,16 @@ class LLM:
         # initial semantic decision, then a normal execution continuation once
         # tool results exist. The private payload is still retained for audit.
         executing_tool_chain = any(message.get("role") == "tool" for message in messages)
-        thinking = config.thinking_enabled() and not executing_tool_chain
+        eff = config.reasoning_effort()
+        thinking = config.thinking_enabled() and (eff != "off") and not executing_tool_chain
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "max_tokens": config.max_output_tokens(),
-            "reasoning_effort": config.reasoning_effort(),
             "extra_body": {"thinking": {"type": "enabled" if thinking else "disabled"}},
         }
+        if eff != "off":
+            kwargs["reasoning_effort"] = eff
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"

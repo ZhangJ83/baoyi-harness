@@ -273,6 +273,24 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
                 "current_model": getattr(self.harness.llm, "model", config.model()),
                 "command_policy": config.command_policy(),
                 "provider": config.provider(),
+                "reasoning_effort": config.reasoning_effort(),
+                "thinking_enabled": config.thinking_enabled(),
+            })
+            return
+
+        if path == "/api/settings":
+            raw_key = config.api_key()
+            masked_key = (raw_key[:6] + "..." + raw_key[-4:]) if len(raw_key) > 10 else ("*" * len(raw_key))
+            self._send_json({
+                "provider": config.provider(),
+                "api_base": config.api_base(),
+                "api_key": raw_key,
+                "masked_api_key": masked_key,
+                "model": getattr(self.harness.llm, "model", config.model()),
+                "known_models": config.known_models(),
+                "models_csv": ",".join(config.known_models()),
+                "reasoning_effort": config.reasoning_effort(),
+                "command_policy": config.command_policy(),
             })
             return
 
@@ -553,6 +571,38 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             self.send_error(400, "Missing objective")
             return
 
+        if path == "/api/settings":
+            updates = {}
+            if "provider" in body and body["provider"].strip():
+                updates["PROVIDER"] = str(body["provider"]).strip().lower()
+            if "api_base" in body and body["api_base"].strip():
+                updates["OPENAI_BASE_URL"] = str(body["api_base"]).strip()
+                updates["ANTHROPIC_BASE_URL"] = str(body["api_base"]).strip()
+            if "api_key" in body and body["api_key"].strip():
+                updates["OPENAI_API_KEY"] = str(body["api_key"]).strip()
+                updates["ANTHROPIC_API_KEY"] = str(body["api_key"]).strip()
+            if "model" in body and body["model"].strip():
+                updates["OPENAI_MODEL"] = str(body["model"]).strip()
+                updates["ANTHROPIC_MODEL"] = str(body["model"]).strip()
+            if "models_csv" in body:
+                updates["XIAOPU_MODELS"] = str(body["models_csv"]).strip()
+            if "reasoning_effort" in body and body["reasoning_effort"].strip():
+                updates["REASONING_EFFORT"] = str(body["reasoning_effort"]).strip()
+            if "command_policy" in body and body["command_policy"].strip():
+                updates["XIAOPU_COMMAND_POLICY"] = str(body["command_policy"]).strip()
+
+            if updates:
+                config.update_env_settings(updates)
+                try:
+                    if hasattr(self.harness, "llm"):
+                        from agent.llm import create_llm
+                        self.harness.llm = create_llm(model=config.model())
+                except Exception:
+                    pass
+
+            self._send_json({"status": "ok", "settings": body})
+            return
+
         if path == "/api/chat":
             self._handle_chat_stream(body)
             return
@@ -573,6 +623,10 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
         session_id = body.get("session_id")
         model = body.get("model")
         permission = body.get("permission")
+        reasoning_effort = body.get("reasoning_effort")
+
+        if reasoning_effort:
+            os.environ["REASONING_EFFORT"] = str(reasoning_effort).strip()
 
         if model:
             if config.provider() == "anthropic":

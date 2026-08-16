@@ -10,6 +10,7 @@
   const btnSend = document.getElementById("btn-send");
   const btnStop = document.getElementById("btn-stop");
   const modelSelect = document.getElementById("model-select");
+  const reasoningEffortSelect = document.getElementById("reasoning-effort-select");
   const permSelect = document.getElementById("perm-select");
   const currentTitle = document.getElementById("current-title");
 
@@ -20,6 +21,7 @@
   const sortProjectsBtn = document.getElementById("sort-projects-btn");
   const newConversationBtn = document.getElementById("new-conversation-btn");
   const themeToggleBtn = document.getElementById("theme-toggle-btn");
+  const btnOpenSettings = document.getElementById("btn-open-settings");
 
   // Activity Drawer
   const activityDrawer = document.getElementById("activity-drawer");
@@ -50,6 +52,20 @@
   const btnRefreshArtifacts = document.getElementById("btn-refresh-artifacts");
   const artifactsWsInfo = document.getElementById("artifacts-ws-info");
   const artifactsListContainer = document.getElementById("artifacts-list-container");
+
+  // Settings Modal
+  const settingsModal = document.getElementById("settings-modal");
+  const settingsModalClose = document.getElementById("settings-modal-close");
+  const settingsCancelBtn = document.getElementById("settings-cancel-btn");
+  const settingsSaveBtn = document.getElementById("settings-save-btn");
+  const setProvider = document.getElementById("set-provider");
+  const setApiBase = document.getElementById("set-api-base");
+  const setApiKey = document.getElementById("set-api-key");
+  const setModel = document.getElementById("set-model");
+  const setModelsCsv = document.getElementById("set-models-csv");
+  const setReasoningEffort = document.getElementById("set-reasoning-effort");
+  const setCommandPolicy = document.getElementById("set-command-policy");
+  const setTogglePwdBtn = document.getElementById("set-toggle-pwd-btn");
 
   // Goal Modal
   const btnGoalDialog = document.getElementById("btn-goal-dialog");
@@ -135,11 +151,63 @@
         modelSelect.appendChild(opt);
       });
 
-      if (data.command_policy) {
+      if (data.command_policy && permSelect) {
         permSelect.value = data.command_policy;
+      }
+
+      if (data.reasoning_effort && reasoningEffortSelect) {
+        reasoningEffortSelect.value = data.reasoning_effort;
       }
     } catch (e) {
       console.error("Failed to load config:", e);
+    }
+  }
+
+  // ------------------------------------------------------------------ Settings Management
+  async function loadSettingsForm() {
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (!data) return;
+
+      if (setProvider) setProvider.value = data.provider || "openai";
+      if (setApiBase) setApiBase.value = data.api_base || "";
+      if (setApiKey) setApiKey.value = data.api_key || "";
+      if (setModel) setModel.value = data.model || "";
+      if (setModelsCsv) setModelsCsv.value = data.models_csv || "";
+      if (setReasoningEffort) setReasoningEffort.value = data.reasoning_effort || "high";
+      if (setCommandPolicy) setCommandPolicy.value = data.command_policy || "ask";
+    } catch (e) {
+      console.error("Failed to load settings:", e);
+    }
+  }
+
+  async function saveSettingsForm() {
+    try {
+      const payload = {
+        provider: setProvider.value,
+        api_base: setApiBase.value.trim(),
+        api_key: setApiKey.value.trim(),
+        model: setModel.value.trim(),
+        models_csv: setModelsCsv.value.trim(),
+        reasoning_effort: setReasoningEffort.value,
+        command_policy: setCommandPolicy.value,
+      };
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        if (settingsModal) settingsModal.style.display = "none";
+        await loadConfig();
+        showToast("模型与 API 设置已保存并即时生效！");
+      }
+    } catch (e) {
+      console.error("Failed to save settings:", e);
+      showToast("保存设置失败，请检查网络或参数");
     }
   }
 
@@ -231,7 +299,6 @@
   }
 
   function bindArtifactActions() {
-    // Reveal file
     document.querySelectorAll(".art-reveal-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -240,7 +307,6 @@
       });
     });
 
-    // Copy path
     document.querySelectorAll(".art-copy-path-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -252,7 +318,6 @@
       });
     });
 
-    // Save PPT
     document.querySelectorAll(".art-save-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -260,7 +325,6 @@
       });
     });
 
-    // Verify PPT
     document.querySelectorAll(".art-verify-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -268,7 +332,6 @@
       });
     });
 
-    // Undo PPT
     document.querySelectorAll(".art-undo-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -396,7 +459,6 @@
         conversationsTreeList.innerHTML = conversations.map(s => renderSessionRow(s)).join("");
       }
 
-      // 3. Bind Dynamic Tree Events
       bindTreeEvents();
     } catch (e) {
       console.error("Refresh tree error:", e);
@@ -423,7 +485,6 @@
   }
 
   function bindTreeEvents() {
-    // Toggle folder collapse or switch workspace
     document.querySelectorAll(".project-folder-header").forEach(hdr => {
       hdr.addEventListener("click", async (e) => {
         if (e.target.closest(".project-add-chat-btn")) return;
@@ -432,7 +493,6 @@
         const ws = projectNode.getAttribute("data-path");
 
         if (e.target.closest(".project-chevron-icon")) {
-          // Toggle collapse
           if (collapsedFolders.has(ws)) {
             collapsedFolders.delete(ws);
             projectNode.classList.remove("collapsed");
@@ -443,7 +503,6 @@
           return;
         }
 
-        // Switch workspace
         if (ws && ws !== activeWorkspacePath) {
           await switchWorkspace(ws);
           showToast(`已切换工作区：${ws}`);
@@ -453,7 +512,6 @@
       });
     });
 
-    // Session click -> load session
     document.querySelectorAll(".tree-session-item").forEach(el => {
       el.addEventListener("click", (e) => {
         if (e.target.closest(".tree-session-del-btn")) return;
@@ -463,7 +521,6 @@
       });
     });
 
-    // Session delete
     document.querySelectorAll(".tree-session-del-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -479,7 +536,6 @@
       });
     });
 
-    // Project "+" button -> new session in that project
     document.querySelectorAll(".project-add-chat-btn").forEach(btn => {
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -508,7 +564,6 @@
     activeSessionId = null;
     currentTitle.innerText = "新对话";
     
-    // Clear chat container and show welcome hero
     chatContainer.innerHTML = "";
     if (welcomeHero) {
       chatContainer.appendChild(welcomeHero.cloneNode(true));
@@ -654,39 +709,6 @@
     return card;
   }
 
-  function appendChatArtifactCard(art) {
-    removeWelcomeHero();
-    const card = document.createElement("div");
-    card.className = "chat-artifact-card";
-    const icon = art.is_pptx ? ICONS.ppt : ICONS.file;
-    const tagText = art.is_pptx ? `PPT 演示文稿${art.slides_count ? ` · ${art.slides_count}页` : ""}` : `${art.type.toUpperCase()} 文件`;
-
-    card.innerHTML = `
-      <div class="chat-artifact-header">
-        <div class="chat-artifact-title">
-          <span class="icon" style="color: var(--accent);">${icon}</span>
-          <span>${escapeHtml(art.name)}</span>
-        </div>
-        <span class="artifact-tag">${escapeHtml(tagText)}</span>
-      </div>
-      <div class="chat-artifact-desc">文件已成功在工作区生成并就绪（大小: ${escapeHtml(art.size_human)}）</div>
-      <div class="chat-artifact-actions">
-        ${art.is_pptx ? `
-          <button class="pill-btn art-save-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.save}</span><span>另存为</span></button>
-          <button class="pill-btn art-verify-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.verify}</span><span>结构校验</span></button>
-          <button class="pill-btn art-reveal-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.reveal}</span><span>打开文件夹</span></button>
-        ` : `
-          <button class="pill-btn art-copy-path-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.copy}</span><span>复制路径</span></button>
-          <button class="pill-btn art-reveal-btn" data-path="${escapeAttr(art.path)}"><span class="icon">${ICONS.reveal}</span><span>打开文件夹</span></button>
-        `}
-      </div>
-    `;
-
-    chatContainer.appendChild(card);
-    scrollToBottom();
-    bindArtifactActions();
-  }
-
   function formatMarkdown(text) {
     if (!text) return "";
     
@@ -764,7 +786,8 @@
           prompt: prompt,
           session_id: activeSessionId,
           model: modelSelect.value,
-          command_policy: permSelect.value
+          reasoning_effort: reasoningEffortSelect ? reasoningEffortSelect.value : "high",
+          command_policy: permSelect ? permSelect.value : "ask"
         }),
         signal: abortController.signal
       });
@@ -915,7 +938,36 @@
     bindWelcomeCards();
 
     // Theme Toggle
-    themeToggleBtn.addEventListener("click", toggleTheme);
+    if (themeToggleBtn) themeToggleBtn.addEventListener("click", toggleTheme);
+
+    // Settings Modal
+    if (btnOpenSettings) {
+      btnOpenSettings.addEventListener("click", async () => {
+        await loadSettingsForm();
+        if (settingsModal) settingsModal.style.display = "flex";
+      });
+    }
+    if (settingsModalClose) {
+      settingsModalClose.addEventListener("click", () => {
+        if (settingsModal) settingsModal.style.display = "none";
+      });
+    }
+    if (settingsCancelBtn) {
+      settingsCancelBtn.addEventListener("click", () => {
+        if (settingsModal) settingsModal.style.display = "none";
+      });
+    }
+    if (settingsSaveBtn) {
+      settingsSaveBtn.addEventListener("click", async () => {
+        await saveSettingsForm();
+      });
+    }
+    if (setTogglePwdBtn && setApiKey) {
+      setTogglePwdBtn.addEventListener("click", () => {
+        const isPwd = (setApiKey.type === "password");
+        setApiKey.type = isPwd ? "text" : "password";
+      });
+    }
 
     // Native Directory Picker
     addProjectBtn.addEventListener("click", async () => {

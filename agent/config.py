@@ -96,15 +96,48 @@ def max_output_tokens() -> int:
     return int_setting("OPENAI_MAX_TOKENS", 4096)
 
 
+def update_env_settings(updates: dict[str, str]) -> None:
+    for k, v in updates.items():
+        os.environ[k] = str(v)
+    
+    lines: list[str] = []
+    existing_keys: set[str] = set()
+    if ENV_FILE.exists():
+        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                k, _, _ = stripped.partition("=")
+                key = k.strip()
+                if key in updates:
+                    lines.append(f"{key}={updates[key]}")
+                    existing_keys.add(key)
+                else:
+                    lines.append(line)
+            else:
+                lines.append(line)
+    
+    for k, v in updates.items():
+        if k not in existing_keys:
+            lines.append(f"{k}={v}")
+    
+    ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def thinking_enabled() -> bool:
     """Whether the provider should run its supported thinking mode."""
+    eff = os.getenv("REASONING_EFFORT", "high").strip().lower()
+    if eff in {"off", "none", "0", "disabled"}:
+        return False
     return os.getenv("THINKING_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
 
 
 def reasoning_effort() -> str:
-    """Normalize UI-compatible levels to DeepSeek's documented levels."""
     raw = os.getenv("REASONING_EFFORT", "high").strip().lower()
-    return "max" if raw in {"max", "xhigh"} else "high"
+    if raw in {"off", "none", "0", "disabled"}:
+        return "off"
+    if raw in {"low", "medium", "high", "max"}:
+        return raw
+    return "high"
 
 
 def max_generated_output_tokens() -> int:

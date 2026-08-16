@@ -1554,6 +1554,75 @@ code:not(pre code) {
   padding-top: 4px;
 }
 
+/* Settings Modal */
+.settings-modal-card {
+  max-width: 600px;
+  width: 92%;
+}
+
+.settings-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.settings-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.settings-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background-color: var(--bg-root);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.settings-input:focus {
+  border-color: var(--border-focus);
+}
+
+.settings-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.settings-password-wrapper .settings-input {
+  padding-right: 36px;
+}
+
+.pwd-toggle-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  transition: color var(--transition-fast);
+}
+
+.pwd-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.settings-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 /* Toast Notifications */
 #toast {
   position: fixed;
