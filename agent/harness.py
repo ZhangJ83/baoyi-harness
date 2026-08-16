@@ -926,6 +926,21 @@ class Harness:
             self.state.record_fact("output_path", self.task_spec.output_path)
         if getattr(self, "recorder", None) and callable(getattr(self.recorder, "event", None)):
             self.recorder.event("task_compiled", **self.task_spec.to_dict())
+        # A from-scratch deck with no input source has nothing to discover or
+        # inspect. Start the first model turn in PRODUCE so compose/edit/save
+        # tools are advertised immediately instead of stranding the run on an
+        # empty observation phase.
+        if (
+            is_ppt
+            and self.task_spec.artifact_mode == "new_deck"
+            and not self.state.facts.get("ppt_input_deck")
+            and not self.state.facts.get("primary_input")
+            and not self.state.facts.get("task_root")
+            and self.state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND}
+        ):
+            previous_phase = self.state.phase
+            self.state.transition(RuntimePhase.PRODUCE)
+            self._publish_phase_change(previous_phase, "from-scratch deck starts in produce")
         instruction = self.state.facts.get("task_instruction", "")
         execution_task = effective_task + (("\n\nBound task instruction:\n" + instruction) if instruction else "")
         if is_ppt and self.task_spec.skill == "ppt.template_build":
