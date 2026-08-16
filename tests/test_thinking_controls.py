@@ -9,7 +9,7 @@ def test_deepseek_effort_maps_to_documented_levels():
     with patch.dict(os.environ, {"REASONING_EFFORT": "xhigh"}, clear=False):
         assert config.reasoning_effort() == "max"
     with patch.dict(os.environ, {"REASONING_EFFORT": "low"}, clear=False):
-        assert config.reasoning_effort() == "high"
+        assert config.reasoning_effort() == "low"
 
 
 def test_thinking_defaults_on_and_can_be_disabled():

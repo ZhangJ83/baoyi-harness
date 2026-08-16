@@ -511,7 +511,6 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             new_ws = body.get("workspace")
             if new_ws:
                 os.environ["WORKSPACE"] = str(new_ws)
-                config.set_sandbox_root(new_ws)
                 try:
                     register_workspace(new_ws)
                 except Exception:

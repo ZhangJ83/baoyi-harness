@@ -135,6 +135,8 @@ def reasoning_effort() -> str:
     raw = os.getenv("REASONING_EFFORT", "high").strip().lower()
     if raw in {"off", "none", "0", "disabled"}:
         return "off"
+    if raw in {"xhigh", "extreme", "very_high"}:
+        return "max"
     if raw in {"low", "medium", "high", "max"}:
         return raw
     return "high"

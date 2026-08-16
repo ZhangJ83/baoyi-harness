@@ -1312,7 +1312,6 @@ class AgentGUI:
     def _switch_workspace_value(self, value: str) -> None:
         os.environ["WORKSPACE"] = value
         self.workspace_var.set(value)
-        config.set_sandbox_root(value)
         self.status.set(f"工作区已切换为：{value}")
         self._new_session()
         self._refresh_sessions()
@@ -1323,7 +1322,6 @@ class AgentGUI:
             return
         os.environ["WORKSPACE"] = path
         self.workspace_var.set(path)
-        config.set_sandbox_root(path)
         from .workspace_store import register_workspace
         try:
             register_workspace(path)
