@@ -853,8 +853,14 @@ class PowerPointTests(unittest.TestCase):
                 "html": "<div class='slide'><h1>Agent Web View</h1><p>Modern HTML/CSS Card</p></div>",
                 "css": "body { background: #1e293b; color: #38bdf8; }",
             }), h)
-            self.assertIn("rendered HTML slide 1", res)
+            self.assertIn("compiled HTML vector slide 1", res)
             self.assertEqual(len(h.deck.slides), 1)
+
+            # Verify shapes on slide are 100% native vector shapes (AUTO_SHAPE / TEXT_BOX)
+            slide = h.deck.slides[0]
+            types = {int(sh.shape_type) for sh in slide.shapes}
+            self.assertIn(1, types)   # AUTO_SHAPE
+            self.assertIn(17, types)  # TEXT_BOX
 
             # Check that structural check passes
             check_res = dispatch("ppt_check", "{}", h)
@@ -865,20 +871,20 @@ class PowerPointTests(unittest.TestCase):
             h = DummyHarness()
             # 1. Single slide file
             single_html = Path(tmp) / "single.html"
-            single_html.write_text("<div class='slide'><h2>Single Slide</h2><p>Content A</p></div>", encoding="utf-8")
+            single_html.write_text("<div class='slide'><h2>Single Slide</h2><div class='card'><h3>Card 1</h3><p>Content A</p><p>Content B</p></div></div>", encoding="utf-8")
             dispatch("new_deck", json.dumps({"title": "From File"}), h)
             res1 = dispatch("ppt_compose", json.dumps({
                 "kind": "from_html",
                 "slide_number": 1,
                 "file_path": "single.html",
             }), h)
-            self.assertIn("rendered HTML slide 1", res1)
+            self.assertIn("compiled HTML vector slide 1", res1)
 
             # 2. Multi slide file
             multi_html = Path(tmp) / "deck.html"
             multi_html.write_text(
-                "<section class='slide'><h1>Page 1</h1><p>Point 1</p></section>"
-                "<section class='slide'><h1>Page 2</h1><p>Point 2</p></section>",
+                "<section class='slide'><h1>Page 1</h1><div class='card'><p>Point 1</p></div></section>"
+                "<section class='slide'><h1>Page 2</h1><div class='card'><p>Point 2</p></div></section>",
                 encoding="utf-8"
             )
             res2 = dispatch("ppt_compose", json.dumps({
@@ -886,8 +892,90 @@ class PowerPointTests(unittest.TestCase):
                 "slide_number": 2,
                 "file_path": "deck.html",
             }), h)
-            self.assertIn("rendered 2 HTML slides", res2)
+            self.assertIn("compiled 2 HTML vector slides", res2)
             self.assertEqual(len(h.deck.slides), 3)
+
+    def test_content_density_gate_rejects_sparse_deck(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp}):
+            h = DummyHarness()
+            dispatch("new_deck", json.dumps({"title": "Sparse Deck"}), h)
+            # Add a second slide that is extremely sparse (only 2 short bullets)
+            dispatch("ppt_compose", json.dumps({
+                "kind": "content",
+                "slide_number": 2,
+                "title": "Sparse Slide",
+                "bullets": ["短要点 1", "短要点 2"],
+            }), h)
+            check_res = dispatch("ppt_check", "{}", h)
+            self.assertTrue("content density too sparse" in check_res or "Incomplete deck" in check_res)
+
+    def test_full_two_page_ai_agent_workflow_deck(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp}):
+            h = DummyHarness()
+            h.goal = "请制作一个两页的“AI Agent 工作流程” PPT。第一页直接使用 PPTX 原生元素进行制作，第二页采用 HTML 页面风格进行排版。"
+            dispatch("new_deck", json.dumps({"title": "AI Agent 工作流程"}), h)
+
+            # Slide 1: workflow_pipeline
+            res1 = dispatch("ppt_compose", json.dumps({
+                "kind": "workflow_pipeline",
+                "slide_number": 1,
+                "title": "AI Agent 端到端认知与执行流水线",
+                "steps": [
+                    {"title": "意图感知", "action": "多模态输入解析", "bullets": ["用户目标语义理解与消歧", "环境上下文依赖抽取与注入"], "tag": "NLU"},
+                    {"title": "任务规划", "action": "ReAct 动态编排", "bullets": ["多阶段目标拓扑排序分解", "工具依赖关系与前置条件校验"], "tag": "Planner"},
+                    {"title": "工具调度", "action": "异构 API 并行执行", "bullets": ["沙箱安全策略与参数校验", "流式结果收集与错误自愈重试"], "tag": "Executor"},
+                    {"title": "结果整合", "action": "推理推理与质检验收", "bullets": ["多源数据聚合与逻辑一致性校验", "交付物格式规范化与签名"], "tag": "Evaluator"},
+                    {"title": "终态交付", "action": "闭环反馈与记忆固化", "bullets": ["用户交互确认与增量知识写入", "长期记忆库与历史回溯索引"], "tag": "Memory"},
+                ],
+                "takeaway": "核心价值：实现从非结构化指令到确定性高质量交付物的自主闭环演进",
+            }), h)
+            self.assertIn("workflow pipeline slide", res1)
+
+            # Slide 2: html_slide vector
+            html_code = """
+            <div class="slide" style="background: #0f172a;">
+              <h1>AI Agent 控制台与运行时监控架构 (HTML 页面风格)</h1>
+              <p class="subtitle">基于 Web 组件化网格设计，实时展示多 Agent 状态机与任务链路执行监控指标</p>
+              <div class="grid">
+                <div class="card">
+                  <span class="badge">RUNNING</span>
+                  <h3>01. 语义感知与路由中心</h3>
+                  <p>• 实时捕获用户 Prompt 与多模态附件数据流</p>
+                  <p>• 基于嵌入向量空间完成领域路由与意图分类</p>
+                  <p>• 自动提取上下文实体与约束参数</p>
+                </div>
+                <div class="card">
+                  <span class="badge">ACTIVE</span>
+                  <h3>02. 动态调度与执行引擎</h3>
+                  <p>• 执行 DAG 任务图拓扑遍历与异步并发调用</p>
+                  <p>• 内置工具调用熔断、超时重试与自愈降级</p>
+                  <p>• 收集结构化中间执行结果与执行证书</p>
+                </div>
+                <div class="card">
+                  <span class="badge">READY</span>
+                  <h3>03. 质量门禁与自省验收</h3>
+                  <p>• 静态代码分析与动态运行时行为审计</p>
+                  <p>• 对齐任务验收基准与鲁棒性验证规则</p>
+                  <p>• 固化经验轨迹并生成可追溯交付报告</p>
+                </div>
+              </div>
+            </div>
+            """
+            res2 = dispatch("ppt_compose", json.dumps({
+                "kind": "html_slide",
+                "slide_number": 2,
+                "html": html_code,
+            }), h)
+            self.assertIn("compiled HTML vector slide 2", res2)
+            self.assertEqual(len(h.deck.slides), 2)
+
+            # Verify deck passes full quality & structural gate with 0 blocking findings
+            check = dispatch("ppt_check", json.dumps({"policy": "full"}), h)
+            self.assertIn("no structural issues found", check)
+
+            # Save and verify
+            save_res = dispatch("ppt_save", "{}", h)
+            self.assertIn("saved 2 slides", save_res)
 
     def test_mutation_registry_covers_all_stateful_ppt_operations(self):
         expected = {

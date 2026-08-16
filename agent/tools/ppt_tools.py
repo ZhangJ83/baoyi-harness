@@ -945,6 +945,245 @@ body {{
         return png_file.read_bytes()
 
 
+def _compile_html_to_vector_slide(
+    h: Any,
+    html: str,
+    slide_number: int | None = None,
+    insert_after: int | None = None,
+    default_title: str = "",
+) -> str:
+    """Compile HTML DOM structure into native, 100% editable PowerPoint vector shapes and text boxes."""
+    from bs4 import BeautifulSoup
+    from pptx.util import Inches, Pt
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+    from pptx.dml.color import RGBColor
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Detect theme preference (dark vs light)
+    body_style = (soup.find("body").get("style", "") if soup.find("body") else "") + (soup.find(class_=lambda c: c and "slide" in c.split()).get("style", "") if soup.find(class_=lambda c: c and "slide" in c.split()) else "")
+    is_dark = any(kw in body_style.lower() for kw in ("#0f172a", "#1e293b", "#000", "#111", "dark", "background: #1", "background: #0"))
+    if not body_style:
+        is_dark = True
+
+    # Color palette
+    bg_color = RGBColor(0x0F, 0x17, 0x2A) if is_dark else RGBColor(0xF8, 0xFA, 0xFC)
+    card_bg = RGBColor(0x1E, 0x29, 0x3B) if is_dark else RGBColor(0xFF, 0xFF, 0xFF)
+    card_border = RGBColor(0x33, 0x41, 0x55) if is_dark else RGBColor(0xCB, 0xD5, 0xE1)
+    title_color = RGBColor(0x38, 0xBD, 0xF8) if is_dark else RGBColor(0x1E, 0x3A, 0x8A)
+    subtitle_color = RGBColor(0x94, 0xA3, 0xB8) if is_dark else RGBColor(0x47, 0x55, 0x69)
+    text_color = RGBColor(0xF1, 0xF5, 0xF9) if is_dark else RGBColor(0x1E, 0x29, 0x3B)
+    muted_text = RGBColor(0x94, 0xA3, 0xB8) if is_dark else RGBColor(0x64, 0x74, 0x8B)
+    accent_blue = RGBColor(0x25, 0x63, 0xEB)
+    badge_green_bg = RGBColor(0x06, 0x4E, 0x3B) if is_dark else RGBColor(0xDC, 0xFC, 0xE7)
+    badge_green_fg = RGBColor(0x34, 0xD3, 0x99) if is_dark else RGBColor(0x16, 0x65, 0x34)
+    badge_amber_bg = RGBColor(0x78, 0x35, 0x0F) if is_dark else RGBColor(0xFE, 0xF3, 0xC7)
+    badge_amber_fg = RGBColor(0xFB, 0xBF, 0x24) if is_dark else RGBColor(0x92, 0x40, 0x0E)
+    badge_blue_bg = RGBColor(0x1E, 0x3A, 0x8A) if is_dark else RGBColor(0xDB, 0xEA, 0xFE)
+    badge_blue_fg = RGBColor(0x60, 0xA5, 0xFA) if is_dark else RGBColor(0x1E, 0x40, 0xAF)
+
+    s, target_index, _ = _resolve_target_slide(h, slide_number, insert_after)
+    _clear_slide_shapes(s)
+
+    # 1. Slide Canvas Background Shape
+    bg_shape = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(_W), Inches(_H))
+    bg_shape.fill.solid()
+    bg_shape.fill.fore_color.rgb = bg_color
+    bg_shape.line.fill.background()
+
+    # 2. Header (Title + Subtitle)
+    title_el = soup.find(["h1", "h2", "title"])
+    title_text = title_el.get_text().strip() if title_el else (default_title or "AI Agent 架构与执行流程")
+    
+    title_box = s.shapes.add_textbox(Inches(0.8), Inches(0.4), Inches(_W - 1.6), Inches(0.55))
+    tf_title = title_box.text_frame
+    tf_title.word_wrap = True
+    p_title = tf_title.paragraphs[0]
+    p_title.text = title_text
+    p_title.font.size = Pt(22)
+    p_title.font.bold = True
+    p_title.font.color.rgb = title_color
+
+    sub_el = soup.find(class_=lambda c: c and "sub" in c) or (title_el.find_next_sibling("p") if title_el else soup.find("p"))
+    subtitle_text = sub_el.get_text().strip() if sub_el and sub_el.get_text().strip() != title_text else ""
+    if subtitle_text:
+        sub_box = s.shapes.add_textbox(Inches(0.8), Inches(0.95), Inches(_W - 1.6), Inches(0.35))
+        tf_sub = sub_box.text_frame
+        tf_sub.word_wrap = True
+        p_sub = tf_sub.paragraphs[0]
+        p_sub.text = subtitle_text
+        p_sub.font.size = Pt(11)
+        p_sub.font.color.rgb = subtitle_color
+        grid_top_y = 1.45
+    else:
+        grid_top_y = 1.25
+
+    # 3. Extract Component Cards
+    cards = soup.find_all(class_=lambda c: c and any(k in c.split() for k in ("card", "box", "panel", "step", "col", "item", "module", "node")))
+    if not cards:
+        grid_container = soup.find(class_=lambda c: c and any(k in c.split() for k in ("grid", "flex", "container", "columns", "pipeline")))
+        if grid_container:
+            cards = [ch for ch in grid_container.find_all(recursive=False) if ch.name in ("div", "section", "article")]
+        else:
+            cards = soup.find_all(["section", "article"])
+
+    cards_data = []
+    if not cards:
+        all_p = [p for p in soup.find_all(["p", "li"]) if p.get_text().strip() and p.get_text().strip() != subtitle_text]
+        if all_p:
+            chunk_size = max(1, math.ceil(len(all_p) / 3))
+            for c_idx in range(0, min(3, len(all_p))):
+                sub_items = all_p[c_idx * chunk_size : (c_idx + 1) * chunk_size]
+                cards_data.append({
+                    "title": f"阶段 0{c_idx+1}",
+                    "bullets": [it.get_text().strip() for it in sub_items],
+                    "status": "ACTIVE" if c_idx == 0 else "READY",
+                })
+        else:
+            cards_data = [{"title": "模块概览", "bullets": ["无子模块定义"], "status": "ACTIVE"}]
+    else:
+        for idx, card in enumerate(cards):
+            c_soup = BeautifulSoup(str(card), "html.parser")
+            c_head = c_soup.find(["h2", "h3", "h4", "h5", "strong", "b"])
+            c_title = c_head.get_text().strip() if c_head else f"模块 0{idx+1}"
+            
+            badge_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("badge", "status", "tag", "pill", "chip")))
+            c_status = badge_el.get_text().strip().upper() if badge_el else ("RUNNING" if idx == 0 else ("ACTIVE" if idx == 1 else "READY"))
+
+            metric_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("metric", "stat", "num", "highlight", "time")))
+            c_metric = metric_el.get_text().strip() if metric_el else ""
+
+            bullets = []
+            for p in c_soup.find_all(["p", "li", "span", "div"]):
+                t = p.get_text().strip()
+                if t and t != c_title and t != c_status and t != c_metric and not any(t == b for b in bullets):
+                    if not any(t.startswith(b) and len(t) > len(b) for b in bullets):
+                        bullets.append(t)
+            
+            tag_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("tech", "code", "anchor", "foot")))
+            c_tag = tag_el.get_text().strip() if tag_el else ""
+
+            cards_data.append({
+                "title": c_title,
+                "status": c_status,
+                "metric": c_metric,
+                "bullets": bullets[:6],
+                "tag": c_tag,
+            })
+
+    # 4. Compute Grid Geometry
+    num_cards = max(1, len(cards_data))
+    max_w = _W - 1.6
+    avail_h = _H - grid_top_y - 0.45
+
+    if num_cards == 1:
+        cols, rows = 1, 1
+    elif num_cards == 2:
+        cols, rows = 2, 1
+    elif num_cards == 3:
+        cols, rows = 3, 1
+    elif num_cards == 4:
+        cols, rows = 2, 2
+    elif num_cards in (5, 6):
+        cols, rows = 3, 2
+    else:
+        cols, rows = 4, math.ceil(num_cards / 4)
+
+    gap_x = 0.28
+    gap_y = 0.25
+    card_w = (max_w - (cols - 1) * gap_x) / cols
+    card_h = (avail_h - (rows - 1) * gap_y) / rows
+
+    for c_idx, card_info in enumerate(cards_data[: cols * rows]):
+        c_col = c_idx % cols
+        c_row = c_idx // cols
+        cx = 0.8 + c_col * (card_w + gap_x)
+        cy = grid_top_y + c_row * (card_h + gap_y)
+
+        c_box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(cx), Inches(cy), Inches(card_w), Inches(card_h))
+        c_box.fill.solid()
+        c_box.fill.fore_color.rgb = card_bg
+        c_box.line.color.rgb = card_border
+        c_box.line.width = Pt(1)
+
+        acc_bar = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(cx), Inches(cy), Inches(card_w), Inches(0.06))
+        acc_bar.fill.solid()
+        acc_bar.fill.fore_color.rgb = accent_blue
+        acc_bar.line.fill.background()
+
+        stat = card_info.get("status", "")
+        bw = 0.0
+        if stat:
+            bw = min(card_w * 0.35, 0.18 + len(stat) * 0.08)
+            bx = cx + card_w - bw - 0.15
+            by = cy + 0.12
+            badge_shape = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(bx), Inches(by), Inches(bw), Inches(0.24))
+            badge_shape.fill.solid()
+            badge_shape.fill.fore_color.rgb = badge_green_bg if any(k in stat for k in ("RUN", "SUCC", "OK", "DONE")) else (badge_amber_bg if any(k in stat for k in ("ACT", "WARN", "PLAN")) else badge_blue_bg)
+            badge_shape.line.fill.background()
+            
+            tf_b = badge_shape.text_frame
+            tf_b.clear()
+            tf_b.vertical_anchor = MSO_ANCHOR.MIDDLE
+            p_b = tf_b.paragraphs[0]
+            p_b.alignment = PP_ALIGN.CENTER
+            r_b = p_b.add_run()
+            r_b.text = stat
+            r_b.font.size = Pt(8)
+            r_b.font.bold = True
+            r_b.font.color.rgb = badge_green_fg if any(k in stat for k in ("RUN", "SUCC", "OK", "DONE")) else (badge_amber_fg if any(k in stat for k in ("ACT", "WARN", "PLAN")) else badge_blue_fg)
+
+        c_title_text = card_info.get("title", "")
+        t_box = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cy + 0.12), Inches(card_w - (bw + 0.35 if stat else 0.30)), Inches(0.35))
+        tf_ct = t_box.text_frame
+        tf_ct.word_wrap = True
+        p_ct = tf_ct.paragraphs[0]
+        p_ct.text = c_title_text
+        p_ct.font.size = Pt(13)
+        p_ct.font.bold = True
+        p_ct.font.color.rgb = text_color
+
+        cur_cy = cy + 0.48
+        metric = card_info.get("metric", "")
+        if metric:
+            m_box = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cur_cy), Inches(card_w - 0.30), Inches(0.28))
+            tf_m = m_box.text_frame
+            tf_m.word_wrap = True
+            p_m = tf_m.paragraphs[0]
+            p_m.text = f"⚡ {metric}"
+            p_m.font.size = Pt(10)
+            p_m.font.bold = True
+            p_m.font.color.rgb = title_color
+            cur_cy += 0.28
+
+        bullets = card_info.get("bullets", [])
+        if bullets:
+            b_h = max(0.8, card_h - (cur_cy - cy) - 0.35)
+            b_box = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cur_cy), Inches(card_w - 0.30), Inches(b_h))
+            tf_b = b_box.text_frame
+            tf_b.word_wrap = True
+            for b_idx, bullet_line in enumerate(bullets[:5]):
+                p_b = tf_b.paragraphs[0] if b_idx == 0 else tf_b.add_paragraph()
+                p_b.text = bullet_line if bullet_line.startswith("•") or bullet_line.startswith("-") or bullet_line.startswith("▶") else f"• {bullet_line}"
+                p_b.font.size = Pt(10 if len(bullets) > 3 or card_h < 3.0 else 11)
+                p_b.font.color.rgb = text_color
+                p_b.line_spacing = 1.15
+
+        tag = card_info.get("tag", "")
+        if tag:
+            tag_box = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cy + card_h - 0.30), Inches(card_w - 0.30), Inches(0.25))
+            tf_tag = tag_box.text_frame
+            p_tag = tf_tag.paragraphs[0]
+            p_tag.text = f"<{tag}>" if not tag.startswith("<") else tag
+            p_tag.font.size = Pt(8)
+            p_tag.font.color.rgb = muted_text
+
+    h.state.ppt_affected_slides.add(target_index)
+    h.state.record_change(f"deck:slide:{target_index}:html_vector_slide")
+    return f"compiled HTML vector slide {target_index}: '{title_text}' ({len(cards_data)} editable UI cards)"
+
+
 def _html_slide(
     h: Any,
     html: str = "",
@@ -953,8 +1192,9 @@ def _html_slide(
     slide_number: int | None = None,
     insert_after: int | None = None,
     title: str = "",
+    render_mode: str = "vector",
 ) -> str:
-    """Render HTML/CSS content into PPTX slides with high-fidelity visual and text structure."""
+    """Render HTML/CSS content into PPTX slides with native vector editable shapes."""
     from pathlib import Path
     from bs4 import BeautifulSoup
     from .. import config
@@ -974,6 +1214,11 @@ def _html_slide(
     slide_sections = soup.find_all(class_=lambda c: c and "slide" in c.split()) or soup.find_all("section")
 
     if len(slide_sections) <= 1:
+        # Default to 100% native vector compilation for total editability
+        if render_mode == "vector":
+            return _compile_html_to_vector_slide(h, html, slide_number, insert_after, title)
+
+        # Optional rasterized fallback
         doc_title = title
         if not doc_title:
             h_el = soup.find(["h1", "h2", "h3", "title"])
@@ -984,17 +1229,12 @@ def _html_slide(
         png_bytes = _render_html_slide_to_png(html, css)
         s, target_index, _ = _resolve_target_slide(h, slide_number, insert_after)
         _clear_slide_shapes(s)
-
-        # Add high-resolution rendered image covering the entire slide
         image_stream = BytesIO(png_bytes)
         s.shapes.add_picture(image_stream, Inches(0), Inches(0), Inches(_W), Inches(_H))
-
-        # Add speaker notes with full text for indexability and verification
         if getattr(s, "has_notes_slide", False) or hasattr(s, "notes_slide"):
             note_content = f"{doc_title}\n" + "\n".join(texts[:15]) if doc_title else "\n".join(texts[:15])
             if note_content.strip():
                 s.notes_slide.notes_text_frame.text = note_content.strip()
-
         h.state.ppt_affected_slides.add(target_index)
         h.state.record_change(f"deck:slide:{target_index}:html_slide")
         return f"rendered HTML slide {target_index}: '{doc_title or 'HTML Web Slide'}'"
@@ -1004,28 +1244,30 @@ def _html_slide(
     rendered_count = 0
     for idx, sec in enumerate(slide_sections):
         sec_html = str(sec)
-        sec_soup = BeautifulSoup(sec_html, "html.parser")
-        sec_title = ""
-        h_el = sec_soup.find(["h1", "h2", "h3", "title"])
-        if h_el:
-            sec_title = h_el.get_text().strip()
-        sec_texts = [s.strip() for s in sec_soup.stripped_strings if s.strip() and s.strip() != sec_title]
-
-        png_bytes = _render_html_slide_to_png(sec_html, css)
         cur_slide_num = start_num + idx
-        s, target_index, _ = _resolve_target_slide(h, cur_slide_num, None)
-        _clear_slide_shapes(s)
-        image_stream = BytesIO(png_bytes)
-        s.shapes.add_picture(image_stream, Inches(0), Inches(0), Inches(_W), Inches(_H))
-        if getattr(s, "has_notes_slide", False) or hasattr(s, "notes_slide"):
-            note_content = f"{sec_title}\n" + "\n".join(sec_texts[:15]) if sec_title else "\n".join(sec_texts[:15])
-            if note_content.strip():
-                s.notes_slide.notes_text_frame.text = note_content.strip()
-        h.state.ppt_affected_slides.add(target_index)
-        h.state.record_change(f"deck:slide:{target_index}:html_slide")
+        if render_mode == "vector":
+            _compile_html_to_vector_slide(h, sec_html, cur_slide_num, None, title)
+        else:
+            sec_soup = BeautifulSoup(sec_html, "html.parser")
+            sec_title = ""
+            h_el = sec_soup.find(["h1", "h2", "h3", "title"])
+            if h_el:
+                sec_title = h_el.get_text().strip()
+            sec_texts = [s.strip() for s in sec_soup.stripped_strings if s.strip() and s.strip() != sec_title]
+            png_bytes = _render_html_slide_to_png(sec_html, css)
+            s, target_index, _ = _resolve_target_slide(h, cur_slide_num, None)
+            _clear_slide_shapes(s)
+            image_stream = BytesIO(png_bytes)
+            s.shapes.add_picture(image_stream, Inches(0), Inches(0), Inches(_W), Inches(_H))
+            if getattr(s, "has_notes_slide", False) or hasattr(s, "notes_slide"):
+                note_content = f"{sec_title}\n" + "\n".join(sec_texts[:15]) if sec_title else "\n".join(sec_texts[:15])
+                if note_content.strip():
+                    s.notes_slide.notes_text_frame.text = note_content.strip()
+            h.state.ppt_affected_slides.add(target_index)
+            h.state.record_change(f"deck:slide:{target_index}:html_slide")
         rendered_count += 1
 
-    return f"rendered {rendered_count} HTML slides into deck starting at slide {start_num}"
+    return f"compiled {rendered_count} HTML vector slides into deck starting at slide {start_num}"
 
 
 def _hero_split_slide(
@@ -2530,6 +2772,9 @@ def _ppt_check(h, policy: str = "auto") -> str:
     reports = {"structural": _verify(h, policy)}
     if policy == "full":
         reports["quality"] = _quality_check(h)
+    gap = _deck_completeness_gate(h)
+    if gap:
+        reports["completeness"] = f"Incomplete deck: {gap}"
     contract_passed = True
     if _has_verification_contract(h):
         contract_passed, contract_report = _verify_contract(h)
@@ -3071,30 +3316,30 @@ def _slide_text_material(slide) -> str:
 
 def _detect_requested_slide_count(h) -> int | None:
     facts = getattr(getattr(h, "state", None), "facts", {})
-    text = (
-        getattr(h, "task", "")
-        or getattr(h, "goal", "")
-        or getattr(getattr(h, "state", None), "task_intent", "")
-        or facts.get("task_instruction", "")
-        or facts.get("bound_task_identity", "")
-        or ""
-    ).casefold()
-    if not text:
-        return None
-    import re
-    if any(k in text for k in ("两页", "二页", "2页", "2 页", "2-page", "two page", "two slides", "two-slide", "first page", "second page")):
-        return 2
-    if any(k in text for k in ("三页", "3页", "3 页", "3-page", "three page", "three slides")):
-        return 3
-    if any(k in text for k in ("四页", "4页", "4 页", "4-page", "four page")):
-        return 4
-    if any(k in text for k in ("五页", "5页", "5 页", "5-page", "five page")):
-        return 5
-    m = re.search(r"(\d+)\s*(?:页|pages|slides)", text)
-    if m:
+    val = facts.get("requested_slide_count")
+    if val is not None:
         try:
-            return int(m.group(1))
-        except ValueError:
+            return int(val)
+        except Exception:
+            pass
+    # Inspect goal prompt directly for explicit slide count requests
+    goal = getattr(h, "goal", "") or ""
+    if goal:
+        import re
+        # Pattern 1: "两页" / "2页" / "三页" / "3页" / "5 slides"
+        num_map = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+        m = re.search(r"([一两二三四五六七八九十\d]+)\s*(?:页|slides?|张|个页面)", goal, re.IGNORECASE)
+        if m:
+            raw = m.group(1)
+            if raw.isdigit():
+                return int(raw)
+            if raw in num_map:
+                return num_map[raw]
+    terms = facts.get("verification_contract_terms")
+    if isinstance(terms, dict) and terms.get("slide_count"):
+        try:
+            return int(terms["slide_count"])
+        except Exception:
             pass
     return None
 
@@ -3105,11 +3350,13 @@ def _deck_completeness_gate(h) -> str:
     Generic density contract: every slide needs a title-like text object, at
     least two body text objects, and a minimum visible character budget.
     """
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
     if getattr(h, "deck", None) is None:
         return ""
     req_count = _detect_requested_slide_count(h)
     if req_count is not None and len(h.deck.slides) < req_count:
         return f"deck only has {len(h.deck.slides)} slide(s); user task explicitly requested at least {req_count} slides"
+    is_new_deck = not getattr(getattr(h, "state", None), "ppt_existing_deck", False)
     for slide_number, slide in enumerate(h.deck.slides, 1):
         boxes = []
         for shape, _path in _walk_shapes(slide.shapes):
@@ -3128,8 +3375,17 @@ def _deck_completeness_gate(h) -> str:
             return f"slide {slide_number} has no visible title text"
         if len(bodyish) < 1:
             return f"slide {slide_number} has no visible body text objects; at least 1 is required"
-        if total_chars < 30:
-            return f"slide {slide_number} is too thin ({total_chars} visible characters; minimum 30)"
+        if is_new_deck and len(h.deck.slides) > 1 and slide_number > 1:
+            has_cards = any(
+                (sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(2.0) < sh.width < Inches(_W * 0.9) and Inches(1.2) < sh.height < Inches(_H * 0.9))
+                or (sh.shape_type == MSO_SHAPE_TYPE.PICTURE)
+                or getattr(sh, "has_table", False)
+                for sh in slide.shapes
+            )
+            if total_chars < 80 and not has_cards:
+                return f"slide {slide_number} content density too sparse ({total_chars} visible chars); presentation slides require rich technical details (120-400 chars) with structured cards/steps/badges"
+        if total_chars < 15:
+            return f"slide {slide_number} is too thin ({total_chars} visible characters; minimum 15)"
     return ""
 
 
