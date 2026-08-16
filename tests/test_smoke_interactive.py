@@ -70,3 +70,50 @@ def test_gui_smoke_interaction_ok():
 
     assert "OK" in full_chat_text or "ok" in full_chat_text.lower()
 
+
+def test_gui_workspace_sessions_and_resume(tmp_path):
+    from agent.harness import Harness
+    from agent.session_store import save_session, list_sessions, load_session, restore_harness
+
+    ws1 = tmp_path / "workspace_a"
+    ws2 = tmp_path / "workspace_b"
+    ws1.mkdir()
+    ws2.mkdir()
+
+    h1 = Harness(interactive=True)
+    h1.workspace = str(ws1)
+    h1.messages = [
+        {"role": "user", "content": "第一轮问题"},
+        {"role": "assistant", "content": "第一轮回答", "reasoning_content": "分析中..."},
+    ]
+    rec1 = save_session(h1, title="会话A")
+
+    h2 = Harness(interactive=True)
+    h2.workspace = str(ws2)
+    h2.messages = [
+        {"role": "user", "content": "B工作区问题"},
+        {"role": "assistant", "content": "B工作区回答"},
+    ]
+    rec2 = save_session(h2, title="会话B")
+
+    # Verify workspace filtering
+    sessions_a = list_sessions(workspace=str(ws1))
+    sessions_b = list_sessions(workspace=str(ws2))
+
+    assert any(s.id == rec1.id for s in sessions_a)
+    assert not any(s.id == rec2.id for s in sessions_a)
+    assert any(s.id == rec2.id for s in sessions_b)
+
+    # Test resuming session A into a new harness
+    h_resumed = Harness(interactive=True)
+    payload = load_session(rec1.id)
+    report = restore_harness(h_resumed, payload)
+
+    assert "会话" in report
+    assert len(h_resumed.messages) == 2
+    assert h_resumed.messages[0]["content"] == "第一轮问题"
+    assert h_resumed.messages[1]["reasoning_content"] == "分析中..."
+    assert h_resumed.session.id == rec1.id
+
+
+

@@ -1,16 +1,12 @@
-"""Modern CustomTkinter GUI for the complete Xiaopu Harness.
+"""Modern CustomTkinter GUI for Xiaopu Harness with Workspace-centric Session Management.
 
-Layout follows the Claude Desktop / Cowork 3-column paradigm:
-- Left rail: Mode pill (Cowork / Code), + New session, Quick actions (Workspace, Artifacts, Goal, Doctor),
-  Recents session history list with delete, Gateway status footer, and Dark/Light theme toggle;
-- Center chat: Session title dropdown, PPT quick action pills, right drawer toggle,
-  user bubbles, collapsible 'Thought process (思维链)' card with real-time genuine reasoning,
-  clean assistant responses, and a floating bottom composer with model selector & send button;
-- Right drawer: Progress metrics, Working folder info, Live timeline of tool calls,
-  and Raw provider reasoning stream with copy buttons.
-
-The harness runs on a worker thread and the UI only drains thread-safe
-queues, so streaming, approvals and interruption work cleanly and smoothly.
+Key Features:
+- Left sidebar: Organized by workspace. Select a workspace to see all its conversations.
+  Create new sessions under the active workspace, switch workspaces, or delete sessions.
+- Center chat: Real-time streaming, collapsible 'Thought process (思考过程)' card with
+  genuine provider reasoning, multi-turn history viewing & continuation, clean Markdown bubbles.
+- Right drawer: Progress metrics, working folder status, timeline tool-call logs, and raw CoT.
+- Functional & Clean: No empty/dummy buttons. Auto-saves after each turn under the active workspace.
 """
 from __future__ import annotations
 
@@ -30,13 +26,14 @@ from . import config
 from .events import EventKind, RuntimeEvent
 from .tools.registry import dispatch
 
-# Design Tokens: Clean Claude Desktop & Cowork Inspired Palette
+# Claude / Modern Slate Design Tokens
 THEMES = {
     "dark": {
         "bg_root": "#0d1117",
         "sidebar_bg": "#121720",
         "card_bg": "#161f2b",
         "card_hover": "#1c2736",
+        "active_card": "#1e293b",
         "user_bg": "#16382c",
         "user_text": "#ecfdf5",
         "assistant_bg": "#16202c",
@@ -50,7 +47,7 @@ THEMES = {
         "text_primary": "#f8fafc",
         "text_secondary": "#94a3b8",
         "text_muted": "#64748b",
-        "accent": "#ea580c",        # Warm terracotta/orange accent
+        "accent": "#ea580c",        # Warm terracotta / orange
         "accent_hover": "#c2410c",
         "accent_emerald": "#10b981",
         "accent_blue": "#2563eb",
@@ -62,6 +59,7 @@ THEMES = {
         "sidebar_bg": "#f7f7f6",
         "card_bg": "#ffffff",
         "card_hover": "#f3f4f6",
+        "active_card": "#e2e8f0",
         "user_bg": "#f0ede6",
         "user_text": "#1e293b",
         "assistant_bg": "#ffffff",
@@ -130,7 +128,6 @@ class AgentGUI:
         self.model_var = ctk.StringVar(value=getattr(self.h.llm, "model", config.model()))
         self.permissions_var = ctk.StringVar(value=config.command_policy())
         self.workspace_var = ctk.StringVar(value=str(config.sandbox_root()))
-        self.mode_var = ctk.StringVar(value="cowork")
 
         self.started_at: float | None = None
         self.tool_started_count = 0
@@ -145,13 +142,10 @@ class AgentGUI:
         self._last_chat_label = None
         self._session_records: list = []
         self._workspace_records: list = []
+        self._active_session_id: str | None = None
         self.activity_visible = True
-        self.sidebar_visible = True
         self._app_icon_ctk = None
         self._app_icon_small = None
-        self._thought_box = None
-        self._thought_container = None
-        self._thought_visible = True
 
         # Harness event bindings
         self.h.approval_handler = self._approve_command
@@ -168,8 +162,8 @@ class AgentGUI:
         except Exception:
             pass
 
-        self._refresh_sessions()
         self._refresh_workspaces()
+        self._refresh_sessions()
 
         # UI event loops
         self.root.after(50, self._drain_events)
@@ -222,7 +216,7 @@ class AgentGUI:
 
     def _build_sidebar(self) -> None:
         self.sidebar = ctk.CTkFrame(
-            self.root, width=270, corner_radius=0, fg_color=self.colors["sidebar_bg"],
+            self.root, width=280, corner_radius=0, fg_color=self.colors["sidebar_bg"],
             border_width=1, border_color=self.colors["border"],
         )
         self.sidebar.grid(row=0, column=0, sticky="nsew")
@@ -230,105 +224,99 @@ class AgentGUI:
         self.sidebar.grid_columnconfigure(0, weight=1)
         self.sidebar.grid_rowconfigure(3, weight=1)
 
-        # Top Control Bar: Logo + Brand + Collapse button
-        top_ctrl = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        top_ctrl.grid(row=0, column=0, padx=14, pady=(14, 10), sticky="ew")
-        top_ctrl.grid_columnconfigure(1, weight=1)
+        # 1. Brand Header
+        header = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        header.grid(row=0, column=0, padx=14, pady=(14, 8), sticky="ew")
+        header.grid_columnconfigure(1, weight=1)
 
         if getattr(self, "_app_icon_ctk", None) is not None:
-            ctk.CTkLabel(top_ctrl, text="", image=self._app_icon_ctk).grid(row=0, column=0, padx=(0, 8), sticky="w")
+            ctk.CTkLabel(header, text="", image=self._app_icon_ctk).grid(row=0, column=0, padx=(0, 8), sticky="w")
         else:
-            logo_box = ctk.CTkFrame(top_ctrl, width=28, height=28, corner_radius=6, fg_color=self.colors["accent_blue"])
+            logo_box = ctk.CTkFrame(header, width=28, height=28, corner_radius=6, fg_color=self.colors["accent_blue"])
             logo_box.grid(row=0, column=0, padx=(0, 8), sticky="w")
             logo_box.pack_propagate(False)
             ctk.CTkLabel(logo_box, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold"),
                          text_color="#ffffff").place(relx=0.5, rely=0.5, anchor="center")
 
-        brand_lbl = ctk.CTkLabel(
-            top_ctrl, text="小朴 Xiaopu", font=ctk.CTkFont("Microsoft YaHei UI", 16, "bold"),
+        ctk.CTkLabel(
+            header, text="小朴 Xiaopu", font=ctk.CTkFont("Microsoft YaHei UI", 16, "bold"),
             text_color=self.colors["text_primary"],
-        )
-        brand_lbl.grid(row=0, column=1, sticky="w")
+        ).grid(row=0, column=1, sticky="w")
 
-        # Mode Switcher Pill (⇄ Cowork / </> Code)
-        mode_pill = ctk.CTkFrame(
-            self.sidebar, corner_radius=9, fg_color=self.colors["bg_root"],
-            border_width=1, border_color=self.colors["border"], height=34,
-        )
-        mode_pill.grid(row=1, column=0, padx=14, pady=(0, 10), sticky="ew")
-        mode_pill.grid_columnconfigure(0, weight=1)
-        mode_pill.grid_columnconfigure(1, weight=1)
-
-        self.btn_cowork = ctk.CTkButton(
-            mode_pill, text="⇄ 对话 / PPT", height=26, corner_radius=7,
-            fg_color=self.colors["card_bg"], hover_color=self.colors["card_hover"],
-            text_color=self.colors["text_primary"], font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
-            command=lambda: self._set_mode("cowork"),
-        )
-        self.btn_cowork.grid(row=0, column=0, padx=3, pady=3, sticky="ew")
-
-        self.btn_code = ctk.CTkButton(
-            mode_pill, text="</> 代码模式", height=26, corner_radius=7,
-            fg_color="transparent", hover_color=self.colors["card_hover"],
-            text_color=self.colors["text_secondary"], font=ctk.CTkFont("Microsoft YaHei UI", 11),
-            command=lambda: self._set_mode("code"),
-        )
-        self.btn_code.grid(row=0, column=1, padx=3, pady=3, sticky="ew")
-
-        # Navigation & Quick Action Items
-        actions = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        actions.grid(row=2, column=0, padx=12, pady=(0, 8), sticky="ew")
-
-        # + New Session button
+        # 2. + New Session Action Button
         ctk.CTkButton(
-            actions, text="＋  新建对话 (New)", height=34, corner_radius=8,
-            fg_color=self.colors["card_bg"], hover_color=self.colors["card_hover"],
-            border_width=1, border_color=self.colors["border"],
-            text_color=self.colors["text_primary"], anchor="w",
+            self.sidebar, text="＋  新建对话 (New Session)", height=34, corner_radius=8,
+            fg_color=self.colors["accent"], hover_color=self.colors["accent_hover"],
+            text_color="#ffffff", anchor="center",
             font=ctk.CTkFont("Microsoft YaHei UI", 12, "bold"),
             command=self._new_session,
-        ).pack(fill="x", pady=(0, 4))
+        ).grid(row=1, column=0, padx=12, pady=(0, 10), sticky="ew")
 
-        # Quick action pills
-        for icon_text, handler in (
-            ("📁  工作区目录 (Workspace)", self._choose_workspace),
-            ("🎯  长期目标管理 (Goal)", self._show_goal_dialog),
-            ("⚗  导出/保存 PPT (Artifacts)", self._save_ppt),
-            ("⚙  环境诊断 (Doctor)", self._show_doctor_dialog),
-        ):
-            ctk.CTkButton(
-                actions, text=icon_text, height=28, corner_radius=6,
-                fg_color="transparent", hover_color=self.colors["card_hover"],
-                text_color=self.colors["text_secondary"], anchor="w",
-                font=ctk.CTkFont("Microsoft YaHei UI", 11),
-                command=handler,
-            ).pack(fill="x", pady=1)
+        # 3. Workspace Manager (Primary Organization Root)
+        ws_card = ctk.CTkFrame(
+            self.sidebar, corner_radius=10, fg_color=self.colors["card_bg"],
+            border_width=1, border_color=self.colors["border"],
+        )
+        ws_card.grid(row=2, column=0, padx=12, pady=(0, 10), sticky="ew")
+        ws_card.grid_columnconfigure(0, weight=1)
 
-        # Recents Session History List
-        recents_header = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        recents_header.grid(row=3, column=0, padx=14, pady=(10, 2), sticky="new")
+        ws_head = ctk.CTkFrame(ws_card, fg_color="transparent")
+        ws_head.pack(fill="x", padx=10, pady=(8, 4))
         ctk.CTkLabel(
-            recents_header, text="历史会话 (Recents)", font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
-            text_color=self.colors["text_muted"],
+            ws_head, text="📁 当前工作区", font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            text_color=self.colors["text_secondary"],
         ).pack(side="left")
 
+        ctk.CTkButton(
+            ws_head, text="切换目录…", width=68, height=22, corner_radius=5,
+            fg_color="transparent", border_width=1, border_color=self.colors["border"],
+            hover_color=self.colors["card_hover"], text_color=self.colors["text_muted"],
+            font=ctk.CTkFont("Microsoft YaHei UI", 9),
+            command=self._choose_workspace,
+        ).pack(side="right")
+
+        self.workspace_menu = ctk.CTkOptionMenu(
+            ws_card, values=[self.workspace_var.get()],
+            command=self._switch_workspace_value,
+            corner_radius=6, height=28,
+            fg_color=self.colors["bg_root"], button_color=self.colors["border"],
+            button_hover_color=self.colors["card_hover"],
+            text_color=self.colors["text_primary"], font=ctk.CTkFont("Microsoft YaHei UI", 10),
+            dynamic_resizing=False,
+        )
+        self.workspace_menu.pack(fill="x", padx=10, pady=(0, 8))
+
+        # 4. Workspace Conversations (Filtered by active workspace)
+        sessions_container = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        sessions_container.grid(row=3, column=0, padx=12, pady=(0, 6), sticky="nsew")
+        sessions_container.grid_columnconfigure(0, weight=1)
+        sessions_container.grid_rowconfigure(1, weight=1)
+
+        s_head = ctk.CTkFrame(sessions_container, fg_color="transparent")
+        s_head.grid(row=0, column=0, pady=(0, 4), sticky="ew")
+        self.sessions_count_lbl = ctk.CTkLabel(
+            s_head, text="该工作区下的对话", font=ctk.CTkFont("Microsoft YaHei UI", 11, "bold"),
+            text_color=self.colors["text_muted"],
+        )
+        self.sessions_count_lbl.pack(side="left")
+
         self.session_frame = ctk.CTkScrollableFrame(
-            self.sidebar, corner_radius=8,
+            sessions_container, corner_radius=8,
             fg_color="transparent",
         )
-        self.session_frame.grid(row=3, column=0, padx=8, pady=(28, 6), sticky="nsew")
+        self.session_frame.grid(row=1, column=0, sticky="nsew")
         self.session_frame.grid_columnconfigure(0, weight=1)
 
-        # Bottom Footer: Gateway status + Theme Toggle
+        # 5. Bottom Footer: Gateway status + Theme Toggle
         footer = ctk.CTkFrame(
             self.sidebar, corner_radius=0, fg_color=self.colors["bg_root"],
-            border_width=1, border_color=self.colors["border"], height=44,
+            border_width=1, border_color=self.colors["border"], height=40,
         )
         footer.grid(row=4, column=0, sticky="ew")
         footer.grid_columnconfigure(0, weight=1)
 
         gw_lbl = ctk.CTkLabel(
-            footer, text="☀️ Gateway · Online", font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
+            footer, text="☀️ Gateway 在线", font=ctk.CTkFont("Microsoft YaHei UI", 10, "bold"),
             text_color=self.colors["text_secondary"],
         )
         gw_lbl.grid(row=0, column=0, padx=12, pady=8, sticky="w")
@@ -341,19 +329,6 @@ class AgentGUI:
             command=self._toggle_theme,
         )
         theme_btn.grid(row=0, column=1, padx=10, pady=8, sticky="e")
-
-    def _set_mode(self, mode: str) -> None:
-        self.mode_var.set(mode)
-        if mode == "cowork":
-            self.btn_cowork.configure(fg_color=self.colors["card_bg"], text_color=self.colors["text_primary"])
-            self.btn_code.configure(fg_color="transparent", text_color=self.colors["text_secondary"])
-            config.set_plan_mode(False)
-            self.status.set("已切换至 对话/PPT 协同模式")
-        else:
-            self.btn_code.configure(fg_color=self.colors["card_bg"], text_color=self.colors["text_primary"])
-            self.btn_cowork.configure(fg_color="transparent", text_color=self.colors["text_secondary"])
-            config.set_plan_mode(True)
-            self.status.set("已切换至 代码与计划模式 (Plan Mode)")
 
     def _build_main(self) -> None:
         self.main_panel = ctk.CTkFrame(self.root, corner_radius=0, fg_color=self.colors["bg_root"])
@@ -375,24 +350,13 @@ class AgentGUI:
         self._append_chat("system", "小朴已就绪。输入任务描述开始执行，支持代码编写、文档生成与 PPT 自动化。")
 
     def _build_topbar(self, main: ctk.CTkFrame) -> None:
-        bar = ctk.CTkFrame(
-            main, fg_color=self.colors["bg_root"], height=48,
-            border_width=0,
-        )
+        bar = ctk.CTkFrame(main, fg_color=self.colors["bg_root"], height=48)
         bar.grid(row=0, column=0, padx=16, pady=(10, 4), sticky="ew")
         bar.grid_columnconfigure(0, weight=1)
 
-        # Left: Session Title Dropdown / Indicator
+        # Left: Session Title Pill
         left = ctk.CTkFrame(bar, fg_color="transparent")
         left.grid(row=0, column=0, sticky="w")
-
-        self.toggle_sidebar_btn = ctk.CTkButton(
-            left, text="≡", width=30, height=28, corner_radius=6,
-            fg_color="transparent", hover_color=self.colors["card_hover"],
-            text_color=self.colors["text_secondary"], font=ctk.CTkFont("Microsoft YaHei UI", 14, "bold"),
-            command=self._toggle_sidebar,
-        )
-        self.toggle_sidebar_btn.pack(side="left", padx=(0, 6))
 
         title_pill = ctk.CTkFrame(left, corner_radius=6, fg_color=self.colors["sidebar_bg"],
                                   border_width=1, border_color=self.colors["border"])
@@ -400,13 +364,9 @@ class AgentGUI:
         ctk.CTkLabel(
             title_pill, textvariable=self.current_title, font=ctk.CTkFont("Microsoft YaHei UI", 12, "bold"),
             text_color=self.colors["text_primary"],
-        ).pack(side="left", padx=(10, 4), pady=3)
-        ctk.CTkLabel(
-            title_pill, text="⌵", font=ctk.CTkFont("Microsoft YaHei UI", 10),
-            text_color=self.colors["text_muted"],
-        ).pack(side="left", padx=(0, 8), pady=3)
+        ).pack(side="left", padx=(10, 6), pady=4)
 
-        # Right Toolbar Action Pills
+        # Right Functional Toolbar
         right = ctk.CTkFrame(bar, fg_color="transparent")
         right.grid(row=0, column=1, sticky="e")
 
@@ -419,7 +379,7 @@ class AgentGUI:
         ).pack(side="left", padx=4)
 
         ctk.CTkButton(
-            right, text="💾 保存", width=56, height=28, corner_radius=6,
+            right, text="💾 保存 PPT", width=74, height=28, corner_radius=6,
             fg_color=self.colors["card_bg"], border_width=1, border_color=self.colors["border"],
             hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
             font=ctk.CTkFont("Microsoft YaHei UI", 11),
@@ -451,7 +411,6 @@ class AgentGUI:
         self.activity_btn.pack(side="left", padx=(6, 0))
 
     def _build_composer(self, main: ctk.CTkFrame) -> None:
-        # Floating rounded composer box (Claude Desktop style)
         composer_outer = ctk.CTkFrame(
             main, corner_radius=16, fg_color=self.colors["card_bg"],
             border_width=1, border_color=self.colors["border"],
@@ -471,34 +430,23 @@ class AgentGUI:
         # Bottom row inside composer
         bottom_bar = ctk.CTkFrame(composer_outer, fg_color="transparent")
         bottom_bar.grid(row=1, column=0, padx=10, pady=(0, 8), sticky="ew")
-        bottom_bar.grid_columnconfigure(1, weight=1)
+        bottom_bar.grid_columnconfigure(0, weight=1)
 
-        # Left tools in composer: Goal + Workspace
+        # Left tools in composer: Goal launcher
         c_left = ctk.CTkFrame(bottom_bar, fg_color="transparent")
         c_left.grid(row=0, column=0, sticky="w")
 
         ctk.CTkButton(
-            c_left, text="＋ 目标 (Goal)", width=80, height=26, corner_radius=6,
+            c_left, text="🎯 长期目标 (Goal)", width=100, height=26, corner_radius=6,
             fg_color=self.colors["bg_root"], border_width=1, border_color=self.colors["border"],
             hover_color=self.colors["card_hover"], text_color=self.colors["text_secondary"],
             font=ctk.CTkFont("Microsoft YaHei UI", 10),
             command=self._show_goal_dialog,
-        ).pack(side="left", padx=(0, 6))
-
-        self.workspace_menu = ctk.CTkOptionMenu(
-            c_left, values=[self.workspace_var.get()],
-            command=self._switch_workspace_value,
-            corner_radius=6, height=26, width=140,
-            fg_color=self.colors["bg_root"], button_color=self.colors["border"],
-            button_hover_color=self.colors["card_hover"],
-            text_color=self.colors["text_secondary"], font=ctk.CTkFont("Microsoft YaHei UI", 10),
-            dynamic_resizing=False,
-        )
-        self.workspace_menu.pack(side="left")
+        ).pack(side="left")
 
         # Right tools in composer: Model + Permissions + Send button
         c_right = ctk.CTkFrame(bottom_bar, fg_color="transparent")
-        c_right.grid(row=0, column=2, sticky="e")
+        c_right.grid(row=0, column=1, sticky="e")
 
         self.model_menu = ctk.CTkOptionMenu(
             c_right, variable=self.model_var, values=config.known_models(),
@@ -544,7 +492,7 @@ class AgentGUI:
         ).pack(side="left", padx=22)
 
         ctk.CTkLabel(
-            bar, text="小朴 Agent 智能体 · Ctrl+Enter 发送 · Esc 中断",
+            bar, text="小朴 Agent · Ctrl+Enter 发送 · Esc 中断",
             text_color=self.colors["text_muted"], font=ctk.CTkFont("Microsoft YaHei UI", 10),
         ).pack(side="right", padx=22)
 
@@ -873,14 +821,6 @@ class AgentGUI:
             self.activity_visible = True
             self.activity_btn.configure(fg_color=self.colors["accent"], text_color="#ffffff")
 
-    def _toggle_sidebar(self) -> None:
-        if self.sidebar_visible:
-            self.sidebar.grid_remove()
-            self.sidebar_visible = False
-        else:
-            self.sidebar.grid(row=0, column=0, sticky="nsew")
-            self.sidebar_visible = True
-
     def _toggle_theme(self) -> None:
         new_theme = "light" if self.theme_name == "dark" else "dark"
         self.theme_name = new_theme
@@ -925,11 +865,13 @@ class AgentGUI:
                 if kind == "result":
                     self._finish_stream(str(payload))
                     self._set_running(False)
+                    self._auto_save_current_session()
                     self._refresh_status()
                 elif kind == "error":
                     self._finish_stream("")
                     self._append_chat("错误", str(payload))
                     self._set_running(False)
+                    self._auto_save_current_session()
                     self._refresh_status()
                 elif kind == "stream":
                     self._on_stream_piece(str(payload))
@@ -943,10 +885,18 @@ class AgentGUI:
         if hasattr(self, "root") and hasattr(self.root, "after"):
             self.root.after(50, self._drain_events)
 
+    def _auto_save_current_session(self) -> None:
+        from .session_store import save_session
+        try:
+            record = save_session(self.h, title=self.current_title.get() if self.current_title.get() != "新对话" else "")
+            self._active_session_id = record.id
+            self._refresh_sessions()
+        except Exception:
+            pass
+
     def _on_stream_piece(self, piece: str) -> None:
         self._stream_buffer = getattr(self, "_stream_buffer", "") + piece
         if not getattr(self, "_streaming_started", False):
-            # If we had reasoning stream, append the Thought process block first!
             if self._reasoning_text.strip():
                 self._append_thought_block(self._reasoning_text)
             self._streaming_started = True
@@ -1174,32 +1124,19 @@ class AgentGUI:
         except Exception as exc:
             messagebox.showerror("获取 Goal 失败", str(exc))
 
-    def _show_doctor_dialog(self) -> None:
-        from .doctor import report
-        data = report()
-        dialog = ctk.CTkToplevel(self.root)
-        dialog.title("小朴 · 环境诊断 (Doctor)")
-        dialog.geometry("520x360")
-        dialog.transient(self.root)
-
-        ctk.CTkLabel(dialog, text="⚙ 环境与依赖诊断报告", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold")).pack(pady=(12, 6))
-        box = ctk.CTkTextbox(dialog, wrap="word", font=ctk.CTkFont("Consolas", 11))
-        box.pack(fill="both", expand=True, padx=14, pady=(0, 14))
-        box.insert("1.0", json.dumps(data, indent=2, ensure_ascii=False))
-        self._make_readonly_selectable(box)
-
     def _new_session(self) -> None:
         if getattr(self, "running", False):
             return
         from .session_store import save_session
         try:
-            save_session(self.h)
+            save_session(self.h, title=self.current_title.get() if self.current_title.get() != "新对话" else "")
         except Exception:
             pass
         self.h.reset()
+        self._active_session_id = None
         self._clear_chat()
         self.current_title.set("新对话")
-        self._append_chat("system", "已保存前序会话并创建全新会话。")
+        self._append_chat("system", f"已在工作区 [{Path(self.workspace_var.get()).name}] 下创建全新对话。")
         self._refresh_sessions()
         self._refresh_status()
 
@@ -1222,7 +1159,7 @@ class AgentGUI:
     def _export_session(self) -> None:
         from .session_store import export_session, save_session
         try:
-            record = save_session(self.h)
+            record = save_session(self.h, title=self.current_title.get() if self.current_title.get() != "新对话" else "")
             path = filedialog.asksaveasfilename(
                 defaultextension=".md",
                 initialfile=f"xiaopu-session-{record.id[:8]}.md",
@@ -1242,36 +1179,50 @@ class AgentGUI:
         except Exception as exc:
             messagebox.showerror("撤销失败", str(exc))
 
-    # ------------------------------------------------------------------ Sidebar Data
+    # ------------------------------------------------------------------ Sidebar & Workspace Data
     def _refresh_sessions(self) -> None:
         from .session_store import list_sessions
 
         for child in self.session_frame.winfo_children():
             child.destroy()
-        self._session_records = list_sessions()
+
+        current_ws = self.workspace_var.get()
+        # Filter sessions by current workspace
+        self._session_records = list_sessions(workspace=current_ws)
+
+        if hasattr(self, "sessions_count_lbl"):
+            count = len(self._session_records)
+            self.sessions_count_lbl.configure(text=f"工作区对话 ({count})")
+
         if not self._session_records:
             ctk.CTkLabel(
-                self.session_frame, text="暂无保存的会话",
+                self.session_frame, text="该工作区暂无历史对话\n点击上方“新建对话”开始",
                 font=ctk.CTkFont("Microsoft YaHei UI", 11),
                 text_color=self.colors["text_muted"],
-            ).grid(row=0, column=0, pady=16)
+                justify="center",
+            ).grid(row=0, column=0, pady=24)
             return
 
         for index, record in enumerate(self._session_records[:50]):
+            is_active = (record.id == self._active_session_id)
+            card_bg = self.colors["active_card"] if is_active else self.colors["card_bg"]
+
             card = ctk.CTkFrame(
-                self.session_frame, corner_radius=8, fg_color=self.colors["card_bg"],
-                border_width=1, border_color=self.colors["border"],
+                self.session_frame, corner_radius=8, fg_color=card_bg,
+                border_width=1, border_color=self.colors["accent"] if is_active else self.colors["border"],
             )
-            card.grid(row=index, column=0, padx=4, pady=3, sticky="ew")
+            card.grid(row=index, column=0, padx=2, pady=3, sticky="ew")
             card.grid_columnconfigure(0, weight=1)
 
-            title_text = record.title[:20] + ("…" if len(record.title) > 20 else "")
-            time_text = record.updated_at[:16] if getattr(record, "updated_at", None) else ""
+            title_text = record.title[:18] + ("…" if len(record.title) > 18 else "")
+            time_text = record.updated_at[5:16].replace("T", " ") if getattr(record, "updated_at", None) else ""
+            turns_text = f"{record.turn_count} 轮" if getattr(record, "turn_count", 0) else ""
+            meta_line = f"{time_text} · {turns_text}" if (time_text and turns_text) else (time_text or turns_text)
 
-            btn_content = f"💬  {title_text}\n     {time_text}" if time_text else f"💬  {title_text}"
+            btn_content = f"💬  {title_text}\n     {meta_line}" if meta_line else f"💬  {title_text}"
             ctk.CTkButton(
                 card, text=btn_content, anchor="w",
-                height=36, corner_radius=6, fg_color="transparent",
+                height=38, corner_radius=6, fg_color="transparent",
                 hover_color=self.colors["card_hover"], text_color=self.colors["text_primary"],
                 font=ctk.CTkFont("Microsoft YaHei UI", 11),
                 command=lambda i=index: self._resume_session(i),
@@ -1301,15 +1252,33 @@ class AgentGUI:
             content = str(message.get("content", "")).strip()
             if role == "user" and content:
                 pairs.append(("you", content))
-            elif role == "assistant" and content:
-                pairs.append(("小朴", content))
+            elif role == "assistant":
+                if content:
+                    pairs.append(("小朴", content))
+                elif message.get("tool_calls"):
+                    calls_summary = "调用了工具: " + ", ".join(tc.get("function", {}).get("name", "tool") for tc in message["tool_calls"])
+                    pairs.append(("小朴", calls_summary))
         return pairs
 
     def _render_history(self, payload: dict) -> None:
         self._clear_chat()
-        pairs = self._history_messages(payload)
-        for role, text in pairs:
-            self._append_chat(role, text)
+        messages = payload.get("messages", [])
+        for message in messages:
+            role = message.get("role")
+            content = str(message.get("content", "")).strip()
+            reasoning = message.get("reasoning_content")
+            if role == "user" and content:
+                self._append_chat("you", content)
+            elif role == "assistant":
+                if reasoning and reasoning.strip():
+                    self._append_thought_block(reasoning)
+                if content:
+                    self._append_chat("小朴", content)
+                elif message.get("tool_calls"):
+                    calls_summary = "调用了工具: " + ", ".join(tc.get("function", {}).get("name", "tool") for tc in message["tool_calls"])
+                    self._append_chat("小朴", calls_summary)
+            elif role in {"system", "系统"} and content and not content.startswith("Identity (non-negotiable):"):
+                self._append_chat("system", content)
 
     def _resume_session(self, index: int) -> None:
         from .session_store import load_session, restore_harness
@@ -1321,10 +1290,21 @@ class AgentGUI:
         if payload is None:
             messagebox.showerror("恢复失败", "无法读取会话文件。")
             return
-        self.current_title.set(record.title[:18] + ("…" if len(record.title) > 18 else ""))
+
+        self._active_session_id = record.id
+        title = record.title or "对话"
+        self.current_title.set(title[:18] + ("…" if len(title) > 18 else ""))
+
+        # Restore workspace and harness state
+        ws = payload.get("workspace") or record.workspace
+        if ws and ws != self.workspace_var.get():
+            self.workspace_var.set(ws)
+            os.environ["WORKSPACE"] = str(ws)
+
         report = restore_harness(self.h, payload)
         self._render_history(payload)
-        self._append_chat("system", f"✓ 已恢复会话 [{record.id[:8]}] · {report}")
+        self._append_chat("system", f"✓ 已加载会话 [{record.id[:8]}] · {report}\n您可以直接在下方输入框继续本轮对话。")
+        self._refresh_sessions()
         self._refresh_status()
 
     def _delete_session(self, index: int) -> None:
@@ -1335,7 +1315,11 @@ class AgentGUI:
         record = self._session_records[index]
         if messagebox.askyesno("删除会话", f"确认删除会话 [{record.id[:8]}]？\n{record.title}\n此操作不可撤销。"):
             delete_session(record.id)
-            self._refresh_sessions()
+            if self._active_session_id == record.id:
+                self._active_session_id = None
+                self._new_session()
+            else:
+                self._refresh_sessions()
 
     def _refresh_workspaces(self) -> None:
         from .workspace_store import list_workspaces
@@ -1351,7 +1335,11 @@ class AgentGUI:
     def _switch_workspace_value(self, value: str) -> None:
         os.environ["WORKSPACE"] = value
         self.workspace_var.set(value)
+        config.set_sandbox_root(value)
         self.status.set(f"工作区已切换为：{value}")
+        # Reset and reload sessions for the newly selected workspace
+        self._new_session()
+        self._refresh_sessions()
 
     def _choose_workspace(self) -> None:
         path = filedialog.askdirectory(title="选择工作区目录")
@@ -1359,6 +1347,7 @@ class AgentGUI:
             return
         os.environ["WORKSPACE"] = path
         self.workspace_var.set(path)
+        config.set_sandbox_root(path)
         from .workspace_store import register_workspace
         try:
             register_workspace(path)
@@ -1366,6 +1355,8 @@ class AgentGUI:
             pass
         self._refresh_workspaces()
         self.status.set(f"工作区已更新为：{path}")
+        self._new_session()
+        self._refresh_sessions()
 
 
 def build_parser() -> argparse.ArgumentParser:

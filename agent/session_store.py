@@ -7,6 +7,7 @@ session re-derives the deck from its working copy instead of trusting memory.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,21 +54,22 @@ def snapshot_harness(harness) -> dict:
             if role != "system":
                 content = redact(str(content))
             messages.append({"role": role, "content": content})
-            if role == "assistant" and message.get("tool_calls"):
-                calls = []
-                for tc in message["tool_calls"]:
-                    function = dict(tc.get("function") or {})
-                    calls.append({
-                        "id": tc.get("id"),
-                        "type": "function",
-                        "function": {
-                            "name": function.get("name"),
-                            "arguments": function.get("arguments", ""),
-                        },
-                    })
-                messages[-1]["tool_calls"] = calls
+            if role == "assistant":
                 if message.get("reasoning_content"):
                     messages[-1]["reasoning_content"] = message["reasoning_content"]
+                if message.get("tool_calls"):
+                    calls = []
+                    for tc in message["tool_calls"]:
+                        function = dict(tc.get("function") or {})
+                        calls.append({
+                            "id": tc.get("id"),
+                            "type": "function",
+                            "function": {
+                                "name": function.get("name"),
+                                "arguments": function.get("arguments", ""),
+                            },
+                        })
+                    messages[-1]["tool_calls"] = calls
         elif role == "tool":
             messages.append({"role": "tool", "tool_call_id": message.get("tool_call_id"),
                              "content": redact(str(message.get("content", "")))}) if message.get("tool_call_id") else None
@@ -76,7 +78,7 @@ def snapshot_harness(harness) -> dict:
         "id": getattr(getattr(harness, "session", None), "id", uuid4().hex),
         "created_at": _now(),
         "model": getattr(getattr(harness, "llm", None), "model", config.model()),
-        "workspace": str(config.sandbox_root()),
+        "workspace": str(getattr(harness, "workspace", None) or os.environ.get("WORKSPACE") or config.sandbox_root()),
         "messages": messages,
         "facts": dict(state.facts),
         "content_brief": getattr(state, "content_brief", ""),
@@ -120,18 +122,34 @@ def _derive_title(payload: dict) -> str:
     return "untitled"
 
 
-def list_sessions() -> list[SessionRecord]:
+def list_sessions(workspace: str | None = None) -> list[SessionRecord]:
     records = []
+    ws_target = None
+    if workspace:
+        try:
+            ws_target = str(Path(workspace).resolve()).casefold()
+        except Exception:
+            ws_target = str(workspace).casefold()
+
     for path in sorted(_sessions_dir().glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             continue
+        rec_ws = payload.get("workspace", "")
+        if ws_target is not None:
+            try:
+                rec_resolved = str(Path(rec_ws).resolve()).casefold()
+                if rec_resolved != ws_target:
+                    continue
+            except Exception:
+                if str(rec_ws).casefold() != ws_target:
+                    continue
         title = payload.get("title") or _derive_title(payload)
         records.append(SessionRecord(
             id=payload.get("id", path.stem), title=title,
             created_at=payload.get("created_at", ""), updated_at=payload.get("created_at", ""),
-            model=payload.get("model", ""), workspace=payload.get("workspace", ""),
+            model=payload.get("model", ""), workspace=rec_ws,
             turn_count=sum(1 for m in payload.get("messages", []) if m.get("role") == "assistant"),
             path=path, summary=(payload.get("final_summary") or "")[:200]))
     return records
@@ -166,6 +184,21 @@ def restore_harness(harness, payload: dict) -> str:
 
         harness.messages = []
         harness.state = RunState()
+
+    if payload.get("id"):
+        if not hasattr(harness, "session") or harness.session is None:
+            from .session import Session
+            harness.session = Session()
+        harness.session.id = payload["id"]
+
+    ws = payload.get("workspace")
+    if ws:
+        os.environ["WORKSPACE"] = str(ws)
+        try:
+            config.set_sandbox_root(ws)
+        except Exception:
+            pass
+
     messages = []
     for message in payload.get("messages", []):
         if message.get("role") in {"system", "user", "assistant", "tool"}:
