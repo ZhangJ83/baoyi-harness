@@ -9,6 +9,7 @@ __pycache__/
 
 # generated / test / runtime artifacts
 workspace/
+benchmarks/code_tasks/one_shot_runs/
 .tmp/
 .pytest_cache/
 .pytest*/
