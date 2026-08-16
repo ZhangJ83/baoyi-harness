@@ -104,9 +104,9 @@ def test_web_api_tree(web_test_server):
 
 
 def test_web_api_choose_directory(web_test_server, monkeypatch, tmp_path):
-    import tkinter.filedialog
+    import agent.web_server
     test_dir = str(tmp_path / "mock_workspace")
-    monkeypatch.setattr(tkinter.filedialog, "askdirectory", lambda **kwargs: test_dir)
+    monkeypatch.setattr(agent.web_server, "_pick_directory_native", lambda **kwargs: test_dir)
 
     req = urllib.request.Request(
         f"{web_test_server}/api/choose_directory",

@@ -265,24 +265,10 @@
         await switchWorkspace(data.path);
         newSessionInProject(data.path);
         showToast(`已添加并切换至项目：${data.path}`);
-      } else if (data.status === "cancelled") {
-        // User cancelled in system dialog
-      } else {
-        // Fallback to prompt if dialog failed
-        const ws = prompt("请输入或粘贴要添加的工作区/项目目录绝对路径：", activeWorkspacePath || "");
-        if (ws && ws.trim()) {
-          await switchWorkspace(ws.trim());
-          newSessionInProject(ws.trim());
-          showToast(`已添加并切换至项目：${ws.trim()}`);
-        }
       }
     } catch (e) {
       console.error("Choose directory error:", e);
-      const ws = prompt("请输入或粘贴要添加的工作区/项目目录绝对路径：", activeWorkspacePath || "");
-      if (ws && ws.trim()) {
-        await switchWorkspace(ws.trim());
-        newSessionInProject(ws.trim());
-      }
+      showToast("无法打开系统选择器");
     }
   });
 

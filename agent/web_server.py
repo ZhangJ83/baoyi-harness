@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -17,6 +18,99 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+
+
+def _pick_directory_native(initial_dir: str = "") -> str | None:
+    # 1. On Windows, use PowerShell STA FolderBrowserDialog (100% reliable, zero Tkinter issues)
+    if sys.platform == "win32":
+        try:
+            ps_cmd = (
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                "$f.Description = '请选择小朴项目 / 工作区目录'; "
+                "$f.ShowNewFolderButton = $true; "
+                f"$f.SelectedPath = '{initial_dir}'; "
+                "if($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){ [Console]::WriteLine($f.SelectedPath) }"
+            )
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-STA", "-Command", ps_cmd],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=120,
+            )
+            for line in reversed(res.stdout.strip().splitlines()):
+                p = line.strip()
+                if p and Path(p).is_dir():
+                    return str(Path(p).resolve())
+        except Exception:
+            pass
+
+    # 2. Cross-platform Tkinter fallback
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.askdirectory(title="选择工作区/项目目录", initialdir=initial_dir or str(config.sandbox_root()))
+        root.destroy()
+        if selected and Path(selected).is_dir():
+            return str(Path(selected).resolve())
+    except Exception:
+        pass
+
+    return None
+
+
+def _pick_save_file_native(initial_dir: str = "", default_name: str = "presentation.pptx") -> str | None:
+    if sys.platform == "win32":
+        try:
+            ps_cmd = (
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                "$f = New-Object System.Windows.Forms.SaveFileDialog; "
+                "$f.Title = '另存为 PPT 文件'; "
+                "$f.Filter = 'PowerPoint 演示文稿 (*.pptx)|*.pptx|所有文件 (*.*)|*.*'; "
+                f"$f.InitialDirectory = '{initial_dir}'; "
+                f"$f.FileName = '{default_name}'; "
+                "if($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){ [Console]::WriteLine($f.FileName) }"
+            )
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-STA", "-Command", ps_cmd],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=120,
+            )
+            for line in reversed(res.stdout.strip().splitlines()):
+                p = line.strip()
+                if p:
+                    return str(Path(p).resolve())
+        except Exception:
+            pass
+
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected = filedialog.asksaveasfilename(
+            title="另存为 PPT 文件",
+            defaultextension=".pptx",
+            filetypes=[("PowerPoint", "*.pptx")],
+            initialdir=initial_dir or str(config.sandbox_root()),
+            initialfile=default_name,
+        )
+        root.destroy()
+        if selected:
+            return str(Path(selected).resolve())
+    except Exception:
+        pass
+
+    return None
 
 
 def _time_ago(iso_str: str) -> str:
@@ -236,50 +330,20 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
         body = self._read_json_body()
 
         if path == "/api/choose_directory":
-            selected_path = None
-            try:
-                import tkinter as tk
-                from tkinter import filedialog
-                root = tk.Tk()
-                root.withdraw()
-                root.attributes("-topmost", True)
-                selected_path = filedialog.askdirectory(
-                    title="选择工作区/项目目录",
-                    initialdir=str(config.sandbox_root()),
-                )
-                root.destroy()
-            except Exception:
-                selected_path = None
-
+            selected_path = _pick_directory_native(initial_dir=str(config.sandbox_root()))
             if selected_path:
-                norm = str(Path(selected_path).resolve())
-                self._send_json({"status": "ok", "path": norm})
+                self._send_json({"status": "ok", "path": selected_path})
             else:
                 self._send_json({"status": "cancelled", "path": ""})
             return
 
         if path == "/api/choose_save_ppt":
-            selected_path = None
-            try:
-                import tkinter as tk
-                from tkinter import filedialog
-                root = tk.Tk()
-                root.withdraw()
-                root.attributes("-topmost", True)
-                selected_path = filedialog.asksaveasfilename(
-                    title="另存为 PPT 文件",
-                    defaultextension=".pptx",
-                    filetypes=[("PowerPoint", "*.pptx")],
-                    initialdir=str(config.sandbox_root()),
-                    initialfile="presentation.pptx",
-                )
-                root.destroy()
-            except Exception:
-                selected_path = None
-
+            selected_path = _pick_save_file_native(
+                initial_dir=str(config.sandbox_root()),
+                default_name="presentation.pptx",
+            )
             if selected_path:
-                norm = str(Path(selected_path).resolve())
-                self._send_json({"status": "ok", "path": norm})
+                self._send_json({"status": "ok", "path": selected_path})
             else:
                 self._send_json({"status": "cancelled", "path": ""})
             return
