@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>小朴 Agent · Xiaopu (Coding & PPT Assistant)</title>
   <link rel="icon" type="image/png" href="/assets/icon.png">
-  <link rel="stylesheet" href="/style.css?v=3">
+  <link rel="stylesheet" href="/style.css?v=4">
 </head>
 <body>
   <div id="app-container">
@@ -25,8 +25,16 @@
           <div class="tree-section-header">
             <span class="tree-section-title">Projects</span>
             <div class="tree-section-actions">
-              <button id="sort-projects-btn" class="tree-icon-btn" title="排序/筛选">☰</button>
-              <button id="add-project-btn" class="tree-icon-btn" title="添加工作区目录/项目">📁⁺</button>
+              <button id="sort-projects-btn" class="tree-icon-btn" title="排序/切换顺序">
+                <span class="icon">
+                  <svg viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+                </span>
+              </button>
+              <button id="add-project-btn" class="tree-icon-btn" title="添加工作区目录/项目">
+                <span class="icon">
+                  <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                </span>
+              </button>
             </div>
           </div>
           <div id="projects-tree-list" class="projects-tree-list"></div>
@@ -37,7 +45,11 @@
           <div class="tree-section-header">
             <span class="tree-section-title">Conversations</span>
             <div class="tree-section-actions">
-              <button id="new-conversation-btn" class="tree-icon-btn" title="新建独立对话">＋</button>
+              <button id="new-conversation-btn" class="tree-icon-btn" title="新建独立对话">
+                <span class="icon">
+                  <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </span>
+              </button>
             </div>
           </div>
           <div id="conversations-tree-list" class="conversations-tree-list"></div>
@@ -47,9 +59,14 @@
       <!-- Footer: Gateway & Theme -->
       <div class="sidebar-footer">
         <div class="gateway-status">
-          <span style="color: var(--accent-emerald);">●</span> Gateway 在线
+          <span class="status-pulse-dot"></span> Gateway 在线
         </div>
-        <button id="theme-toggle-btn" class="theme-toggle-btn">🌓 主题</button>
+        <button id="theme-toggle-btn" class="theme-toggle-btn" title="切换明暗主题">
+          <span class="icon">
+            <svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+          </span>
+          <span>主题</span>
+        </button>
       </div>
     </aside>
 
@@ -63,38 +80,96 @@
           </div>
         </div>
         <div class="topbar-right">
-          <button id="btn-verify" class="pill-btn" title="运行 PPT 结构校验">🔍 校验</button>
-          <button id="btn-save-ppt" class="pill-btn" title="保存 PPTX 文件">💾 保存 PPT</button>
-          <button id="btn-undo" class="pill-btn" title="撤销最近一次 PPT 修改">↩ 撤销</button>
-          <button id="btn-export" class="pill-btn" title="导出 Markdown 会话">📤 导出</button>
-          <button id="btn-toggle-activity" class="pill-btn primary" title="切换右侧活动与上下文抽屉">◫ 活动</button>
+          <button id="btn-verify" class="pill-btn" title="运行 PPT 结构校验">
+            <span class="icon"><svg viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+            <span>校验</span>
+          </button>
+          <button id="btn-save-ppt" class="pill-btn" title="保存 PPTX 文件">
+            <span class="icon"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span>
+            <span>保存 PPT</span>
+          </button>
+          <button id="btn-undo" class="pill-btn" title="撤销最近一次 PPT 修改">
+            <span class="icon"><svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg></span>
+            <span>撤销</span>
+          </button>
+          <button id="btn-export" class="pill-btn" title="导出 Markdown 会话">
+            <span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+            <span>导出</span>
+          </button>
+          <button id="btn-toggle-activity" class="pill-btn primary" title="切换右侧活动与上下文抽屉">
+            <span class="icon"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg></span>
+            <span>活动</span>
+          </button>
         </div>
       </header>
 
       <!-- Scrollable Chat Stream Area -->
       <div id="chat-area" class="chat-scroll-area">
-        <div class="chat-row system">
-          <div class="message-card system">小朴已就绪。输入任务描述开始执行，支持代码编写、文档生成与 PPT 自动化。</div>
+        <div class="chat-content-container" id="chat-container">
+          <!-- Welcome Hero Cards (shown when empty) -->
+          <div class="welcome-hero" id="welcome-hero">
+            <div class="welcome-logo-icon">朴</div>
+            <h1 class="welcome-title">有什么可以帮您？</h1>
+            <p class="welcome-subtitle">小朴是您的专业 AI 演示文稿与代码工程助理，支持复杂 PPT 结构解析、代码编写与自动化任务执行。</p>
+            <div class="welcome-cards-grid">
+              <div class="quick-start-card" data-prompt="请分析当前 PPT 的整体结构与视觉排版，提出针对性的美化和优化建议。">
+                <div class="quick-card-header">
+                  <span class="icon quick-card-icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+                  <span>优化现有演示文稿</span>
+                </div>
+                <div class="quick-card-desc">自动扫描占位符、字号与对齐，重构信息层级与视觉排版。</div>
+              </div>
+              <div class="quick-start-card" data-prompt="请基于我的需求大纲，生成一套结构严谨、视觉精美的商业演示文稿大纲与页面。">
+                <div class="quick-card-header">
+                  <span class="icon quick-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+                  <span>大纲一键生成 PPT</span>
+                </div>
+                <div class="quick-card-desc">从逻辑梳理到页面排版，快速构建高质感幻灯片。</div>
+              </div>
+              <div class="quick-start-card" data-prompt="运行 PPT 结构校验与合规性检查，定位潜在的排版溢出与格式错误。">
+                <div class="quick-card-header">
+                  <span class="icon quick-card-icon"><svg viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+                  <span>幻灯片结构校验</span>
+                </div>
+                <div class="quick-card-desc">深度检查多层嵌套容器、字体一致性与几何尺寸。</div>
+              </div>
+              <div class="quick-start-card" data-prompt="请检查当前工作区的文件状态，帮我编写并执行自动化处理脚本。">
+                <div class="quick-card-header">
+                  <span class="icon quick-card-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+                  <span>代码辅助与自动化</span>
+                </div>
+                <div class="quick-card-desc">跨文件读写、AST 级代码重构与命令行自动化执行。</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Floating Bottom Composer Card (Claude Style) -->
       <div class="composer-container">
         <div class="composer-card">
-          <textarea id="prompt-input" class="composer-input" placeholder="输入任务描述或指令（Ctrl+Enter 发送）..."></textarea>
+          <textarea id="prompt-input" class="composer-input" rows="1" placeholder="输入任务描述或指令（Ctrl+Enter 发送）..."></textarea>
           <div class="composer-bottom">
             <div class="composer-tools">
-              <button id="btn-goal-dialog" class="pill-btn" style="font-size: 11px; padding: 3px 8px;">🎯 长期目标</button>
+              <button id="btn-goal-dialog" class="pill-btn" style="font-size: 11.5px; padding: 4px 9px;">
+                <span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+                <span>长期目标</span>
+              </button>
             </div>
             <div class="composer-actions">
               <select id="model-select" class="select-pill" title="切换模型"></select>
               <select id="perm-select" class="select-pill" title="Shell 命令策略">
-                <option value="allow">allow (允许)</option>
-                <option value="ask" selected>ask (询问)</option>
-                <option value="deny">deny (禁止)</option>
+                <option value="allow">允许 (allow)</option>
+                <option value="ask" selected>询问 (ask)</option>
+                <option value="deny">禁止 (deny)</option>
               </select>
-              <button id="btn-stop" class="stop-btn">⏹ 中断</button>
-              <button id="btn-send" class="send-btn" title="发送 (Ctrl+Enter)">↑</button>
+              <button id="btn-stop" class="stop-btn">
+                <span class="icon"><svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></span>
+                <span>中断</span>
+              </button>
+              <button id="btn-send" class="send-btn" title="发送 (Ctrl+Enter)">
+                <span class="icon"><svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></span>
+              </button>
             </div>
           </div>
         </div>
@@ -106,19 +181,24 @@
     <aside id="activity-drawer">
       <div class="drawer-header">
         <div class="drawer-title">活动与上下文 (Context)</div>
-        <button id="drawer-close-btn" class="drawer-close-btn">✕</button>
+        <button id="drawer-close-btn" class="drawer-close-btn" title="关闭抽屉">
+          <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+        </button>
       </div>
       <div class="drawer-content">
         <!-- Progress Card -->
         <div class="progress-card">
-          <div id="live-action" class="progress-action">就绪 · 等待指令</div>
+          <div id="live-action" class="progress-action">
+            <span class="icon" style="color: var(--accent);"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg></span>
+            <span>就绪 · 等待指令</span>
+          </div>
           <div class="progress-sub">
             <span id="live-phase">Phase: intake</span>
             <span id="live-elapsed" class="progress-timer">0 秒</span>
           </div>
         </div>
 
-        <!-- 2 High-value Tabs -->
+        <!-- Segmented Tabs -->
         <div class="drawer-tabs">
           <button id="tab-timeline-btn" class="tab-btn active">时间线</button>
           <button id="tab-cot-btn" class="tab-btn">思维链</button>
@@ -128,7 +208,7 @@
         <div id="tab-timeline-panel" class="tab-panel">
           <div class="panel-header">
             <span id="live-counts">工具 0 · 完成 0 · 失败 0</span>
-            <button id="copy-timeline-btn" class="pill-btn" style="font-size: 10px; padding: 2px 6px;">复制时间线</button>
+            <button id="copy-timeline-btn" class="pill-btn" style="font-size: 10.5px; padding: 2px 7px;">复制记录</button>
           </div>
           <div id="timeline-log" class="tab-log-box"></div>
         </div>
@@ -136,8 +216,8 @@
         <!-- Tab 2: Reasoning / CoT -->
         <div id="tab-cot-panel" class="tab-panel" style="display: none;">
           <div class="panel-header">
-            <span>原始 reasoning_content (未伪造)</span>
-            <button id="copy-cot-btn" class="pill-btn" style="font-size: 10px; padding: 2px 6px;">复制思维链</button>
+            <span>真实 reasoning_content</span>
+            <button id="copy-cot-btn" class="pill-btn" style="font-size: 10.5px; padding: 2px 7px;">复制思维链</button>
           </div>
           <div id="cot-log" class="tab-log-box">模型实际返回的 reasoning_content 会实时显示在这里。&#10;provider 未返回时明确提示，绝不伪造。</div>
         </div>
@@ -145,8 +225,30 @@
     </aside>
   </div>
 
+  <!-- Goal Dialog Modal -->
+  <div id="goal-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">🎯 长期目标设定 (Goal)</div>
+        <button id="goal-modal-close" class="drawer-close-btn">
+          <span class="icon"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 8px; color: var(--text-secondary);">设置长期目标后，小朴将在复杂跨轮次会话中持续跟踪并对齐核心目标：</p>
+        <textarea id="goal-input" class="composer-input" rows="4" style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; background: var(--bg-root);" placeholder="例如：将当前 PPT 重构为科技蓝商务风格，并在最后一页增加附录表格..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="goal-cancel-btn" class="pill-btn">取消</button>
+        <button id="goal-save-btn" class="pill-btn primary">保存目标</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Toast -->
+  <div id="toast"></div>
+
   <!-- JavaScript Application Logic -->
-  <script src="/app.js?v=3"></script>
+  <script src="/app.js?v=4"></script>
 </body>
 </html>
-
