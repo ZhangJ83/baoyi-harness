@@ -235,6 +235,55 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path
         body = self._read_json_body()
 
+        if path == "/api/choose_directory":
+            selected_path = None
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                selected_path = filedialog.askdirectory(
+                    title="选择工作区/项目目录",
+                    initialdir=str(config.sandbox_root()),
+                )
+                root.destroy()
+            except Exception:
+                selected_path = None
+
+            if selected_path:
+                norm = str(Path(selected_path).resolve())
+                self._send_json({"status": "ok", "path": norm})
+            else:
+                self._send_json({"status": "cancelled", "path": ""})
+            return
+
+        if path == "/api/choose_save_ppt":
+            selected_path = None
+            try:
+                import tkinter as tk
+                from tkinter import filedialog
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                selected_path = filedialog.asksaveasfilename(
+                    title="另存为 PPT 文件",
+                    defaultextension=".pptx",
+                    filetypes=[("PowerPoint", "*.pptx")],
+                    initialdir=str(config.sandbox_root()),
+                    initialfile="presentation.pptx",
+                )
+                root.destroy()
+            except Exception:
+                selected_path = None
+
+            if selected_path:
+                norm = str(Path(selected_path).resolve())
+                self._send_json({"status": "ok", "path": norm})
+            else:
+                self._send_json({"status": "cancelled", "path": ""})
+            return
+
         if path == "/api/workspace":
             new_ws = body.get("workspace")
             if new_ws:

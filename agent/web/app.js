@@ -257,11 +257,32 @@
 
   // ------------------------------------------------------------------ Tree Action Buttons
   addProjectBtn.addEventListener("click", async () => {
-    const ws = prompt("请输入或粘贴要添加的工作区/项目目录绝对路径：", activeWorkspacePath || "");
-    if (ws && ws.trim()) {
-      await switchWorkspace(ws.trim());
-      newSessionInProject(ws.trim());
-      showToast(`已添加并切换至项目：${ws.trim()}`);
+    try {
+      showToast("正在打开系统文件夹选择窗口…");
+      const res = await fetch("/api/choose_directory", { method: "POST" });
+      const data = await res.json();
+      if (data.status === "ok" && data.path) {
+        await switchWorkspace(data.path);
+        newSessionInProject(data.path);
+        showToast(`已添加并切换至项目：${data.path}`);
+      } else if (data.status === "cancelled") {
+        // User cancelled in system dialog
+      } else {
+        // Fallback to prompt if dialog failed
+        const ws = prompt("请输入或粘贴要添加的工作区/项目目录绝对路径：", activeWorkspacePath || "");
+        if (ws && ws.trim()) {
+          await switchWorkspace(ws.trim());
+          newSessionInProject(ws.trim());
+          showToast(`已添加并切换至项目：${ws.trim()}`);
+        }
+      }
+    } catch (e) {
+      console.error("Choose directory error:", e);
+      const ws = prompt("请输入或粘贴要添加的工作区/项目目录绝对路径：", activeWorkspacePath || "");
+      if (ws && ws.trim()) {
+        await switchWorkspace(ws.trim());
+        newSessionInProject(ws.trim());
+      }
     }
   });
 
@@ -596,12 +617,29 @@
   });
 
   btnSavePpt.addEventListener("click", async () => {
-    const filename = prompt("请输入另存为的 PPT 文件名或路径：", "presentation.pptx");
-    if (!filename) return;
+    let savePath = "";
+    try {
+      showToast("正在打开系统文件保存窗口…");
+      const dlgRes = await fetch("/api/choose_save_ppt", { method: "POST" });
+      const dlgData = await dlgRes.json();
+      if (dlgData.status === "ok" && dlgData.path) {
+        savePath = dlgData.path;
+      } else if (dlgData.status === "cancelled") {
+        return;
+      }
+    } catch (e) {
+      console.error("Choose save dialog error:", e);
+    }
+
+    if (!savePath) {
+      savePath = prompt("请输入另存为的 PPT 文件名或路径：", "presentation.pptx");
+    }
+    if (!savePath) return;
+
     const res = await fetch("/api/ppt/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: filename })
+      body: JSON.stringify({ path: savePath })
     });
     const data = await res.json();
     appendAssistantMessage(`【保存 PPT】\n${data.result}`);

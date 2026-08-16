@@ -102,3 +102,20 @@ def test_web_api_tree(web_test_server):
     assert "path" in p
     assert "sessions" in p
 
+
+def test_web_api_choose_directory(web_test_server, monkeypatch, tmp_path):
+    import tkinter.filedialog
+    test_dir = str(tmp_path / "mock_workspace")
+    monkeypatch.setattr(tkinter.filedialog, "askdirectory", lambda **kwargs: test_dir)
+
+    req = urllib.request.Request(
+        f"{web_test_server}/api/choose_directory",
+        data=b"{}",
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req) as resp:
+        assert resp.status == 200
+        data = json.loads(resp.read().decode("utf-8"))
+        assert data["status"] == "ok"
+        assert "mock_workspace" in data["path"]
+
