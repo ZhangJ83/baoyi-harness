@@ -1083,11 +1083,66 @@
     }
   }
 
+  function renderSessionActivity(payload) {
+    const messages = payload.messages || [];
+    const toolOutputs = {};
+    for (const msg of messages) {
+      if (msg.role === "tool" && msg.tool_call_id) {
+        toolOutputs[msg.tool_call_id] = msg.content || "";
+      }
+    }
+
+    const timeline = [];
+    const reasoningParts = [];
+    let started = 0;
+    let completed = 0;
+    let failed = 0;
+
+    for (const msg of messages) {
+      if (msg.role === "assistant") {
+        const reasoning = msg.reasoning_content;
+        if (reasoning && reasoning.trim()) {
+          reasoningParts.push(reasoning.trim());
+        }
+        for (const tc of msg.tool_calls || []) {
+          const fn = tc.function || {};
+          const name = fn.name || "tool";
+          let args = "";
+          try {
+            args = JSON.stringify(JSON.parse(fn.arguments || "{}"));
+          } catch (e) {
+            args = fn.arguments || "";
+          }
+          const output = toolOutputs[tc.id] || "";
+          const isError = /TOOL ERROR|RuntimeError|ValueError|TypeError/.test(output);
+          started += 1;
+          if (isError) {
+            failed += 1;
+            timeline.push(`✕ ${name} ${args}`);
+          } else {
+            completed += 1;
+            timeline.push(`✓ ${name} ${args}`);
+          }
+          const tail = output.slice(0, 500).replace(/\n+/g, " ");
+          if (tail) timeline.push(`  → ${tail}`);
+        }
+      }
+    }
+
+    timelineLog.innerText = timeline.join("\n") || "该会话没有工具调用。";
+    cotLog.innerText = reasoningParts.join("\n\n") || "模型未返回 reasoning_content；真实思维链为空，不伪造。";
+    liveCounts.innerText = `工具 ${started} · 完成 ${completed} · 失败 ${failed}`;
+    livePhase.innerText = `Phase: ${payload.phase || "unknown"}`;
+    liveElapsed.innerText = "历史会话";
+    liveAction.innerHTML = `<span class="icon" style="color: var(--accent);">${ICONS.file}</span><span>${payload.final_summary ? "历史会话已完成" : "历史会话已加载"}</span>`;
+  }
+
   function renderHistory(payload) {
     chatContainer.innerHTML = "";
     timelineLog.innerText = "";
     cotLog.innerText = "";
     rawReasoning = "";
+    renderSessionActivity(payload);
 
     const messages = payload.messages || [];
     const toolOutputs = {};
@@ -1444,8 +1499,15 @@
         currentAssistantCard.innerHTML = formatMarkdown(finalText);
         scrollToBottom();
       }
+      const paused = /已安全暂停|STUCK|额度已用完/.test(finalText);
+      livePhase.innerText = "Phase: done";
+      liveAction.innerHTML = paused
+        ? `<span class="icon" style="color: var(--danger);">${ICONS.close}</span><span>运行安全暂停</span>`
+        : `<span class="icon" style="color: var(--accent-emerald);">${ICONS.check}</span><span>本次运行结束</span>`;
     } else if (type === "error") {
       appendSystemMessage(`请求异常: ${directText || payload.content || "未知错误"}`);
+      livePhase.innerText = "Phase: error";
+      liveAction.innerHTML = `<span class="icon" style="color: var(--danger);">${ICONS.close}</span><span>运行异常</span>`;
     } else if (type === "tool_started") {
       toolStarted++;
       refreshCounts(toolStarted, toolCompleted, toolFailed);
@@ -1682,14 +1744,14 @@
       tabTimelinePanel.style.display = "none";
     });
 
-    copyTimelineBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(timelineLog.innerText);
-      showToast("时间线记录已复制");
+    copyTimelineBtn.addEventListener("click", async () => {
+      const ok = await copyText(timelineLog.innerText || "");
+      showToast(ok ? "时间线记录已复制" : "复制失败，请手动选择复制");
     });
 
-    copyCotBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(rawReasoning || cotLog.innerText);
-      showToast("原始思维链已复制");
+    copyCotBtn.addEventListener("click", async () => {
+      const ok = await copyText(rawReasoning || cotLog.innerText || "");
+      showToast(ok ? "原始思维链已复制" : "复制失败，请手动选择复制");
     });
 
     // Artifacts Hub Modal Trigger
@@ -1767,6 +1829,25 @@
   }
 
   // ------------------------------------------------------------------ Toast & Helpers
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      try {
+        const area = document.createElement("textarea");
+        area.value = text;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+        return true;
+      } catch (e2) {
+        return false;
+      }
+    }
+  }
+
   function showToast(msg) {
     if (!toast) return;
     toast.innerText = msg;
