@@ -80,7 +80,7 @@
     "path": "agent/controller_policies.py",
     "sha256": "02a007ee907e2e38b134f113e3f41af305eb62d2aaa26683f48a2b90c0ad7eff",
     "harness_path": "agent/harness.py",
-    "harness_sha256": "100452f094ae5f6d91351eb7ad48c85acf4304b7f708cfb1489cef429533f6db",
+    "harness_sha256": "6255e4ba22a42cde5ad84130fa8daf0331e409cd86a2ef548f1b9b759d0c6986",
     "harness_argument": "controller_policy"
   },
   "model": {

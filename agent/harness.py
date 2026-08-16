@@ -1941,9 +1941,10 @@ class Harness:
                 if self._mutation_gated(tc.function.name):
                     # The verify-before-continue gate is a loop invariant, but
                     # commit + verification are harness-owned lifecycle steps.
-                    # Satisfy the gate deterministically when the model forgot
-                    # the save/check pair, so a valid repair is never stranded
-                    # behind a prompt-only reminder.
+                    # Satisfy the gate deterministically and then EXECUTE the
+                    # exact mutation the model requested. Bouncing it back with
+                    # a "retry" message only invited the model to change its
+                    # call between turns, which stalled multi-page builds.
                     try:
                         from .tools.registry import dispatch as _lifecycle_dispatch
                         _lifecycle_dispatch("ppt_save", json.dumps({}), self)
@@ -1954,17 +1955,18 @@ class Harness:
                             f"Automatic save/check also failed ({type(lifecycle_exc).__name__}: {lifecycle_exc}). "
                             "Fix the reported structural findings before further content edits."
                         )
-                    if not self._mutation_gated(tc.function.name):
+                    if self._mutation_gated(tc.function.name):
                         return (
-                            "verify-before-continue gate resolved by the harness: the current draft was saved and "
-                            "ppt_check produced fresh structural evidence for this content revision. Retry your "
-                            "intended mutation now."
+                            "TOOL ERROR (RuntimeError): CEGAR-H verify-before-continue gate. "
+                            "The deck has unverified mutations; run ppt_save then ppt_check "
+                            "and obtain fresh structural evidence before further content edits."
                         )
-                    return (
-                        "TOOL ERROR (RuntimeError): CEGAR-H verify-before-continue gate. "
-                        "The deck has unverified mutations; run ppt_save then ppt_check "
-                        "and obtain fresh structural evidence before further content edits."
-                    )
+                    if getattr(self, "recorder", None) and callable(getattr(self.recorder, "event", None)):
+                        self.recorder.event(
+                            "verify_before_continue_auto_resolved",
+                            tool=tc.function.name,
+                            mutation_epoch=self.state.mutation_epoch,
+                        )
                 if not hasattr(self, "policy_guard"):
                     from .controller_policies import PolicyGuard
                     self.controller_policy = getattr(self, "controller_policy", "cegar_h")

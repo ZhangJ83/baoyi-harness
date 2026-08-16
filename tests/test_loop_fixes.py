@@ -567,7 +567,10 @@ def test_gated_mutation_triggers_lifecycle_save_and_check(tmp_path, monkeypatch)
         })),
     )
     out = h._execute_calls([call])["call1"]
-    assert "gate resolved by the harness" in out
+    # The harness auto-resolves save+check and then executes the requested
+    # mutation directly instead of bouncing it back for a retry.
+    assert "replaced 1 occurrence" in out
+    assert next(shape for shape in h.deck.slides[0].shapes if shape.has_text_frame and shape.text).text == "kept"
     assert (tmp_path / "tasks" / "demo" / "output" / "final.pptx").is_file()
 
 
@@ -602,11 +605,15 @@ def test_gate_opens_even_when_auto_check_reports_blocking_findings(tmp_path, mon
         })),
     )
     out = h._execute_calls([call])["call1"]
-    assert "gate resolved by the harness" in out
-    assert "Retry your intended mutation now." in out
-    assert h._mutation_gated("ppt_arrange") is False
+    assert "moved/resized slide 1 shape" in out
+    # The geometry edit executed and advanced the epoch, so further mutations
+    # now need a fresh check again — the repair loop stays bounded.
+    assert h._mutation_gated("ppt_arrange") is True
     assert "ppt_structural" in h.state.unresolved_checks
     assert (tmp_path / "tasks" / "demo" / "output" / "final.pptx").is_file()
+    from pptx.util import Inches
+    moved = next(shape for shape in h.deck.slides[0].shapes if shape.text_frame.text == "第二块")
+    assert abs(moved.left - Inches(4.2)) < 9144
 
 
 def test_exhausted_observation_quota_resets_when_gate_is_resolved(tmp_path, monkeypatch):
