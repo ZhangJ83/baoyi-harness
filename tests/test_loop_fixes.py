@@ -176,6 +176,40 @@ def test_verify_before_continue_gate():
     assert h._mutation_gated("ppt_edit_text") is False
 
 
+def test_failed_structural_evidence_also_opens_gate():
+    from agent.harness import Harness
+
+    h = Harness.__new__(Harness)
+    h.state = RunState()
+    h.interactive = True
+    h.state.facts["official_evaluator_present"] = "true"
+    h.state.mutation_epoch = 1
+    h.state.unresolved_checks.add("ppt_structural")
+    h.state.record_evidence(
+        "ppt_structural", "blocking structural findings at epoch 1", passed=False,
+    )
+    # A failed check is the counterexample evidence a bounded repair cycle
+    # consumes. Keeping the gate closed here deadlocks: repairs can never run,
+    # so the check can never pass.
+    assert h._mutation_gated("ppt_edit_text") is False
+    assert h._mutation_gated("ppt_arrange") is False
+
+
+def test_stale_structural_evidence_keeps_gate_closed():
+    from agent.harness import Harness
+
+    h = Harness.__new__(Harness)
+    h.state = RunState()
+    h.interactive = True
+    h.state.facts["official_evaluator_present"] = "true"
+    h.state.mutation_epoch = 1
+    h.state.record_evidence("ppt_structural", "ok", passed=True)
+    # A later mutation advanced the epoch; evidence recorded for epoch 1 no
+    # longer certifies the current content.
+    h.state.mutation_epoch = 2
+    assert h._mutation_gated("ppt_edit_text") is True
+
+
 def test_gate_stays_off_for_plain_unit_harness():
     from agent.harness import Harness
 
@@ -442,6 +476,73 @@ def test_gated_mutation_triggers_lifecycle_save_and_check(tmp_path, monkeypatch)
     out = h._execute_calls([call])["call1"]
     assert "gate resolved by the harness" in out
     assert (tmp_path / "tasks" / "demo" / "output" / "final.pptx").is_file()
+
+
+def test_gate_opens_even_when_auto_check_reports_blocking_findings(tmp_path, monkeypatch):
+    """Regression: a failed ppt_check must still unblock the repair edit.
+
+    The overlap the check reports is repaired with a mutation. If the gate
+    requires *passing* evidence it deadlocks: the edit that could clear the
+    finding is rejected until the finding is gone.
+    """
+    from agent.harness import Harness
+    from types import SimpleNamespace
+
+    monkeypatch.setattr("agent.config.sandbox_root", lambda: tmp_path)
+    h = Harness(interactive=True)
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    first = slide.shapes.add_textbox(914400, 914400, 914400 * 2, 914400)
+    first.text_frame.text = "第一块"
+    second = slide.shapes.add_textbox(914400 * 2, 914400, 914400 * 2, 914400)
+    second.text_frame.text = "第二块"
+    h.deck = deck
+    h.state.record_change("deck:edit")
+    h.state.facts["required_output_pptx"] = "tasks/demo/output/final.pptx"
+    h.state.facts["official_evaluator_present"] = "true"
+
+    call = SimpleNamespace(
+        id="call1",
+        function=SimpleNamespace(name="ppt_arrange", arguments=json.dumps({
+            "operation": "geometry", "slide_number": 1, "shape_id": second.shape_id,
+            "x": 4.2, "y": 1.0, "w": 2.0, "height": 1.0,
+        })),
+    )
+    out = h._execute_calls([call])["call1"]
+    assert "gate resolved by the harness" in out
+    assert "Retry your intended mutation now." in out
+    assert h._mutation_gated("ppt_arrange") is False
+    assert "ppt_structural" in h.state.unresolved_checks
+    assert (tmp_path / "tasks" / "demo" / "output" / "final.pptx").is_file()
+
+
+def test_exhausted_observation_quota_resets_when_gate_is_resolved(tmp_path, monkeypatch):
+    """Regression: when the observation budget is spent, the harness resolves
+    the verify gate and re-arms the next repair iteration's observation quota
+    instead of stranding the model in save/check/observe limbo."""
+    from agent.harness import Harness
+    from types import SimpleNamespace
+
+    monkeypatch.setattr("agent.config.sandbox_root", lambda: tmp_path)
+    h = Harness(interactive=True)
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    box = slide.shapes.add_textbox(914400, 914400, 914400 * 2, 914400)
+    box.text_frame.text = "keep"
+    h.deck = deck
+    h.state.record_change("deck:edit")
+    h.state.unresolved_checks.add("ppt_structural")
+    h.state.facts["ppt_repair_observation_calls"] = "1"
+    h.state.facts["required_output_pptx"] = "tasks/demo/output/final.pptx"
+    h.state.facts["official_evaluator_present"] = "true"
+
+    call = SimpleNamespace(
+        id="call1",
+        function=SimpleNamespace(name="ppt_inspect", arguments=json.dumps({"slide_number": 1})),
+    )
+    out = h._execute_calls([call])["call1"]
+    assert "verify-before-continue gate resolved by the harness" in out
+    assert "ppt_repair_observation_calls" not in h.state.facts
 
 
 def test_verify_repair_reopens_full_production_facade():

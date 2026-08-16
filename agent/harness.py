@@ -212,8 +212,13 @@ class Harness:
         """CEGAR-H verify-before-continue gate.
 
         Once the artifact has unverified mutations, further content mutation is
-        blocked until fresh structural evidence exists. This makes the runtime
-        recommendation an enforceable loop invariant, not a hint.
+        blocked until structural evidence for the *current* mutation epoch
+        exists. The gate opens on a failed check too: a failed ppt_check is
+        exactly the counterexample evidence a bounded repair cycle consumes,
+        and blocking every mutator after it would strand the model in a
+        deadlock where the only way to pass the check is an edit the gate
+        refuses to admit. Unresolved obligations plus ``max_repairs`` remain
+        the real guardrails on how many repair edits may follow one failure.
         """
         from .controller_policies import MUTATION_TOOLS
 
@@ -221,8 +226,12 @@ class Harness:
             return False
         if not getattr(self.state, "mutation_epoch", 0):
             return False
-        fresh = {record.kind for record in self.state.fresh_evidence()}
-        if "ppt_structural" in fresh:
+        current_epoch = {
+            record.kind
+            for record in self.state.evidence
+            if record.scope == "workspace" and record.epoch == self.state.mutation_epoch
+        }
+        if "ppt_structural" in current_epoch:
             return False
         # Interactive sessions and official-evaluator tasks run the full loop;
         # bare unit-test harnesses keep the old permissive path.
@@ -1808,8 +1817,9 @@ class Harness:
                                 self.state.facts.pop("ppt_repair_observation_calls", None)
                                 return (
                                     "verify-before-continue gate resolved by the harness: the current draft was "
-                                    "saved and ppt_check passed with fresh structural evidence. Now apply the "
-                                    "cited contract repairs with ppt_edit_text / ppt_metadata / ppt_arrange."
+                                    "saved and ppt_check produced fresh structural evidence for this content "
+                                    "revision. Now apply the cited contract repairs with ppt_edit_text / "
+                                    "ppt_metadata / ppt_arrange."
                                 )
                         return (
                             "TOOL ERROR (RuntimeError): observation closed while repair obligations remain "
@@ -1843,7 +1853,8 @@ class Harness:
                     if not self._mutation_gated(tc.function.name):
                         return (
                             "verify-before-continue gate resolved by the harness: the current draft was saved and "
-                            "ppt_check passed with fresh structural evidence. Retry your intended mutation now."
+                            "ppt_check produced fresh structural evidence for this content revision. Retry your "
+                            "intended mutation now."
                         )
                     return (
                         "TOOL ERROR (RuntimeError): CEGAR-H verify-before-continue gate. "
