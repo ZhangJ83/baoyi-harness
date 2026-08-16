@@ -280,10 +280,15 @@ def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: i
     tb = s.shapes.add_textbox(Inches(0.55), Inches(0.12), Inches(12.2), Inches(0.9))
     _put_lines(tb.text_frame, title, 26, True, _WHITE)
     if bullets:
-        tb2 = s.shapes.add_textbox(Inches(0.9), Inches(1.7), Inches(11.5), Inches(5.2))
-        body = [f"•  {b}" for b in bullets]
-        _fit_lines(tb2.text_frame, body, size, False, _TEXT)
-    return f"added slide {position}: '{title}' ({len(bullets)} bullets)"
+        # Each bullet is its own visible textbox so structural checks and the
+        # open-ended completeness gate can count real content objects.
+        max_bullets = min(len(bullets), 6)
+        top = 1.65
+        box_height = 5.15 / max_bullets
+        for index, bullet in enumerate(bullets[:max_bullets]):
+            tb2 = s.shapes.add_textbox(Inches(0.9), Inches(top + index * box_height), Inches(11.5), Inches(box_height - 0.12))
+            _fit_lines(tb2.text_frame, [f"•  {bullet}"], size, False, _TEXT)
+    return f"added slide {position}: '{title}' ({len(bullets)} visible bullet boxes)"
 
 
 def _two_column(h, title: str, left_title: str, left: list[str], right_title: str, right: list[str], insert_after: int | None = None) -> str:
@@ -2222,6 +2227,10 @@ def _save(h, path: str | None) -> str:
         # resolves to the unique contract output deterministically.
         if not path or "intermediate" not in {part.casefold() for part in target.parts}:
             target = required_target
+    elif path and "tasks" in {part.casefold() for part in target.parts}:
+        # tasks/ is the task-package namespace. An ad-hoc open-ended deck has
+        # no package and belongs at the workspace root instead of polluting it.
+        target = root / "deck.pptx"
     target.parent.mkdir(parents=True, exist_ok=True)
     prs = _deck(h)
     prs, normalized = _normalize_minimal_container(prs)
@@ -2372,6 +2381,37 @@ def _slide_text_material(slide) -> str:
                 for cell in row.cells:
                     parts.append(cell.text or "")
     return "".join(parts)
+
+
+def _deck_completeness_gate(h) -> str:
+    """Return a human-readable gap for open-ended decks, or "" when complete.
+
+    Generic density contract: every slide needs a title-like text object, at
+    least two body text objects, and a minimum visible character budget.
+    """
+    if getattr(h, "deck", None) is None:
+        return ""
+    for slide_number, slide in enumerate(h.deck.slides, 1):
+        boxes = []
+        for shape, _path in _walk_shapes(slide.shapes):
+            if getattr(shape, "has_text_frame", False) and shape.text_frame is not None:
+                text = (shape.text_frame.text or "").strip()
+                if text:
+                    try:
+                        top = shape.top.inches if shape.top is not None else 0.0
+                    except Exception:
+                        top = 0.0
+                    boxes.append((top, text))
+        total_chars = sum(len(text) for _top, text in boxes)
+        titleish = [text for top, text in boxes if top < 1.5]
+        bodyish = [text for top, text in boxes if top >= 1.5]
+        if not titleish:
+            return f"slide {slide_number} has no visible title text"
+        if len(bodyish) < 2:
+            return f"slide {slide_number} has only {len(bodyish)} visible body text object(s); at least 2 are required"
+        if total_chars < 80:
+            return f"slide {slide_number} is too thin ({total_chars} visible characters; minimum 80)"
+    return ""
 
 
 def _has_verification_contract(h) -> bool:

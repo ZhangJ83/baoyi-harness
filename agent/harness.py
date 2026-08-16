@@ -946,6 +946,17 @@ class Harness:
             execution_task += "\n\nActive durable goal (resume): " + active_goal.objective
             if remaining:
                 execution_task += "\nNext milestone: " + remaining[0]
+        if is_ppt and self.task_spec.artifact_mode == "new_deck" and any(
+            marker in execution_task.casefold() for marker in ("html", "css", "看板", "卡片", "dashboard")
+        ):
+            # Style request tokens are translated into generic PPT visual
+            # treatment, not into bespoke dashboard components.
+            execution_task += (
+                "\n\nVisual treatment contract: interpret style requests through generic PPT primitives only. "
+                "Use visible text blocks for every content item, separate panels/cards with rounded rectangles or "
+                "light background fills, keep one clear visual hierarchy (title > metric > detail), and preserve "
+                "a restrained single-accent palette. Do not use decorative placeholders or invisible grouped text."
+            )
         profile = self._set_task_profile(execution_task)
         if preflight_brief and self.state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND}:
             previous_phase = self.state.phase

@@ -80,6 +80,14 @@ def _finish(h, summary: str):
                 "cannot finish PPT task: this run has no saved final-pptx artifact; "
                 "call save_deck for the required output path, then verify and finish"
             )
+        # Open-ended decks have no task-local contract/evaluator. Enforce the
+        # generic completeness contract before finish so sparse pages cannot
+        # be delivered as finished work.
+        if not h.state.facts.get("verification_contract_terms") and h.state.facts.get("official_evaluator_present") != "true":
+            from .ppt_tools import _deck_completeness_gate
+            gap = _deck_completeness_gate(h)
+            if gap:
+                raise ValueError("cannot finish PPT task: content completeness gate failed. " + gap)
         # Generic non-loop immutability gate derived from trajectory evidence:
         # for localized edits, the saved deck may only change declared slides.
         # Global-edit tasks have no declared slide scope and skip this check.
