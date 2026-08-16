@@ -1,5 +1,6 @@
 """Unit tests for Xiaopu Web GUI Server & REST/SSE APIs."""
 import json
+import os
 import threading
 import time
 import urllib.request
@@ -11,7 +12,11 @@ from agent.web_server import ThreadingHTTPServer, XiaopuWebHandler
 
 
 @pytest.fixture(scope="module")
-def web_test_server():
+def web_test_server(tmp_path_factory):
+    # Isolate every session/workspace side effect from the real user history.
+    isolated_home = tmp_path_factory.mktemp("webgui-home")
+    previous_home = os.environ.get("XIAOPU_HOME")
+    os.environ["XIAOPU_HOME"] = str(isolated_home)
     XiaopuWebHandler.harness = Harness(interactive=True)
     server = ThreadingHTTPServer(("127.0.0.1", 8769), XiaopuWebHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -19,6 +24,10 @@ def web_test_server():
     time.sleep(0.5)
     yield "http://127.0.0.1:8769"
     server.shutdown()
+    if previous_home is None:
+        os.environ.pop("XIAOPU_HOME", None)
+    else:
+        os.environ["XIAOPU_HOME"] = previous_home
 
 
 def test_web_static_index_html(web_test_server):
