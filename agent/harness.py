@@ -1264,6 +1264,38 @@ class Harness:
                 if tc.function.name not in admitted_names
             ]
             if rejected:
+                # A mutation request is the strongest possible signal that
+                # understanding is complete. Instead of rejecting it until the
+                # fuse pauses the run, advance to PRODUCE once and let the
+                # model retry the exact same call.
+                from .controller_policies import MUTATION_TOOLS as _MUTATION_TOOLS
+
+                mutation_rejected = [name for name in rejected if name in _MUTATION_TOOLS]
+                if (
+                    mutation_rejected
+                    and self.state.mutation_epoch == 0
+                    and self.state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND}
+                ):
+                    previous_phase = self.state.phase
+                    self.state.transition(RuntimePhase.PRODUCE)
+                    self._publish_phase_change(previous_phase, "mutation intent advanced production phase")
+                    self.state.no_progress_streak = 0
+                    if recorder is not None:
+                        recorder.event(
+                            "tool_calls_rejected",
+                            rejected=mutation_rejected,
+                            advertised=sorted(advertised_names),
+                            reason="mutation intent advanced to produce",
+                        )
+                    self.messages.append({"role": "assistant", "content": msg.content or ""})
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            "The phase has advanced to PRODUCE because you requested a mutation tool. "
+                            "Retry the exact same tool call now; it is available in the current phase."
+                        ),
+                    })
+                    continue
                 # Observation closure is a deterministic loop transition, not a
                 # stall: when ppt_inspect has already delivered its bounded
                 # evidence and the model asks for more, give ONE explicit
