@@ -1137,12 +1137,37 @@
     liveAction.innerHTML = `<span class="icon" style="color: var(--accent);">${ICONS.file}</span><span>${payload.final_summary ? "历史会话已完成" : "历史会话已加载"}</span>`;
   }
 
+  function historyOriginalPrompt(payload) {
+    const messages = payload.messages || [];
+    const hasRealUser = messages.some(m =>
+      m.role === "user"
+      && (m.content || "").trim()
+      && !looksLikeHarnessInjected(m.content)
+      && !(m.content || "").trim().toLowerCase().startsWith("continue the active task")
+    );
+    if (hasRealUser) return "";
+    for (const msg of messages) {
+      if (msg.role !== "system") continue;
+      const match = /Goal:\s*([^\n]+)/.exec(msg.content || "");
+      if (match && match[1].trim()) {
+        return match[1].trim();
+      }
+    }
+    const facts = payload.facts || {};
+    return (facts.manifest_batch_goal || "").trim();
+  }
+
   function renderHistory(payload) {
     chatContainer.innerHTML = "";
     timelineLog.innerText = "";
     cotLog.innerText = "";
     rawReasoning = "";
     renderSessionActivity(payload);
+
+    const originalPrompt = historyOriginalPrompt(payload);
+    if (originalPrompt) {
+      appendUserMessage(originalPrompt);
+    }
 
     const messages = payload.messages || [];
     const toolOutputs = {};
