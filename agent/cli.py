@@ -35,6 +35,17 @@ from .redact import redact
 from .tools.registry import dispatch
 from .wordmark import wordmark
 
+
+def _force_utf8_stdio() -> None:
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
+_force_utf8_stdio()
 console = Console()
 
 COMMANDS: dict[str, str] = {
@@ -59,6 +70,7 @@ COMMANDS: dict[str, str] = {
     "/trajectory": "导出本轮完整轨迹：规划/决策/工具/原始思维链",
     "/cot": "显示最近一次模型实际返回的原始思维链",
     "/goal": "启动或查看可恢复的长期目标",
+    "/activity": "查看本轮工作摘要与审计信息",
     "/theme": "切换主题（dark/light）",
     "/help": "查看全部命令说明",
     "/exit": "保存会话并退出小朴",
@@ -69,17 +81,20 @@ HELP_TEXT = """\
 [b]任务[/]       直接输入任务描述，例如：把第 2 页标题改成绿色
 [b]命令[/]       以 / 开头，输入 /help 查看全部命令
 
-[cyan]/new[/]     保存并新建会话        [cyan]/sessions[/]  列出已保存会话
-[cyan]/resume[/]  恢复会话              [cyan]/export[/]    导出当前会话
-[cyan]/status[/]  循环状态              [cyan]/context[/]   上下文用量
-[cyan]/verify[/]  结构校验              [cyan]/save[/]      保存演示文稿
-[cyan]/model[/]   查看/切换模型         [cyan]/theme[/]     深色/浅色主题
-[cyan]/process[/] 过程显示 quiet/balanced/detail
-[cyan]/trajectory[/] 本轮完整轨迹（规划/工具/思维链）
-[cyan]/cot[/] 查看模型实际返回的原始思维链
-[cyan]/doctor[/]  环境诊断（密钥永不显示）
-[cyan]/goal[/]    启动/查看长期目标
-[cyan]/exit[/]    保存会话并退出
+[cyan]/new[/]         保存并新建会话        [cyan]/sessions[/]      列出已保存会话
+[cyan]/resume[/]      恢复会话              [cyan]/export[/]        导出当前会话
+[cyan]/status[/]      循环状态              [cyan]/context[/]       上下文用量
+[cyan]/verify[/]      结构校验              [cyan]/save[/]          保存演示文稿
+[cyan]/undo[/]        撤销修改              [cyan]/info[/]          查看文档结构
+[cyan]/model[/]       查看/切换模型         [cyan]/theme[/]         深色/浅色主题
+[cyan]/permissions[/] 设置 shell 策略       [cyan]/plan[/]          计划模式切换
+[cyan]/process[/]     过程显示 quiet/balanced/detail
+[cyan]/trajectory[/]  本轮完整轨迹（规划/工具/思维链）
+[cyan]/cot[/]         查看模型实际返回的原始思维链
+[cyan]/activity[/]    查看本轮审计摘要
+[cyan]/doctor[/]      环境诊断（密钥永不显示）
+[cyan]/goal[/]        启动/查看长期目标
+[cyan]/exit[/]        保存会话并退出
 """
 
 
@@ -93,8 +108,10 @@ class CommandCompleter(Completer):
         for command, description in COMMANDS.items():
             if command.startswith(text):
                 yield Completion(
-                    command, start_position=-len(text),
-                    display=command, display_meta=description,
+                    command,
+                    start_position=-len(text),
+                    display=command,
+                    display_meta=description,
                 )
 
 
@@ -142,6 +159,7 @@ class XiaopuCLI:
         self._is_tty = sys.stdin.isatty() and sys.stdout.isatty()
         self._prompt = self._make_prompt() if self._is_tty else None
         self._interrupted = False
+        self._is_streaming_live = False
 
     # ------------------------------------------------------------------ UI
     def _theme_prompt(self) -> str:
@@ -179,11 +197,17 @@ class XiaopuCLI:
                 self.h.request_cancel()
             event.app.renderer.clear()
 
+        history_path = Path(config.sandbox_root()) / ".xiaopu" / "cli_history.txt"
+        try:
+            history_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
         session = PromptSession(
             completer=HybridCompleter(),
             complete_while_typing=True,
             multiline=True,
-            history=FileHistory(str(Path(config.sandbox_root()) / ".xiaopu" / "cli_history.txt")),
+            history=FileHistory(str(history_path)),
             key_bindings=bindings,
             prompt_continuation=lambda width, line_number, is_soft_wrap: Text("  · ", style="dim"),
         )
@@ -195,38 +219,48 @@ class XiaopuCLI:
     def print_banner(self) -> None:
         console.print()
         left = Text()
-        left.append("Xiaopu\n", style="bold cyan")
+        left.append("Xiaopu / 小朴\n", style="bold cyan")
         left.append("Provider-neutral coding & PowerPoint agent\n", style="dim")
         left.append_text(wordmark())
+
         right = Table.grid(padding=(0, 1))
-        right.add_column(style="bold", width=14)
+        right.add_column(style="bold cyan", width=14)
         right.add_column(style="white")
-        right.add_row("Model", self.h.llm.model)
+        right.add_row("Model", f"[bold]{self.h.llm.model}[/]")
         right.add_row("Provider", config.provider())
-        right.add_row("Workspace", str(config.sandbox_root()))
+        right.add_row("Workspace", f"[dim]{Path(config.sandbox_root()).name}[/] ({config.sandbox_root()})")
         right.add_row(
             "Credential",
-            "[green]Ready[/]" if self.has_key else "[yellow]Missing[/]",
+            "[bold green]Ready (已配置)[/]" if self.has_key else "[bold yellow]Missing (未配置)[/]",
         )
         right.add_row("Theme", self._theme)
+        right.add_row("Shell Policy", f"[cyan]{config.command_policy()}[/]")
         grid = Table.grid(expand=True, padding=(0, 3))
         grid.add_column(ratio=3)
         grid.add_column(ratio=2)
         grid.add_row(left, right)
-        console.print(Panel(grid, title="小朴 · Xiaopu v0.2.0", subtitle="/help 查看命令 · Esc 中止 · Ctrl+L 清屏", border_style="cyan"))
+        console.print(Panel(grid, title="[bold]小朴 · Xiaopu v0.2.0[/]", subtitle="[dim]/help 查看命令 · Esc / Ctrl+C 中止 · Ctrl+L 清屏[/]", border_style="cyan"))
         console.print()
 
     def _on_token(self, piece: str) -> None:
-        self._streamed_text += piece
+        self._streamed_text = getattr(self, "_streamed_text", "") + piece
+        if getattr(self, "_is_streaming_live", False):
+            sys.stdout.write(piece)
+            sys.stdout.flush()
 
     def _on_reasoning(self, piece: str) -> None:
         """Provider-returned reasoning stream; never synthesized."""
-        self._reasoning_text += piece
-        self._trajectory.append(("reasoning", piece))
-        if self._process_view == "detail":
+        self._reasoning_text = getattr(self, "_reasoning_text", "") + piece
+        if hasattr(self, "_trajectory"):
+            self._trajectory.append(("reasoning", piece))
+        if getattr(self, "_process_view", "detail") == "detail" and getattr(self, "_is_streaming_live", False):
             console.print(piece, end="", style="magenta", soft_wrap=True)
 
     def _on_tool(self, name: str, args: str, out: str) -> None:
+        streamed = getattr(self, "_streamed_text", "")
+        if getattr(self, "_is_streaming_live", False) and streamed and not streamed.endswith("\n"):
+            sys.stdout.write("\n")
+            sys.stdout.flush()
         try:
             parsed = json.loads(args)
             pretty_args = json.dumps(parsed, ensure_ascii=False)
@@ -241,12 +275,18 @@ class XiaopuCLI:
         self._last_tool_error = error_key
         label = name
         summary = redact((out or "").strip().splitlines()[0][:160] if (out or "").strip() else "完成")
-        icon = "[red]✕[/]" if failed else "[green]✓[/]"
+        icon = "[bold red]✕[/]" if failed else "[bold green]✓[/]"
+
         body = Text()
         body.append(f"{icon} ", style="bold")
         body.append(label, style="bold cyan")
-        if pretty_args:
-            body.append(f"  {pretty_args}", style="dim")
+        if pretty_args and pretty_args != "{}":
+            body.append(f" {pretty_args}", style="dim")
+        if summary and summary != "完成" and not failed:
+            body.append(f"  →  {summary}", style="dim green")
+        elif failed:
+            body.append(f"  →  {summary}", style="bold red")
+
         self._latest_activity.append(f"{label} · {pretty_args} · {summary}")
         self._trajectory.append(("tool", f"{label}\nargs={pretty_args}\nresult={redact((out or '').strip())[:1200]}"))
         if self._process_view == "quiet":
@@ -353,7 +393,7 @@ class XiaopuCLI:
                         title="原始思维链（模型实际返回，未做任何加工）",
                         border_style="magenta", padding=(0, 1),
                     ))
-            elif self._process_view != "quiet":
+            elif self._process_view != "quiet" and self._process_view == "detail":
                 console.print("[dim]本次模型响应没有返回可显示的原始思维链（provider 未提供）。[/]")
             if self._process_view == "detail":
                 console.print(
@@ -427,29 +467,39 @@ class XiaopuCLI:
             return
         self._latest_activity = [f"目标：{task}"]
         self._last_tool_error = None
+        self._streamed_text = ""
+        self._reasoning_text = ""
+        self._is_streaming_live = self._is_tty
         started = time.monotonic()
         try:
-            with console.status("[cyan]agent loop[/] · decision / tool / verification", spinner="dots"):
-                reply = self._run_interruptibly(task)
+            reply = self._run_interruptibly(task)
             elapsed = max(0, round(time.monotonic() - started))
-            console.print()
-            if self._streamed_text and reply.strip() == self._streamed_text.strip():
-                console.print(self._streamed_text)
-            elif reply.startswith(("⚠", "⏹")):
-                console.print(Panel(Markdown(reply), title="小朴 · 可恢复暂停", border_style="yellow"))
+            if self._is_streaming_live and self._streamed_text:
+                if not self._streamed_text.endswith("\n"):
+                    console.print()
+                if reply.startswith(("⚠", "⏹")):
+                    console.print(Panel(Markdown(reply), title="小朴 · 可恢复暂停", border_style="yellow"))
+                elif reply.strip() != self._streamed_text.strip():
+                    console.print(Markdown(reply))
             else:
-                console.print(Markdown(reply))
+                console.print()
+                if reply.startswith(("⚠", "⏹")):
+                    console.print(Panel(Markdown(reply), title="小朴 · 可恢复暂停", border_style="yellow"))
+                else:
+                    console.print(Markdown(reply))
             state = self.h.state
             signal = f"推理信号 {state.last_reasoning_chars} 字符" if state.last_reasoning_chars else "无推理信号"
             console.print(f"[dim]✓ 完成于 {elapsed} 秒 · {signal}[/]\n")
         except Exception as exc:
-            console.print(f"[bold red]RUNTIME ERROR[/] ({type(exc).__name__}): {exc}\n")
+            console.print(f"\n[bold red]RUNTIME ERROR[/] ({type(exc).__name__}): {exc}\n")
+        finally:
+            self._is_streaming_live = False
 
     # -------------------------------------------------------------- commands
     def _handle_command(self, cmd: str, parts: list[str]) -> bool:
         """Return True when the REPL should exit."""
         if cmd == "/help":
-            console.print(Panel(HELP_TEXT, title="小朴 · 命令", border_style="cyan", padding=(0, 1)))
+            console.print(Panel(HELP_TEXT, title="小朴 · 命令指南", border_style="cyan", padding=(0, 1)))
             return False
         if cmd in {"/exit", "/quit"}:
             try:
@@ -464,32 +514,35 @@ class XiaopuCLI:
             try:
                 from .session_store import save_session
                 record = save_session(self.h, title="interactive session")
-                console.print(f"[dim]会话已保存：{record.id}[/]")
+                console.print(f"[dim]已保存前序会话：{record.id}[/]")
             except Exception:
                 pass
             self.h.reset()
-            console.print("[bold cyan]已新建会话。[/]\n")
+            console.print("[bold cyan]✓ 已新建会话，工作区与状态已重置。[/]\n")
             return False
         if cmd == "/sessions":
             from .session_store import list_sessions
-            table = Table(title="已保存会话", border_style="bright_black")
-            table.add_column("#", style="dim", width=3)
-            table.add_column("id", style="cyan", width=14)
-            table.add_column("title", style="white")
-            table.add_column("model", style="dim", width=20)
-            table.add_column("updated", style="dim", width=22)
-            for index, record in enumerate(list_sessions(), 1):
+            records = list_sessions()
+            if not records:
+                console.print("[dim]暂无已保存的会话。[/]\n")
+                return False
+            table = Table(title="小朴 · 已保存会话列表", border_style="cyan", header_style="bold cyan")
+            table.add_column("#", style="dim", width=4, justify="right")
+            table.add_column("Session ID", style="bold cyan", width=14)
+            table.add_column("Title / 任务概要", style="white", ratio=3)
+            table.add_column("Model", style="dim", width=18)
+            table.add_column("Updated At", style="dim", width=20)
+            for index, record in enumerate(records, 1):
                 table.add_row(str(index), record.id[:12], record.title[:60], record.model, record.updated_at)
             console.print(table)
-            console.print()
+            console.print("[dim]使用 /resume <# 或 id> 即可恢复会话。[/]\n")
             return False
         if cmd == "/resume":
-            from .session_store import load_session, restore_harness
+            from .session_store import load_session, restore_harness, list_sessions
             target = parts[1].strip() if len(parts) > 1 else ""
             if not target:
                 console.print("[yellow]用法：/resume <id 或序号>[/]\n")
                 return False
-            from .session_store import list_sessions
             records = list_sessions()
             record = None
             if target.isdigit() and 1 <= int(target) <= len(records):
@@ -497,7 +550,7 @@ class XiaopuCLI:
             else:
                 record = next((r for r in records if r.id.startswith(target)), None)
             if record is None:
-                console.print("[yellow]未找到会话。[/]\n")
+                console.print("[yellow]未找到对应会话。[/]\n")
                 return False
             payload = load_session(record.id)
             if payload is None:
@@ -505,14 +558,16 @@ class XiaopuCLI:
                 return False
             if payload.get("workspace"):
                 os.environ["WORKSPACE"] = payload["workspace"]
-            console.print(restore_harness(self.h, payload))
+            report = restore_harness(self.h, payload)
+            console.print(Panel(f"[bold green]✓ 会话已恢复[/]\n[dim]{report}[/]", border_style="green", padding=(0, 1)))
+            console.print("[bold cyan]── 对话历史 ──[/]")
             for message in payload.get("messages", []):
                 role = message.get("role")
                 content = str(message.get("content", "")).strip()
                 if role == "user" and content:
-                    console.print(Panel(content, title="你", border_style="cyan", padding=(0, 1)))
+                    console.print(Panel(content, title="[bold cyan]你[/]", border_style="cyan", padding=(0, 1)))
                 elif role == "assistant" and content:
-                    console.print(Markdown(content))
+                    console.print(Panel(Markdown(content), title="[bold green]小朴[/]", border_style="green", padding=(0, 1)))
             console.print()
             return False
         if cmd == "/export":
@@ -527,8 +582,8 @@ class XiaopuCLI:
             return False
         if cmd == "/status":
             state = self.h.state
-            table = Table(show_header=False, border_style="bright_black", expand=True)
-            table.add_column("项", style="bold", width=20)
+            table = Table(show_header=False, border_style="cyan", expand=True)
+            table.add_column("项", style="bold cyan", width=20)
             table.add_column("值", style="white")
             for key, value in (
                 ("Phase", state.phase.value),
@@ -539,7 +594,7 @@ class XiaopuCLI:
                 ("Tokens", f"{state.total_tokens} total · {state.generated_output_tokens} generated"),
             ):
                 table.add_row(key, value)
-            console.print(Panel(table, title="小朴 · 状态", border_style="bright_black"))
+            console.print(Panel(table, title="小朴 · 运行状态", border_style="cyan"))
             console.print()
             return False
         if cmd == "/context":
@@ -564,12 +619,12 @@ class XiaopuCLI:
         if cmd == "/doctor":
             from .doctor import report
             payload = report()
-            table = Table(show_header=False, border_style="bright_black", expand=True)
-            table.add_column("项", style="bold", width=24)
+            table = Table(show_header=False, border_style="cyan", expand=True)
+            table.add_column("项", style="bold cyan", width=24)
             table.add_column("值", style="white")
             for key, value in payload.items():
                 table.add_row(str(key), str(value))
-            console.print(Panel(table, title="小朴 · Doctor（密钥永不显示）", border_style="bright_black"))
+            console.print(Panel(table, title="小朴 · Doctor 诊断（密钥永不显示）", border_style="cyan"))
             console.print()
             return False
         if cmd == "/model":
@@ -621,7 +676,7 @@ class XiaopuCLI:
             if not self._trajectory:
                 console.print("[dim]本轮暂无轨迹（先执行一个任务）。[/]\n")
                 return False
-            table = Table(title="本轮详细轨迹", border_style="bright_black", expand=True)
+            table = Table(title="本轮详细轨迹", border_style="cyan", expand=True)
             table.add_column("#", style="dim", width=4)
             table.add_column("阶段", style="bold cyan", width=12)
             table.add_column("内容", style="white")
@@ -635,7 +690,7 @@ class XiaopuCLI:
             if not text.strip():
                 console.print("[dim]模型最近一次响应没有返回原始思维链（provider 未提供）。[/]\n")
                 return False
-            console.print(Panel(Text(text, style="magenta"), title="原始思维链（模型实际返回）", border_style="magenta", padding=(0, 1)))
+            console.print(Panel(Text(text, style="magenta"), title="原始思维链（模型实际返回，未做任何加工）", border_style="magenta", padding=(0, 1)))
             return False
         if cmd == "/goal":
             objective = parts[1].strip() if len(parts) > 1 else ""
@@ -649,7 +704,7 @@ class XiaopuCLI:
                 return False
             config.set_theme(value)
             self._theme = value
-            self._prompt = self._make_prompt()
+            self._prompt = self._make_prompt() if self._is_tty else None
             console.print(f"[dim]主题已切换：{value}[/]\n")
             return False
         if cmd == "/activity":
@@ -685,3 +740,7 @@ class XiaopuCLI:
 
 def run_cli(model: str | None = None) -> int:
     return XiaopuCLI(model=model).run_interactive()
+
+
+if __name__ == "__main__":
+    raise SystemExit(run_cli())
