@@ -920,6 +920,26 @@ class Harness:
             self.recorder.event("task_compiled", **self.task_spec.to_dict())
         instruction = self.state.facts.get("task_instruction", "")
         execution_task = effective_task + (("\n\nBound task instruction:\n" + instruction) if instruction else "")
+        if is_ppt and self.task_spec.skill == "ppt.template_build":
+            # One-shot template builds repeatedly stopped after the cover slide
+            # or entered placeholder cleanup before composing any content.
+            # Make the completeness contract an explicit part of the task.
+            slide_count_hint = ""
+            contract_text = self.state.facts.get("verification_contract", "")
+            match = re.search(r"slide_count\s*=\s*(\d+)", contract_text)
+            if match:
+                slide_count_hint = f" Required final deck: {match.group(1)} finished content slides."
+            else:
+                match = re.search(r"min_slides\s*=\s*(\d+)[^\d]*max_slides\s*=\s*(\d+)", contract_text)
+                if match:
+                    slide_count_hint = f" Required final deck: {match.group(2)} finished content slides."
+            execution_task += (
+                "\n\nTemplate-build completion contract: use the supplied template as a scaffold and give every "
+                "top-level section of the ContentIR source outline its own finished slide. Compose ALL content "
+                f"slides first (one template slide per section, via ppt_compose content/from_outline) and only then "
+                f"save/check/evaluate.{slide_count_hint} Do not stop after the cover slide, do not spend the first "
+                "pass cleaning template placeholder text, and do not finish until the official evaluator passes."
+            )
         if continuing_goal:
             remaining = [m for m in active_goal.milestones if m not in active_goal.completed_milestones]
             execution_task += "\n\nActive durable goal (resume): " + active_goal.objective

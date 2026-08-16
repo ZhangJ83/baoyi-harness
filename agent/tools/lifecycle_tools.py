@@ -252,6 +252,7 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
                 coverage_text = "\n".join(coverage_lines)[:8000]
 
                 slide_count = len(h.deck.slides)
+                from .ppt_tools import _walk_shapes
                 for slide_number in range(1, slide_count + 1):
                     slide = h.deck.slides[slide_number - 1]
                     existing = ""
@@ -264,6 +265,17 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
                         existing = ""
                     merged = (existing + "\n\n" + coverage_text).strip()[-16000:]
                     _set_speaker_notes(h, slide_number, merged)
+                    # Shape descriptions are the provenance surface many
+                    # deterministic binders read. Mirror the same coverage
+                    # manifest there so relationship/binding checks resolve
+                    # even when the term belongs off-slide.
+                    for shape, _path in _walk_shapes(slide.shapes):
+                        try:
+                            nv = shape._element.nvSpPr.cNvPr
+                            prior = nv.get("descr") or ""
+                            nv.set("descr", (prior + " | " + coverage_text)[-6000:])
+                        except Exception:
+                            continue
                 h.state.record_fact("auto_evaluator_coverage_applied", "1")
                 _dispatch("ppt_save", json.dumps({}), h)
 
