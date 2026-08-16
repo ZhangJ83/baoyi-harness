@@ -386,7 +386,7 @@ class Harness:
                     "This is a from-scratch new deck task. Do NOT call ppt_open on leftover files in the workspace. "
                     "Compose ALL requested pages directly with ppt_compose:\n"
                     "- Slide 1 (Native PPT elements / Workflows): call ppt_compose(kind='workflow_pipeline', slide_number=1, title='...', steps=[{'title': '...', 'action': '...', 'bullets': [...], 'tag': '...'}]) with step badges 01/02 and detail bullets. Never use plain text bullet lists for workflows.\n"
-                    "- Slide 2 (HTML / Web UI style): call ppt_compose(kind='html_mockup', slide_number=2, title='...', cards=[{'title': '...', 'status': 'ACTIVE', 'metric': '...', 'bullets': [...], 'html_anchor': '...'}], url_bar='...') to render authentic browser window chrome (🔴🟡🟢), navigation sidebar, and cards.\n"
+                    "- Slide 2 (HTML / Web UI style): call ppt_compose(kind='html_slide', slide_number=2, html='<div class=\"slide\">...</div>', css='...') or ppt_compose(kind='html_mockup', slide_number=2, title='...', cards=[{'title': '...', 'status': 'ACTIVE', 'metric': '...', 'bullets': [...], 'html_anchor': '...'}], url_bar='...') to render authentic browser window chrome (🔴🟡🟢), navigation sidebar, and cards.\n"
                     "- For other layouts, choose quadrant, hero_split, comparison, or table as appropriate.\n"
                     "- Slide-numbered ppt_compose targets or appends that page automatically.\n"
                     "- Make each slide content-rich (150-400 chars, structured cards with badges and multi-level points), then call ppt_save(), then ppt_check(policy='full'), then finish().\n"

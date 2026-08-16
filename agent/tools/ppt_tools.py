@@ -867,6 +867,167 @@ def _html_mockup_slide(
     return f"{verb} HTML mockup slide {position}: '{title}' ({len(cards)} UI cards)"
 
 
+def _find_headless_browser_executable() -> str | None:
+    from pathlib import Path
+    for candidate in [
+        shutil.which("msedge"),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        shutil.which("chrome"),
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ]:
+        if candidate and Path(candidate).exists():
+            return str(candidate)
+    return None
+
+
+def _render_html_slide_to_png(html: str, css: str = "") -> bytes:
+    """Render an HTML/CSS slide snippet to 1920x1080 PNG image bytes via headless browser."""
+    import tempfile
+    from pathlib import Path
+
+    browser_bin = _find_headless_browser_executable()
+    if not browser_bin:
+        raise RuntimeError("No headless browser (Edge/Chrome) found on system for HTML rendering.")
+
+    # Wrap complete HTML document with 1920x1080 16:9 canvas styling if missing
+    full_html = html
+    if "<html" not in html.lower():
+        full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #0f172a;
+    color: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}}
+{css}
+</style>
+</head>
+<body>
+{html}
+</body>
+</html>"""
+    elif css and "<style>" not in html.lower():
+        full_html = html.replace("</head>", f"<style>{css}</style></head>") if "</head>" in html else f"<style>{css}</style>{html}"
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        html_file = tmp_path / "slide.html"
+        png_file = tmp_path / "slide.png"
+        html_file.write_text(full_html, encoding="utf-8")
+
+        cmd = [
+            browser_bin,
+            "--headless",
+            "--disable-gpu",
+            "--hide-scrollbars",
+            "--force-device-scale-factor=1",
+            "--window-size=1920,1080",
+            f"--screenshot={png_file}",
+            str(html_file.resolve()),
+        ]
+        res = subprocess.run(cmd, capture_output=True, timeout=30)
+        if not png_file.exists() or png_file.stat().st_size == 0:
+            err = res.stderr.decode("utf-8", errors="ignore")
+            raise RuntimeError(f"Browser screenshot failed: {err}")
+        return png_file.read_bytes()
+
+
+def _html_slide(
+    h: Any,
+    html: str = "",
+    css: str = "",
+    file_path: str = "",
+    slide_number: int | None = None,
+    insert_after: int | None = None,
+    title: str = "",
+) -> str:
+    """Render HTML/CSS content into PPTX slides with high-fidelity visual and text structure."""
+    from pathlib import Path
+    from bs4 import BeautifulSoup
+    from .. import config
+    from ..permissions import path_within
+
+    if file_path:
+        root = config.sandbox_root()
+        target_file = (root / file_path).resolve()
+        if not path_within(root, target_file) or not target_file.exists():
+            raise FileNotFoundError(f"HTML file not found: {file_path}")
+        html = target_file.read_text(encoding="utf-8")
+
+    if not html.strip():
+        raise ValueError("html_slide requires non-empty html code or valid file_path")
+
+    soup = BeautifulSoup(html, "html.parser")
+    slide_sections = soup.find_all(class_=lambda c: c and "slide" in c.split()) or soup.find_all("section")
+
+    if len(slide_sections) <= 1:
+        doc_title = title
+        if not doc_title:
+            h_el = soup.find(["h1", "h2", "h3", "title"])
+            if h_el:
+                doc_title = h_el.get_text().strip()
+        texts = [s.strip() for s in soup.stripped_strings if s.strip() and s.strip() != doc_title]
+
+        png_bytes = _render_html_slide_to_png(html, css)
+        s, target_index, _ = _resolve_target_slide(h, slide_number, insert_after)
+        _clear_slide_shapes(s)
+
+        # Add high-resolution rendered image covering the entire slide
+        image_stream = BytesIO(png_bytes)
+        s.shapes.add_picture(image_stream, Inches(0), Inches(0), Inches(_W), Inches(_H))
+
+        # Add speaker notes with full text for indexability and verification
+        if getattr(s, "has_notes_slide", False) or hasattr(s, "notes_slide"):
+            note_content = f"{doc_title}\n" + "\n".join(texts[:15]) if doc_title else "\n".join(texts[:15])
+            if note_content.strip():
+                s.notes_slide.notes_text_frame.text = note_content.strip()
+
+        h.state.ppt_affected_slides.add(target_index)
+        h.state.record_change(f"deck:slide:{target_index}:html_slide")
+        return f"rendered HTML slide {target_index}: '{doc_title or 'HTML Web Slide'}'"
+
+    # Multi-slide deck compilation
+    start_num = slide_number if slide_number is not None else (len(h.deck.slides) + 1 if getattr(h, "deck", None) else 1)
+    rendered_count = 0
+    for idx, sec in enumerate(slide_sections):
+        sec_html = str(sec)
+        sec_soup = BeautifulSoup(sec_html, "html.parser")
+        sec_title = ""
+        h_el = sec_soup.find(["h1", "h2", "h3", "title"])
+        if h_el:
+            sec_title = h_el.get_text().strip()
+        sec_texts = [s.strip() for s in sec_soup.stripped_strings if s.strip() and s.strip() != sec_title]
+
+        png_bytes = _render_html_slide_to_png(sec_html, css)
+        cur_slide_num = start_num + idx
+        s, target_index, _ = _resolve_target_slide(h, cur_slide_num, None)
+        _clear_slide_shapes(s)
+        image_stream = BytesIO(png_bytes)
+        s.shapes.add_picture(image_stream, Inches(0), Inches(0), Inches(_W), Inches(_H))
+        if getattr(s, "has_notes_slide", False) or hasattr(s, "notes_slide"):
+            note_content = f"{sec_title}\n" + "\n".join(sec_texts[:15]) if sec_title else "\n".join(sec_texts[:15])
+            if note_content.strip():
+                s.notes_slide.notes_text_frame.text = note_content.strip()
+        h.state.ppt_affected_slides.add(target_index)
+        h.state.record_change(f"deck:slide:{target_index}:html_slide")
+        rendered_count += 1
+
+    return f"rendered {rendered_count} HTML slides into deck starting at slide {start_num}"
+
+
 def _hero_split_slide(
     h,
     title: str,
@@ -2085,6 +2246,19 @@ def _ppt_compose(h, kind: str, **kw) -> str:
             kw.get("takeaway", ""),
             kw.get("slide_number"),
             kw.get("insert_after"),
+        )
+    if kind in {"html_slide", "from_html", "html_code", "html_deck", "from_html_deck"} or (
+        kind in {"html_mockup", "web_dashboard", "html_page", "web_mockup", "html_style", "html"}
+        and (kw.get("html") or kw.get("file_path") or kw.get("path"))
+    ):
+        return _html_slide(
+            h,
+            html=kw.get("html", ""),
+            css=kw.get("css", ""),
+            file_path=kw.get("file_path") or kw.get("path") or "",
+            slide_number=kw.get("slide_number"),
+            insert_after=kw.get("insert_after"),
+            title=kw.get("title", ""),
         )
     if kind in {"html_mockup", "web_dashboard", "html_page", "web_mockup", "html_style", "html"}:
         cards = kw.get("cards") or kw.get("components") or kw.get("quadrants") or []
@@ -3515,10 +3689,13 @@ ppt_tools = [
     ),
     _make(
         "ppt_compose",
-        "Create one semantic presentation unit. kind='workflow_pipeline' (or 'workflow') builds a modern horizontal step-card pipeline with badges, action lines, and detail bullets (use for agent workflows, architectures, processes); kind='html_mockup' (or 'web_dashboard') builds a Web/Browser interface with window chrome (macOS 3 dots), URL bar, sidebar, and component card grid (use for HTML/Web UI styles); kind='hero_split' builds a left 1/3 key takeaway highlight + right 2/3 breakdown cards; kind='quadrant' builds a 4-card dashboard page; kind='comparison' builds a 2-column contrast slide; kind='content' builds a general bullet page; kind='flowchart' draws connected nodes; kind='new_deck' starts a fresh deck.",
+        "Create one semantic presentation unit. kind='workflow_pipeline' (or 'workflow') builds a modern horizontal step-card pipeline with badges, action lines, and detail bullets (use for agent workflows, architectures, processes); kind='html_slide' (or 'from_html') renders pure HTML/CSS into a high-fidelity presentation slide; kind='html_mockup' (or 'web_dashboard') builds a Web/Browser interface with window chrome (macOS 3 dots), URL bar, sidebar, and component card grid; kind='hero_split' builds a left 1/3 key takeaway highlight + right 2/3 breakdown cards; kind='quadrant' builds a 4-card dashboard page; kind='comparison' builds a 2-column contrast slide; kind='content' builds a general bullet page; kind='flowchart' draws connected nodes; kind='new_deck' starts a fresh deck.",
         {
-            "kind": {"type": "string", "enum": ["new_deck", "content", "comparison", "from_slides", "from_outline", "table", "quadrant", "flowchart", "textbox", "workflow_pipeline", "workflow", "step_process", "html_mockup", "web_dashboard", "html_page", "hero_split"]},
+            "kind": {"type": "string", "enum": ["new_deck", "content", "comparison", "from_slides", "from_outline", "table", "quadrant", "flowchart", "textbox", "workflow_pipeline", "workflow", "step_process", "html_slide", "from_html", "html_deck", "from_html_deck", "html_mockup", "web_dashboard", "html_page", "hero_split"]},
             "slide_number": {"type": "integer"}, "title": {"type": "string"}, "subtitle": {"type": "string"},
+            "html": {"type": "string", "description": "Raw HTML/CSS snippet or complete document to render for html_slide."},
+            "css": {"type": "string", "description": "Optional CSS stylesheet rules for html_slide."},
+            "file_path": {"type": "string", "description": "Relative path to an HTML file to compile into slide(s) for from_html."},
             "takeaway": {"type": "string", "description": "Bottom conclusion/takeaway banner text."},
             "url_bar": {"type": "string", "description": "Address bar text for html_mockup."},
             "hero_title": {"type": "string"}, "hero_text": {"type": "string"}, "hero_metric": {"type": "string"},

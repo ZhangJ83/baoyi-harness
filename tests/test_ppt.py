@@ -843,6 +843,52 @@ class PowerPointTests(unittest.TestCase):
                 self.assertEqual(len(slide_names), len(set(slide_names)))
                 self.assertEqual(len(slide_names), 2)
 
+    def test_html_slide_inline_composition_and_checks(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp}):
+            h = DummyHarness()
+            dispatch("new_deck", json.dumps({"title": "HTML Deck"}), h)
+            res = dispatch("ppt_compose", json.dumps({
+                "kind": "html_slide",
+                "slide_number": 1,
+                "html": "<div class='slide'><h1>Agent Web View</h1><p>Modern HTML/CSS Card</p></div>",
+                "css": "body { background: #1e293b; color: #38bdf8; }",
+            }), h)
+            self.assertIn("rendered HTML slide 1", res)
+            self.assertEqual(len(h.deck.slides), 1)
+
+            # Check that structural check passes
+            check_res = dispatch("ppt_check", "{}", h)
+            self.assertIn("no structural issues found", check_res)
+
+    def test_from_html_file_single_and_multi_slide(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp}):
+            h = DummyHarness()
+            # 1. Single slide file
+            single_html = Path(tmp) / "single.html"
+            single_html.write_text("<div class='slide'><h2>Single Slide</h2><p>Content A</p></div>", encoding="utf-8")
+            dispatch("new_deck", json.dumps({"title": "From File"}), h)
+            res1 = dispatch("ppt_compose", json.dumps({
+                "kind": "from_html",
+                "slide_number": 1,
+                "file_path": "single.html",
+            }), h)
+            self.assertIn("rendered HTML slide 1", res1)
+
+            # 2. Multi slide file
+            multi_html = Path(tmp) / "deck.html"
+            multi_html.write_text(
+                "<section class='slide'><h1>Page 1</h1><p>Point 1</p></section>"
+                "<section class='slide'><h1>Page 2</h1><p>Point 2</p></section>",
+                encoding="utf-8"
+            )
+            res2 = dispatch("ppt_compose", json.dumps({
+                "kind": "from_html",
+                "slide_number": 2,
+                "file_path": "deck.html",
+            }), h)
+            self.assertIn("rendered 2 HTML slides", res2)
+            self.assertEqual(len(h.deck.slides), 3)
+
     def test_mutation_registry_covers_all_stateful_ppt_operations(self):
         expected = {
             "new_deck", "add_slide", "add_two_column_slide", "compose_quadrant_slide", "add_metric_slide",
