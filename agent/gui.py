@@ -1,7 +1,7 @@
 """Modern CustomTkinter GUI for the complete Xiaopu Harness.
 
 Layout follows current agent-app practice (ChatGPT / Claude / Cursor / Codex inspired):
-- Left sidebar: Xiaopu brand, "+ New Session", session history list with delete, workspace selector;
+- Left sidebar: Xiaopu brand with custom icon, "+ New Session", session history list with delete, workspace selector;
 - Center panel: Topbar (live state, model & permission selector, PPT tools, activity toggle),
   live metric strip, scrollable modern chat stream (user & assistant bubbles with copy),
   goal launcher strip, rounded composer with shortcuts (Ctrl+Enter to send, Esc to cancel);
@@ -63,6 +63,19 @@ def _force_utf8_stdio() -> None:
                 pass
 
 
+def _set_app_user_model_id() -> None:
+    """Ensure Windows taskbar groups under Xiaopu and displays custom icon."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("xiaopu.agent.gui.v2")
+        except Exception:
+            pass
+
+
+_set_app_user_model_id()
+
+
 class AgentGUI:
     def __init__(self, root: ctk.CTk, model: str | None = None) -> None:
         from .harness import Harness
@@ -98,6 +111,8 @@ class AgentGUI:
         self._session_records: list = []
         self._workspace_records: list = []
         self.activity_visible = False
+        self._app_icon_ctk = None
+        self._app_icon_small = None
 
         # Harness event bindings
         self.h.approval_handler = self._approve_command
@@ -125,12 +140,15 @@ class AgentGUI:
 
     # ------------------------------------------------------------------ Layout
     def _build(self) -> None:
-        self.root.title("小朴 Agent · Xiaopu (Coding & PowerPoint Agent)")
+        self.root.title("小朴 Agent · Xiaopu")
         self.root.geometry("1400x880")
         self.root.minsize(1020, 660)
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         self.root.configure(fg_color=BG_ROOT)
+
+        # Load & apply custom app icon
+        self._apply_window_icon()
 
         self.root.grid_columnconfigure(0, weight=0)
         self.root.grid_columnconfigure(1, weight=1)
@@ -139,16 +157,25 @@ class AgentGUI:
         self._build_sidebar()
         self._build_main()
 
-        # Set window icon (Blue square with styled glyph)
+    def _apply_window_icon(self) -> None:
         try:
-            from PIL import Image, ImageTk, ImageDraw
-            icon_img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(icon_img)
-            draw.rounded_rectangle([2, 2, 62, 62], radius=14, fill="#2563eb")
-            draw.rectangle([20, 16, 26, 48], fill="#ffffff")
-            draw.rounded_rectangle([20, 16, 44, 34], radius=6, outline="#ffffff", width=6)
-            self._icon_photo = ImageTk.PhotoImage(icon_img)
-            self.root.iconphoto(False, self._icon_photo)
+            from PIL import Image, ImageTk
+            assets_dir = Path(__file__).resolve().parent / "assets"
+            ico_path = assets_dir / "icon.ico"
+            png_path = assets_dir / "icon.png"
+
+            if ico_path.exists() and os.name == "nt":
+                try:
+                    self.root.iconbitmap(str(ico_path))
+                except Exception:
+                    pass
+
+            if png_path.exists():
+                icon_img = Image.open(png_path).convert("RGBA")
+                self._icon_photo = ImageTk.PhotoImage(icon_img)
+                self.root.iconphoto(False, self._icon_photo)
+                self._app_icon_ctk = ctk.CTkImage(light_image=icon_img, dark_image=icon_img, size=(32, 32))
+                self._app_icon_small = ctk.CTkImage(light_image=icon_img, dark_image=icon_img, size=(18, 18))
         except Exception:
             pass
 
@@ -160,20 +187,23 @@ class AgentGUI:
         rail.grid_columnconfigure(0, weight=1)
         rail.grid_rowconfigure(2, weight=1)
 
-        # Brand / Logo with Blue Square Icon
+        # Brand / Logo with App Icon
         brand = ctk.CTkFrame(rail, fg_color="transparent")
         brand.grid(row=0, column=0, padx=16, pady=(18, 12), sticky="ew")
         title_row = ctk.CTkFrame(brand, fg_color="transparent")
         title_row.pack(fill="x")
 
-        # Blue square brand logo badge
-        icon_badge = ctk.CTkFrame(title_row, width=32, height=32, corner_radius=8, fg_color="#2563eb")
-        icon_badge.pack(side="left", padx=(0, 10))
-        icon_badge.pack_propagate(False)
-        ctk.CTkLabel(
-            icon_badge, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 15, "bold"),
-            text_color="#ffffff",
-        ).place(relx=0.5, rely=0.5, anchor="center")
+        # Custom App Icon in Header
+        if getattr(self, "_app_icon_ctk", None) is not None:
+            ctk.CTkLabel(title_row, text="", image=self._app_icon_ctk).pack(side="left", padx=(0, 10))
+        else:
+            icon_badge = ctk.CTkFrame(title_row, width=32, height=32, corner_radius=8, fg_color="#2563eb")
+            icon_badge.pack(side="left", padx=(0, 10))
+            icon_badge.pack_propagate(False)
+            ctk.CTkLabel(
+                icon_badge, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 15, "bold"),
+                text_color="#ffffff",
+            ).place(relx=0.5, rely=0.5, anchor="center")
 
         ctk.CTkLabel(title_row, text="小朴", font=ctk.CTkFont("Microsoft YaHei UI", 22, "bold"),
                      text_color=TEXT_PRIMARY).pack(side="left")
@@ -597,7 +627,7 @@ class AgentGUI:
 
         card.grid_columnconfigure(0, weight=1)
 
-        # Header row with role tag and copy button
+        # Header row with role tag, app icon, and copy button
         hdr = ctk.CTkFrame(card, fg_color="transparent")
         hdr.grid(row=0, column=0, padx=14, pady=(8, 2), sticky="ew")
         hdr.grid_columnconfigure(0, weight=1)
@@ -606,14 +636,16 @@ class AgentGUI:
         tag_frame.grid(row=0, column=0, sticky="w")
 
         if not is_user and not is_system:
-            # Blue square badge for Xiaopu
-            badge = ctk.CTkFrame(tag_frame, width=16, height=16, corner_radius=4, fg_color="#2563eb")
-            badge.pack(side="left", padx=(0, 6))
-            badge.pack_propagate(False)
-            ctk.CTkLabel(
-                badge, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 9, "bold"),
-                text_color="#ffffff",
-            ).place(relx=0.5, rely=0.5, anchor="center")
+            if getattr(self, "_app_icon_small", None) is not None:
+                ctk.CTkLabel(tag_frame, text="", image=self._app_icon_small).pack(side="left", padx=(0, 6))
+            else:
+                badge = ctk.CTkFrame(tag_frame, width=16, height=16, corner_radius=4, fg_color="#2563eb")
+                badge.pack(side="left", padx=(0, 6))
+                badge.pack_propagate(False)
+                ctk.CTkLabel(
+                    badge, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 9, "bold"),
+                    text_color="#ffffff",
+                ).place(relx=0.5, rely=0.5, anchor="center")
 
         tag_color = "#34d399" if is_user else ("#60a5fa" if is_system else "#38bdf8")
         ctk.CTkLabel(
