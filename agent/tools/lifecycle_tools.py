@@ -175,7 +175,15 @@ def _run_task_evaluator(h, timeout_seconds: int = 120):
         raise RuntimeError("no official task evaluator was discovered during intake")
     evaluator = (root / evaluator_rel).resolve()
     if not path_within(root, evaluator) or not evaluator.is_file():
-        raise FileNotFoundError(evaluator_rel)
+        # A previous task's evaluator fact can leak into a later interactive
+        # turn. Never strand a new chat question on a stale evaluator path.
+        h.state.facts.pop("official_evaluator", None)
+        h.state.facts.pop("official_evaluator_present", None)
+        h.state.unresolved_checks.discard("task_evaluator")
+        return (
+            "official task evaluator path unavailable for this turn; "
+            "stale evaluator facts were cleared (no task-local evaluator is bound now)."
+        )
     task_root = evaluator.parents[2]
     tests_root = task_root / "tests"
     grading = tests_root / "grading"

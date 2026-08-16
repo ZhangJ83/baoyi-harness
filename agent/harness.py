@@ -105,6 +105,47 @@ class Harness:
     def attach_printer(self, printer: Callable[[str, str, str], None]) -> None:
         self.on_tool = printer
 
+    _TASK_LOCAL_FACTS = {
+        "task_root", "task_instruction", "task_capability", "task_difficulty",
+        "required_output_pptx", "ppt_input_deck", "ppt_input_candidates",
+        "official_evaluator", "official_evaluator_present",
+        "verification_contract", "verification_contract_terms_present",
+        "ppt_source_ir", "task_spec", "selected_skill", "task_intent",
+        "execution_capability", "code_language", "code_test_runner",
+        "primary_input", "output_path", "manifest_task_id",
+        "manifest_batch_goal", "ppt_full_check_downgraded",
+        "bound_task_identity",
+    }
+
+    def _clear_task_facts(self) -> None:
+        """Drop task-scoped intake/compiler facts before a NEW task turn.
+
+        Interactive sessions reuse one Harness, so a plain chat question after
+        a benchmark task must not inherit the previous evaluator path, output
+        contract, verification contract or task root. Chat history, deck and
+        UI state are intentionally preserved.
+        """
+        state = self.state
+        for key in list(state.facts):
+            if (
+                key in self._TASK_LOCAL_FACTS
+                or key.startswith("source:")
+                or key.startswith("preflight:")
+            ):
+                state.facts.pop(key, None)
+        state.verification_contract_terms = {}
+        state.content_brief = ""
+        state.execution_contract = None
+        for kind in (
+            "task_evaluator", "ppt_contract", "ppt_structural", "ppt_quality",
+            "ppt_visual", "file_verification", "code_check",
+        ):
+            state.unresolved_checks.discard(kind)
+        state.repair_attempts = 0
+        state.last_verification_failed = False
+        self.task_spec = None
+        self._last_planning_signature = None
+
     def undo(self) -> str:
         """Restore the deck snapshot taken before the most recent PPT mutation.
 
@@ -823,10 +864,13 @@ class Harness:
 
     def _run_text(self, task: str) -> str:
         from .intake import bind_manifest_task
+        from .task_scope import is_scope_continuation
         original_task = task
         task, manifest_task_id = bind_manifest_task(task)
         effective_task, continuing_goal = self._effective_goal_task(task)
         active_goal = getattr(self, "active_goal", None)
+        if not continuing_goal and not is_scope_continuation(task):
+            self._clear_task_facts()
         if manifest_task_id:
             self.state.record_fact("manifest_task_id", manifest_task_id)
             self.state.record_fact("manifest_batch_goal", original_task)
@@ -1469,7 +1513,11 @@ class Harness:
 
     def _is_ppt_task(self, task: str) -> bool:
         text = task.lower()
-        if getattr(self, "deck", None) is not None:
+        # A deck being open is not, by itself, enough: an interactive user can
+        # follow a PPT task with a plain chat question and must not inherit the
+        # stale evaluator/output contract. Bare continuations of a deck session
+        # still count as PPT.
+        if getattr(self, "deck", None) is not None and is_scope_continuation(task):
             return True
         # One-line benchmark requests intentionally contain only a task path.
         # Domain classification must use deterministic workspace facts rather
@@ -1494,7 +1542,7 @@ class Harness:
         if any(marker in text for marker in ("ppt", "pptx", "powerpoint", "slide", "deck", "演示", "幻灯片", "排版")):
             return True
         office_edit = any(marker in text for marker in ("页", "标题", "项目符号", "文本框", "流程图", "字体", "字号", "图片"))
-        action = any(marker in text for marker in ("修改", "新增", "添加", "替换", "调整", "生成", "创建"))
+        action = any(marker in text for marker in ("修改", "新增", "添加", "替换", "调整", "生成", "创建", "改成", "改为", "换成", "变为", "改"))
         return office_edit and action
 
     @staticmethod
