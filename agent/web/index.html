@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>小朴 Agent · Xiaopu (Coding & PPT Assistant)</title>
   <link rel="icon" type="image/png" href="/assets/icon.png">
-  <link rel="stylesheet" href="/style.css?v=7">
+  <link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body>
   <div id="app-container">
@@ -211,6 +211,11 @@
               </button>
             </div>
           </div>
+        </div>
+        <div class="composer-workspace-bar">
+          <span class="composer-workspace-label">工作区</span>
+          <select id="composer-workspace-select" class="composer-workspace-select" title="切换当前工作区"></select>
+          <span id="composer-workspace-path" class="composer-workspace-path" title="当前工作区路径">-</span>
         </div>
         <div class="composer-footer-text">小朴 Agent · AI 智能代码与演示文稿助手 · Ctrl+Enter 发送</div>
       </div>
@@ -430,6 +435,6 @@
   <div id="toast"></div>
 
   <!-- JavaScript Application Logic -->
-  <script src="/app.js?v=10"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>

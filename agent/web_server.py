@@ -829,6 +829,16 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
                     "type": "tool_started",
                     "payload": {"tool": p.get("tool"), "arguments": p.get("arguments", "")[:240]},
                 })
+            elif kind == EventKind.MODEL_RESPONSE:
+                event_queue.put({
+                    "type": "model_response",
+                    "payload": {
+                        "content": str(p.get("content") or ""),
+                        "reasoning_content": str(p.get("reasoning_content") or ""),
+                        "has_tool_calls": bool(p.get("has_tool_calls")),
+                        "phase": p.get("phase"),
+                    },
+                })
             elif kind == EventKind.TOOL_COMPLETED:
                 event_queue.put({
                     "type": "tool_completed",

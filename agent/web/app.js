@@ -100,6 +100,8 @@
   const confirmInput = document.getElementById("confirm-input");
   const confirmOkBtn = document.getElementById("confirm-ok-btn");
   const confirmCancelBtn = document.getElementById("confirm-cancel-btn");
+  const composerWorkspaceSelect = document.getElementById("composer-workspace-select");
+  const composerWorkspacePath = document.getElementById("composer-workspace-path");
 
   // ------------------------------------------------------------------ Application State
   let activeSessionId = null;
@@ -432,6 +434,28 @@
   }
 
   // ------------------------------------------------------------------ Tree Management
+  async function refreshWorkspaceSelector(currentPath) {
+    if (!composerWorkspaceSelect || !composerWorkspacePath) return;
+    let records = [];
+    try {
+      const res = await fetch("/api/workspaces?view=active");
+      const data = await res.json();
+      records = data.records || [];
+    } catch (e) {
+      records = [];
+    }
+    const current = currentPath || activeWorkspacePath || "";
+    if (current && !records.some(r => r.path === current)) {
+      records.unshift({ path: current, display_name: current.split(/[\\/]/).pop() || current });
+    }
+    composerWorkspaceSelect.innerHTML = records.map(r =>
+      `<option value="${escapeAttr(r.path)}">${escapeHtml(r.display_name || r.name || r.path)}</option>`
+    ).join("");
+    if (current) composerWorkspaceSelect.value = current;
+    composerWorkspacePath.textContent = current || "-";
+    composerWorkspacePath.title = current || "";
+  }
+
   async function refreshTree() {
     try {
       const params = new URLSearchParams({ view: sidebarView, q: sidebarQuery });
@@ -440,6 +464,7 @@
       if (!data) return;
 
       activeWorkspacePath = data.current_workspace;
+      refreshWorkspaceSelector(activeWorkspacePath);
       const projects = data.projects || [];
       const conversations = data.conversations || [];
 
@@ -1516,6 +1541,23 @@
         }
       }
       scrollToBottom();
+    } else if (type === "model_response") {
+      const reasoning = payload.reasoning_content || "";
+      const content = payload.content || "";
+      if (reasoning.trim()) {
+        rawReasoning += reasoning;
+        cotLog.innerText = rawReasoning;
+        if (!currentThoughtCard) {
+          currentThoughtCard = appendThoughtCard(rawReasoning);
+        } else {
+          const contentEl = currentThoughtCard.querySelector(".thought-content");
+          if (contentEl) contentEl.innerText = rawReasoning;
+        }
+        scrollToBottom();
+      }
+      if (content.trim()) {
+        appendAssistantMessage(content);
+      }
     } else if (type === "result") {
       // Providers occasionally return no token deltas; render the final text
       // so a completed turn is never invisible in the bubble.
@@ -1544,11 +1586,33 @@
       refreshCounts(toolStarted, toolCompleted, toolFailed);
       liveAction.innerHTML = `<span class="icon" style="color: var(--accent-emerald);">${ICONS.check}</span><span>${escapeHtml(payload.tool)} 完成</span>`;
       timelineLog.innerText += `✓ ${payload.tool} 结果: ${(payload.output || "").slice(0, 300)}\n`;
+      const runningCards = [...document.querySelectorAll(".tool-step-card")].reverse();
+      const card = runningCards.find(c => c.querySelector(".tool-status-pill.running"));
+      if (card) {
+        const pill = card.querySelector(".tool-status-pill.running");
+        pill.className = "tool-status-pill done";
+        pill.innerText = "完成";
+        const out = document.createElement("div");
+        out.className = "tool-step-output";
+        out.innerText = (payload.output || "").slice(0, 2000);
+        card.appendChild(out);
+      }
     } else if (type === "tool_failed") {
       toolFailed++;
       refreshCounts(toolStarted, toolCompleted, toolFailed);
       liveAction.innerHTML = `<span class="icon" style="color: var(--danger);">${ICONS.close}</span><span>${escapeHtml(payload.tool)} 失败</span>`;
       timelineLog.innerText += `✕ ${payload.tool}: ${(payload.error || "").slice(0, 200)}\n`;
+      const runningCards = [...document.querySelectorAll(".tool-step-card")].reverse();
+      const card = runningCards.find(c => c.querySelector(".tool-status-pill.running"));
+      if (card) {
+        const pill = card.querySelector(".tool-status-pill.running");
+        pill.className = "tool-status-pill failed";
+        pill.innerText = "失败";
+        const out = document.createElement("div");
+        out.className = "tool-step-output";
+        out.innerText = (payload.error || "").slice(0, 2000);
+        card.appendChild(out);
+      }
     } else if (type === "phase_changed") {
       livePhase.innerText = `Phase: ${payload.to_phase}`;
       timelineLog.innerText += `阶段流转 · ${payload.from_phase} → ${payload.to_phase}\n`;
@@ -1666,6 +1730,19 @@
     newConversationBtn.addEventListener("click", () => {
       newSessionInProject(activeWorkspacePath);
     });
+
+    if (composerWorkspaceSelect) {
+      composerWorkspaceSelect.addEventListener("change", async () => {
+        const ws = composerWorkspaceSelect.value;
+        if (!ws || ws === activeWorkspacePath) return;
+        await switchWorkspace(ws);
+        activeWorkspacePath = ws;
+        refreshWorkspaceSelector(ws);
+        refreshTree();
+        fetchArtifacts();
+        showToast(`工作区已切换：${ws}`);
+      });
+    }
 
     // Sidebar management: search, lifecycle views, batch operations
     let searchTimer = null;

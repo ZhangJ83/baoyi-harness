@@ -1223,6 +1223,7 @@ class Harness:
                 tool_call_count=len(getattr(reply.choices[0].message, "tool_calls", None) or []),
                 reasoning_chars=reply.reasoning_chars,
                 reasoning_content=reasoning_text,
+                content=getattr(reply.choices[0].message, "content", "") or "",
                 output_chars=len(getattr(reply.choices[0].message, "content", "") or ""),
             )
             if recorder is not None and callable(getattr(recorder, "event", None)):
