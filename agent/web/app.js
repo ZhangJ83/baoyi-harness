@@ -1083,11 +1083,35 @@
     }
   }
 
+  function historyVerdict(payload) {
+    const facts = payload.facts || {};
+    const unresolved = (payload.unresolved_checks || []).filter(Boolean);
+    const restoredBest = facts.restored_best_artifact === "1" || facts.task_evaluator_output === "passed";
+    if (restoredBest && unresolved.length) {
+      return `📌 本会话结论：这一轮工作未完成（未解决：${unresolved.join("、")}）。交付产物使用已冻结的最优验证版本，官方评分保持 1.0。`;
+    }
+    if (restoredBest) {
+      return "✅ 本会话结论：官方评估通过（1.0），产物已冻结为最优验证版本。";
+    }
+    if (unresolved.length) {
+      return `⚠ 本会话结论：运行在验证阶段暂停，未解决：${unresolved.join("、")}。`;
+    }
+    return "";
+  }
+
   function renderHistory(payload) {
     chatContainer.innerHTML = "";
     timelineLog.innerText = "";
     cotLog.innerText = "";
     rawReasoning = "";
+
+    const verdict = historyVerdict(payload);
+    if (verdict) {
+      const row = document.createElement("div");
+      row.className = "chat-row system history-verdict-row";
+      row.innerHTML = `<div class="message-card system history-verdict-card">${escapeHtml(verdict)}</div>`;
+      chatContainer.appendChild(row);
+    }
 
     const messages = payload.messages || [];
     for (const msg of messages) {

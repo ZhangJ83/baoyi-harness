@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -187,12 +188,66 @@ def _merge_with_prior(prior_messages: list[dict], current_messages: list[dict]) 
     return list(prior_messages) + list(current_messages[overlap:])
 
 
+_CONTINUATION_TITLE_PREFIXES = (
+    "continue the active task",
+    "continue",
+    "继续修复",
+    "继续",
+)
+
+_HARNESS_INJECTED_TITLE_PREFIXES = (
+    "cegar-h detected",
+    "cegar-h runtime decision",
+    "observation stays closed",
+    "ppt observation is closed",
+    "the requested tool name is not available",
+    "this action task is not complete",
+    "you changed files but provided no verification",
+    "the task list still contains unfinished",
+    "active durable goal",
+    "interactive execution checkpoint",
+)
+
+
+def _is_continuation_title(title: str) -> bool:
+    text = " ".join(str(title or "").split()).casefold()
+    return any(text.startswith(prefix) for prefix in _CONTINUATION_TITLE_PREFIXES)
+
+
+def _is_harness_injected_message(title: str) -> bool:
+    text = " ".join(str(title or "").split()).casefold()
+    return any(text.startswith(prefix) for prefix in _HARNESS_INJECTED_TITLE_PREFIXES)
+
+
 def _derive_title(payload: dict) -> str:
+    # 1. A user prompt that references the actual task package wins.
     for message in payload.get("messages", []):
-        if message.get("role") == "user":
-            text = " ".join(str(message.get("content", "")).split())[:48]
-            if text:
-                return text
+        if message.get("role") != "user":
+            continue
+        text = " ".join(str(message.get("content", "")).split()).strip()
+        if text and not _is_continuation_title(text) and (
+            "tasks/" in text.casefold() or text.startswith("完成") or text.startswith("实现")
+        ):
+            return text[:48]
+    # 2. Durable compaction stores the original goal as `Goal: ...`.
+    for message in payload.get("messages", []):
+        if message.get("role") == "system":
+            match = re.search(r"Goal:\s*([^\n]+)", str(message.get("content", "")))
+            if match and match.group(1).strip():
+                return " ".join(match.group(1).strip().split())[:48]
+    # 3. The first real (non-continuation, non-harness-injected) user message.
+    for message in payload.get("messages", []):
+        if message.get("role") != "user":
+            continue
+        text = " ".join(str(message.get("content", "")).split()).strip()
+        if text and not _is_continuation_title(text) and not _is_harness_injected_message(text):
+            return text[:48]
+    # 4. Task facts carry the original request.
+    facts = payload.get("facts", {})
+    for key in ("manifest_batch_goal", "task_instruction"):
+        value = str(facts.get(key, "") or "").strip()
+        if value and not _is_continuation_title(value) and not _is_harness_injected_message(value):
+            return " ".join(value.split())[:48]
     return "untitled"
 
 
@@ -271,7 +326,12 @@ def list_sessions(workspace: str | None = None, view: str = "active") -> list[Se
         rec_ws = payload.get("workspace", "")
         if not _workspace_matches(rec_ws, workspace):
             continue
-        title = payload.get("title") or _derive_title(payload)
+        stored_title = payload.get("title") or ""
+        title = (
+            stored_title
+            if not _is_continuation_title(stored_title) and not _is_harness_injected_message(stored_title)
+            else _derive_title(payload)
+        )
         records.append(SessionRecord(
             id=payload.get("id", path.stem), title=title,
             created_at=payload.get("created_at", ""),
@@ -290,6 +350,13 @@ def load_session(session_id: str) -> dict | None:
     payload = _read_payload(path)
     if payload is None:
         return None
+    stored_title = payload.get("title") or ""
+    if (
+        not stored_title
+        or _is_continuation_title(stored_title)
+        or _is_harness_injected_message(stored_title)
+    ):
+        payload["title"] = _derive_title(payload)
     payload["path"] = str(path)
     payload["status"] = _status_for(path)
     return payload
