@@ -871,8 +871,13 @@ class Harness:
         task, manifest_task_id = bind_manifest_task(task)
         effective_task, continuing_goal = self._effective_goal_task(task)
         active_goal = getattr(self, "active_goal", None)
+        prior_ppt_context = (
+            getattr(self, "deck", None) is not None
+            and getattr(getattr(self, "task_spec", None), "skill", "").startswith("ppt.")
+        )
         if not continuing_goal and not is_scope_continuation(task):
-            self._clear_task_facts()
+            if not (prior_ppt_context and not self._looks_like_code_request(task)):
+                self._clear_task_facts()
         if manifest_task_id:
             self.state.record_fact("manifest_task_id", manifest_task_id)
             self.state.record_fact("manifest_batch_goal", original_task)
@@ -901,7 +906,9 @@ class Harness:
         preflight_brief = prepare_task_brief(effective_task, self.state, self.recorder) if self._is_ppt_task(effective_task) else ""
         preflight_open = self._auto_open_preflight_deck() if preflight_brief else ""
         self.task_spec = compile_task(effective_task, self.state.facts, preflight_brief)
-        is_ppt = self._is_ppt_task(effective_task)
+        is_ppt = self._is_ppt_task(effective_task) or (
+            prior_ppt_context and not self._looks_like_code_request(effective_task)
+        )
         code_spec = None if is_ppt else compile_code_task(effective_task, config.sandbox_root())
         from .task_compiler import portable_contract_for
         portable = portable_contract_for(effective_task, self.state.facts, preflight_brief) if is_ppt else None
@@ -1077,7 +1084,9 @@ class Harness:
         self._bind_ppt_mutation_scope(execution_task)
         if self.task_spec.mutation_slides and not self.state.ppt_allowed_slides:
             self.state.ppt_allowed_slides = set(self.task_spec.mutation_slides)
-        ppt_task = self._is_ppt_task(execution_task)
+        ppt_task = self._is_ppt_task(execution_task) or (
+            prior_ppt_context and not self._looks_like_code_request(execution_task)
+        )
         # Restored sessions and lightweight test harnesses may predate the
         # runtime field.  Runtime ownership is recoverable and lazily rebuilt.
         if not hasattr(self, "runtime"):
@@ -1644,6 +1653,13 @@ class Harness:
         office_edit = any(marker in text for marker in ("页", "标题", "项目符号", "文本框", "流程图", "字体", "字号", "图片"))
         action = any(marker in text for marker in ("修改", "新增", "添加", "替换", "调整", "生成", "创建", "改成", "改为", "换成", "变为", "改"))
         return office_edit and action
+
+    @staticmethod
+    def _looks_like_code_request(task: str) -> bool:
+        text = task.casefold()
+        return any(marker in text for marker in (
+            "代码", "code", "python", "函数", "solution.py", "test", "编译", "shell", "命令行",
+        ))
 
     @staticmethod
     def _requires_action(task: str) -> bool:
