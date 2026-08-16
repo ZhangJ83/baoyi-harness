@@ -1674,9 +1674,14 @@ def _ppt_compose(h, kind: str, **kw) -> str:
             _assert_can_append_slide(h)
         return _quadrant_slide(h, kw.get("title", ""), kw.get("subtitle", ""), quadrants, slide_number)
     if kind == "flowchart":
-        if kw.get("slide_number") is None:
+        slide_number = kw.get("slide_number")
+        if slide_number is None and kw.get("insert_after") is not None:
+            # insert_after is the content/comparison spelling; translate it
+            # instead of rejecting a whole turn over an argument name.
+            slide_number = kw["insert_after"] + 1
+        if slide_number is None:
             raise ValueError("flowchart requires slide_number")
-        return _add_flowchart(h, kw["slide_number"], kw.get("nodes") or [], kw.get("title", ""))
+        return _add_flowchart(h, slide_number, kw.get("nodes") or [], kw.get("title", ""))
     if kind == "textbox":
         if kw.get("slide_number") is None:
             raise ValueError("textbox requires slide_number")

@@ -1037,6 +1037,23 @@ class Harness:
                 "decorative placeholders or invisible grouped text. A requested diagram/architecture page "
                 "uses ppt_compose flowchart so it contains real native shapes and connector lines."
             )
+        if is_ppt and self.task_spec.artifact_mode == "new_deck":
+            lowered = execution_task.casefold()
+            page_contract = []
+            if any(marker in lowered for marker in ("流程", "workflow", "process", "architecture", "架构")):
+                page_contract.append(
+                    "A requested flow/process/architecture page must use ppt_compose kind=flowchart with "
+                    "slide_number=1 (3-5 nodes): it draws native rounded-rectangle nodes and connector "
+                    "arrows. A bullet list is not an acceptable stand-in for that page."
+                )
+            if any(marker in lowered for marker in ("两页", "two-page", "two page", "2页", "2 页")):
+                page_contract.append(
+                    "This is a two-page build: new_deck once, compose page 1 IN PLACE with slide_number=1, "
+                    "then compose page 2 (quadrant/content/comparison) as the next semantic unit. Never "
+                    "leave the new_deck cover as one of the two content pages."
+                )
+            if page_contract:
+                execution_task += "\n\nPage composition contract: " + " ".join(page_contract)
         profile = self._set_task_profile(execution_task)
         if preflight_brief and self.state.phase in {RuntimePhase.INTAKE, RuntimePhase.UNDERSTAND}:
             previous_phase = self.state.phase
@@ -1445,11 +1462,23 @@ class Harness:
                         advertised=sorted(advertised_names),
                     )
                 self.messages.append({"role": "assistant", "content": msg.content or ""})
+                argument_hint = ""
+                if "ppt_compose" in rejected:
+                    argument_hint = (
+                        " ppt_compose argument tips: flowchart requires slide_number (1-based page number; "
+                        "insert_after is also accepted); content appends a new page unless slide_number is "
+                        "given; quadrant rebuilds page N when slide_number=N and appends when omitted."
+                    )
+                if set(rejected) & {"ppt_render", "render_deck", "inspect_rendered_deck", "ppt_visual_inspect"}:
+                    argument_hint += (
+                        " Rendering and pixel audit are automatic finish-owned lifecycle steps; do not "
+                        "call render tools from this phase."
+                    )
                 self.messages.append({
                     "role": "user",
                     "content": (
                         "The requested tool name is not available in this phase. Nothing was executed. "
-                        f"Use exactly one of: {', '.join(sorted(advertised_names))}."
+                        f"Use exactly one of: {', '.join(sorted(advertised_names))}.{argument_hint}"
                     ),
                 })
                 if self.state.no_progress_streak >= 2:
@@ -1806,8 +1835,14 @@ class Harness:
             required = self.state.facts.get("required_output_pptx")
             if required:
                 args["path"] = required
-            dispatch("ppt_save", json.dumps(args), self)
-            return str(required or self.state.facts.get("required_output_pptx", "output/final.pptx"))
+                dispatch("ppt_save", json.dumps(args), self)
+                return str(required)
+            saved_report = dispatch("ppt_save", json.dumps(args), self)
+            # Report the path the save actually used, not a guessed default.
+            for token in str(saved_report).split():
+                if token.lower().endswith(".pptx"):
+                    return token
+            return "deck.pptx"
         except Exception:
             return ""
 
