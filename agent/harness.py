@@ -1681,7 +1681,9 @@ class Harness:
         text = task.lower()
         markers = (
             "create", "edit", "modify", "add", "resize", "save", "render", "execute", "complete",
+            "build", "design", "implement", "generate", "make",
             "创建", "修改", "新增", "调整", "保存", "渲染", "执行", "完成", "生成", "排版",
+            "制作", "绘制", "构建", "设计", "编写", "实现", "添加", "删除", "重做", "修复",
         )
         return any(marker in text for marker in markers)
 
