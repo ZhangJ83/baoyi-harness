@@ -186,6 +186,24 @@ def _position_new_slide(prs: Presentation, slide, insert_after: int | None) -> i
     return position
 
 
+
+# Modern design tokens
+_SLATE_DARK = RGBColor(0x0F, 0x17, 0x2A)
+_SLATE_PANEL = RGBColor(0x1E, 0x29, 0x3B)
+_SLATE_BORDER = RGBColor(0x33, 0x41, 0x55)
+_SLATE_LIGHT_BG = RGBColor(0xF8, 0xFA, 0xFC)
+_CARD_BORDER = RGBColor(0xCB, 0xD5, 0xE1)
+_TEXT_PRIMARY = RGBColor(0x0F, 0x17, 0x2A)
+_TEXT_MUTED = RGBColor(0x64, 0x74, 0x8B)
+_BLUE_ACCENT = RGBColor(0x25, 0x63, 0xEB)
+_BLUE_BG = RGBColor(0xDB, 0xEA, 0xFE)
+_GREEN_ACCENT = RGBColor(0x10, 0xB9, 0x81)
+_GREEN_BG = RGBColor(0xDC, 0xFC, 0xE7)
+_RED_DOT = RGBColor(0xEF, 0x44, 0x44)
+_YELLOW_DOT = RGBColor(0xF5, 0x9E, 0x0B)
+_GREEN_DOT = RGBColor(0x10, 0xB9, 0x81)
+
+
 def _rect(slide, x: float, y: float, w: float, h: float, fill, line=None) -> "Shape":
     """Full-bleed helper: plain rectangle with a solid fill."""
     sp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
@@ -198,6 +216,31 @@ def _rect(slide, x: float, y: float, w: float, h: float, fill, line=None) -> "Sh
         sp.line.width = Pt(1)
     sp.shadow.inherit = False
     return sp
+
+
+def _rounded_rect(slide, x: float, y: float, w: float, h: float, fill, line=None) -> "Shape":
+    """Rounded rectangle helper for modern card containers and badge pills."""
+    sp = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+    sp.fill.solid()
+    sp.fill.fore_color.rgb = fill
+    if line is None:
+        sp.line.fill.background()
+    else:
+        sp.line.color.rgb = line
+        sp.line.width = Pt(1)
+    sp.shadow.inherit = False
+    return sp
+
+
+def _circle(slide, x: float, y: float, size: float, fill) -> "Shape":
+    """Circle helper for window control dots and status indicators."""
+    sp = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x), Inches(y), Inches(size), Inches(size))
+    sp.fill.solid()
+    sp.fill.fore_color.rgb = fill
+    sp.line.fill.background()
+    sp.shadow.inherit = False
+    return sp
+
 
 
 def _style_run(run, size: int, bold: bool, color: RGBColor) -> None:
@@ -542,6 +585,326 @@ def _image_slide(h, title: str, image_path: str, caption: str = "") -> str:
         caption_box = s.shapes.add_textbox(Inches(0.9), Inches(6.8), Inches(11.5), Inches(0.4))
         _put_lines(caption_box.text_frame, caption, 11, False, _MUTED)
     return f"added image slide {len(prs.slides)}: '{title}'"
+
+
+def _workflow_pipeline_slide(
+    h,
+    title: str,
+    steps: list[dict],
+    subtitle: str = "",
+    takeaway: str = "",
+    slide_number: int | None = None,
+    insert_after: int | None = None,
+) -> str:
+    """Compose a modern multi-step horizontal workflow pipeline with cards, badges, and details."""
+    prs = _deck(h)
+    if not 2 <= len(steps) <= 8:
+        raise ValueError("workflow_pipeline requires 2-8 steps")
+    if slide_number is not None:
+        if not 1 <= slide_number <= len(prs.slides):
+            raise IndexError("slide number out of range")
+        s = prs.slides[slide_number - 1]
+        _convert_fresh_cover(h, slide_number)
+        _clear_slide_shapes(s)
+        position = slide_number
+    else:
+        _assert_can_append_slide(h)
+        s = _blank_slide(prs)
+        position = _position_new_slide(prs, s, insert_after)
+
+    _rect(s, 0, 0, _W, _H, _SLATE_LIGHT_BG)
+    _rect(s, 0, 0, _W, 1.10, _PRIMARY)
+    _rect(s, 0, 1.10, _W, 0.07, _ACCENT)
+
+    title_box = s.shapes.add_textbox(Inches(0.55), Inches(0.12), Inches(8.5), Inches(0.85))
+    _put_lines(title_box.text_frame, title, 25, True, _WHITE)
+    if subtitle:
+        sub_box = s.shapes.add_textbox(Inches(7.2), Inches(0.18), Inches(5.6), Inches(0.70))
+        _put_lines(sub_box.text_frame, subtitle, 12, False, RGBColor(0xD0, 0xD0, 0xD0))
+
+    margin_x = 0.55
+    y = 1.40
+    total_w = _W - 2 * margin_x
+    gap = 0.20
+    step_w = (total_w - gap * (len(steps) - 1)) / len(steps)
+    card_h = 4.70 if not takeaway else 4.05
+
+    for index, step in enumerate(steps, 1):
+        x = margin_x + (index - 1) * (step_w + gap)
+        _rounded_rect(s, x, y, step_w, card_h, _WHITE, _CARD_BORDER)
+        _rounded_rect(s, x, y, step_w, 0.08, _ACCENT)
+
+        badge = _rounded_rect(s, x + 0.14, y + 0.16, 0.48, 0.32, _PRIMARY)
+        badge.text_frame.clear()
+        badge.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        bp = badge.text_frame.paragraphs[0]
+        bp.alignment = PP_ALIGN.CENTER
+        brun = bp.add_run()
+        brun.text = f"{index:02d}"
+        _style_run(brun, 12, True, _WHITE)
+
+        step_title = str(step.get("title", f"步骤 {index}"))
+        stb = s.shapes.add_textbox(Inches(x + 0.68), Inches(y + 0.12), Inches(step_w - 0.82), Inches(0.40))
+        _put_lines(stb.text_frame, step_title, 14, True, _PRIMARY)
+
+        action = str(step.get("action", step.get("summary", ""))).strip()
+        cur_y = y + 0.58
+        if action:
+            act_box = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(0.55))
+            _put_lines(act_box.text_frame, action, 11, True, _BLUE_ACCENT)
+            cur_y += 0.55
+
+        bullets = step.get("bullets", [])
+        if isinstance(bullets, str):
+            bullets = [bullets]
+        detail = str(step.get("detail", "")).strip()
+        lines = ([detail] if detail else []) + [f"• {b}" for b in bullets if str(b).strip()][:5]
+        if lines:
+            detail_h = max(1.0, card_h - (cur_y - y) - 0.45)
+            dtb = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(detail_h))
+            _fit_lines(dtb.text_frame, lines, 10, False, _TEXT, 1.15)
+
+        tag = str(step.get("tag", step.get("tech", ""))).strip()
+        if tag:
+            tag_w = min(step_w - 0.28, 0.18 + len(tag) * 0.13)
+            tag_box = _rounded_rect(s, x + 0.14, y + card_h - 0.38, tag_w, 0.24, _BLUE_BG)
+            tag_box.text_frame.clear()
+            tag_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+            tp = tag_box.text_frame.paragraphs[0]
+            tp.alignment = PP_ALIGN.CENTER
+            trun = tp.add_run()
+            trun.text = f"#{tag}"
+            _style_run(trun, 8, True, _BLUE_ACCENT)
+
+        if index < len(steps):
+            arrow_x = x + step_w + (gap - 0.18) / 2
+            arrow_y = y + card_h / 2 - 0.15
+            atb = s.shapes.add_textbox(Inches(arrow_x), Inches(arrow_y), Inches(0.25), Inches(0.30))
+            _put_lines(atb.text_frame, "▶", 12, True, _ACCENT)
+
+    if takeaway:
+        note_y = y + card_h + 0.18
+        _rounded_rect(s, margin_x, note_y, total_w, 0.65, _WHITE, _CARD_BORDER)
+        _rounded_rect(s, margin_x, note_y, 0.08, 0.65, _ACCENT)
+        ntb = s.shapes.add_textbox(Inches(margin_x + 0.20), Inches(note_y + 0.10), Inches(total_w - 0.40), Inches(0.45))
+        _put_lines(ntb.text_frame, f"💡 核心结论: {takeaway}", 12, True, _PRIMARY)
+
+    verb = "rebuilt" if slide_number is not None else "added"
+    return f"{verb} workflow pipeline slide {position}: '{title}' ({len(steps)} step cards)"
+
+
+def _html_mockup_slide(
+    h,
+    title: str,
+    cards: list[dict],
+    subtitle: str = "",
+    url_bar: str = "",
+    slide_number: int | None = None,
+    insert_after: int | None = None,
+) -> str:
+    """Compose a modern Web UI / Browser interface mockup with window chrome, nav, and card grid."""
+    prs = _deck(h)
+    if slide_number is not None:
+        if not 1 <= slide_number <= len(prs.slides):
+            raise IndexError("slide number out of range")
+        s = prs.slides[slide_number - 1]
+        _convert_fresh_cover(h, slide_number)
+        _clear_slide_shapes(s)
+        position = slide_number
+    else:
+        _assert_can_append_slide(h)
+        s = _blank_slide(prs)
+        position = _position_new_slide(prs, s, insert_after)
+
+    _rect(s, 0, 0, _W, _H, _SLATE_DARK)
+
+    fx, fy, fw, fh = 0.45, 0.30, 12.43, 6.90
+    _rounded_rect(s, fx, fy, fw, fh, _SLATE_LIGHT_BG, _SLATE_BORDER)
+
+    _rounded_rect(s, fx, fy, fw, 0.58, _SLATE_PANEL)
+    _circle(s, fx + 0.20, fy + 0.20, 0.18, _RED_DOT)
+    _circle(s, fx + 0.44, fy + 0.20, 0.18, _YELLOW_DOT)
+    _circle(s, fx + 0.68, fy + 0.20, 0.18, _GREEN_DOT)
+
+    url_text = url_bar or f"https://agent.ai/workspace/{title[:18]}"
+    _rounded_rect(s, fx + 1.10, fy + 0.12, fw - 4.50, 0.34, _SLATE_BORDER)
+    url_box = s.shapes.add_textbox(Inches(fx + 1.25), Inches(fy + 0.08), Inches(fw - 4.80), Inches(0.35))
+    _put_lines(url_box.text_frame, f"🔒  {url_text}", 10, False, RGBColor(0xE2, 0xE8, 0xF0))
+
+    rh_box = s.shapes.add_textbox(Inches(fx + fw - 3.2), Inches(fy + 0.08), Inches(3.0), Inches(0.40))
+    _put_lines(rh_box.text_frame, "Web App Interface", 10, True, RGBColor(0x94, 0xA3, 0xB8))
+
+    sx = fx
+    sy = fy + 0.58
+    sw = 2.20
+    sh = fh - 0.58
+    _rect(s, sx, sy, sw, sh, _SLATE_PANEL)
+
+    sb_logo = s.shapes.add_textbox(Inches(sx + 0.22), Inches(sy + 0.18), Inches(1.8), Inches(0.40))
+    _put_lines(sb_logo.text_frame, "⚡ Agent Console", 11, True, _WHITE)
+    _rect(s, sx + 0.15, sy + 0.60, sw - 0.30, 0.02, _SLATE_BORDER)
+
+    nav_items = ["📊 概览 Overview", "⚡ 规划 Planner", "🧠 记忆 Memory", "🛠 工具 Tools", "🚀 执行 Execute"]
+    for n_idx, n_text in enumerate(nav_items):
+        is_active = n_idx == 0
+        ny = sy + 0.75 + n_idx * 0.48
+        if is_active:
+            _rounded_rect(s, sx + 0.15, ny, sw - 0.30, 0.36, _BLUE_ACCENT)
+        ntb = s.shapes.add_textbox(Inches(sx + 0.25), Inches(ny + 0.04), Inches(sw - 0.45), Inches(0.32))
+        _put_lines(ntb.text_frame, n_text, 10, is_active, _WHITE if is_active else RGBColor(0x94, 0xA3, 0xB8))
+
+    mx = sx + sw + 0.25
+    my = sy + 0.18
+    mw = fw - sw - 0.50
+
+    mtb = s.shapes.add_textbox(Inches(mx), Inches(my), Inches(mw - 2.0), Inches(0.45))
+    _put_lines(mtb.text_frame, title, 18, True, _SLATE_DARK)
+    if subtitle:
+        stb = s.shapes.add_textbox(Inches(mx), Inches(my + 0.40), Inches(mw), Inches(0.35))
+        _put_lines(stb.text_frame, subtitle, 11, False, _TEXT_MUTED)
+
+    card_count = max(1, len(cards))
+    grid_y = my + (0.75 if subtitle else 0.55)
+    grid_h = fh - 0.58 - (grid_y - sy) - 0.20
+
+    if card_count <= 2:
+        cols, rows = card_count, 1
+    elif card_count <= 4:
+        cols, rows = 2, 2
+    else:
+        cols, rows = 3, 2
+
+    c_gap = 0.20
+    cw = (mw - c_gap * (cols - 1)) / cols
+    ch = (grid_h - c_gap * (rows - 1)) / rows
+
+    for c_idx, card_data in enumerate(cards):
+        col = c_idx % cols
+        row = c_idx // cols
+        cx = mx + col * (cw + c_gap)
+        cy = grid_y + row * (ch + c_gap)
+
+        _rounded_rect(s, cx, cy, cw, ch, _WHITE, _CARD_BORDER)
+        _rounded_rect(s, cx, cy, cw, 0.05, _BLUE_ACCENT)
+
+        c_title = str(card_data.get("title", f"Module {c_idx+1}"))
+        ctb = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cy + 0.10), Inches(cw - 1.25), Inches(0.35))
+        _put_lines(ctb.text_frame, c_title, 13, True, _SLATE_DARK)
+
+        status = str(card_data.get("status", card_data.get("badge", "ACTIVE"))).upper()
+        if status:
+            sb_w = min(1.10, 0.14 + len(status) * 0.10)
+            status_box = _rounded_rect(s, cx + cw - sb_w - 0.15, cy + 0.10, sb_w, 0.22, _GREEN_BG)
+            status_box.text_frame.clear()
+            status_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+            sp = status_box.text_frame.paragraphs[0]
+            sp.alignment = PP_ALIGN.CENTER
+            srun = sp.add_run()
+            srun.text = status
+            _style_run(srun, 8, True, _GREEN_ACCENT)
+
+        metric = str(card_data.get("metric", card_data.get("highlight", ""))).strip()
+        cur_cy = cy + 0.42
+        if metric:
+            met_box = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cur_cy), Inches(cw - 0.30), Inches(0.30))
+            _put_lines(met_box.text_frame, f"⚡ {metric}", 11, True, _BLUE_ACCENT)
+            cur_cy += 0.28
+
+        detail = str(card_data.get("detail", "")).strip()
+        bullets = card_data.get("bullets", [])
+        if isinstance(bullets, str):
+            bullets = [bullets]
+        lines = ([detail] if detail else []) + [f"• {b}" for b in bullets if str(b).strip()][:4]
+        if lines:
+            dt_h = max(0.8, ch - (cur_cy - cy) - 0.30)
+            cdtb = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cur_cy), Inches(cw - 0.30), Inches(dt_h))
+            _fit_lines(cdtb.text_frame, lines, 10, False, _TEXT, 1.10)
+
+        anchor = str(card_data.get("html_anchor", card_data.get("anchor", card_data.get("source", "")))).strip()
+        if anchor:
+            chip = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cy + ch - 0.28), Inches(cw - 0.30), Inches(0.22))
+            _put_lines(chip.text_frame, f"<{anchor}>", 8, False, _TEXT_MUTED)
+
+    verb = "rebuilt" if slide_number is not None else "added"
+    return f"{verb} HTML mockup slide {position}: '{title}' ({len(cards)} UI cards)"
+
+
+def _hero_split_slide(
+    h,
+    title: str,
+    hero_title: str,
+    hero_text: str,
+    cards: list[dict],
+    hero_metric: str = "",
+    subtitle: str = "",
+    slide_number: int | None = None,
+    insert_after: int | None = None,
+) -> str:
+    """Compose a left-hero highlight + right breakdown cards layout."""
+    prs = _deck(h)
+    if slide_number is not None:
+        if not 1 <= slide_number <= len(prs.slides):
+            raise IndexError("slide number out of range")
+        s = prs.slides[slide_number - 1]
+        _convert_fresh_cover(h, slide_number)
+        _clear_slide_shapes(s)
+        position = slide_number
+    else:
+        _assert_can_append_slide(h)
+        s = _blank_slide(prs)
+        position = _position_new_slide(prs, s, insert_after)
+
+    _rect(s, 0, 0, _W, _H, _SLATE_LIGHT_BG)
+    _rect(s, 0, 0, _W, 1.10, _PRIMARY)
+    _rect(s, 0, 1.10, _W, 0.07, _ACCENT)
+
+    title_box = s.shapes.add_textbox(Inches(0.55), Inches(0.12), Inches(8.5), Inches(0.85))
+    _put_lines(title_box.text_frame, title, 25, True, _WHITE)
+    if subtitle:
+        sub_box = s.shapes.add_textbox(Inches(7.2), Inches(0.18), Inches(5.6), Inches(0.70))
+        _put_lines(sub_box.text_frame, subtitle, 12, False, RGBColor(0xD0, 0xD0, 0xD0))
+
+    hx, hy, hw, hh = 0.55, 1.40, 4.0, 5.50
+    _rounded_rect(s, hx, hy, hw, hh, _PRIMARY)
+    _rounded_rect(s, hx, hy, hw, 0.08, _ACCENT)
+
+    htb = s.shapes.add_textbox(Inches(hx + 0.30), Inches(hy + 0.35), Inches(hw - 0.60), Inches(0.80))
+    _put_lines(htb.text_frame, hero_title, 20, True, _WHITE)
+
+    if hero_metric:
+        hm_box = s.shapes.add_textbox(Inches(hx + 0.30), Inches(hy + 1.25), Inches(hw - 0.60), Inches(0.90))
+        _put_lines(hm_box.text_frame, hero_metric, 30, True, _ACCENT)
+
+    cur_hy = hy + (2.20 if hero_metric else 1.30)
+    ht_box = s.shapes.add_textbox(Inches(hx + 0.30), Inches(cur_hy), Inches(hw - 0.60), Inches(hh - (cur_hy - hy) - 0.40))
+    _fit_lines(ht_box.text_frame, hero_text.split("\n"), 12, False, RGBColor(0xEA, 0xE8, 0xE4), 1.25)
+
+    rx = hx + hw + 0.35
+    rw = _W - rx - 0.55
+    card_count = max(1, len(cards))
+    c_gap = 0.20
+    c_h = (hh - c_gap * (card_count - 1)) / card_count
+    for c_idx, c_data in enumerate(cards):
+        cy = hy + c_idx * (c_h + c_gap)
+        _rounded_rect(s, rx, cy, rw, c_h, _WHITE, _CARD_BORDER)
+        _rounded_rect(s, rx, cy, 0.08, c_h, _ACCENT)
+
+        c_title = str(c_data.get("title", f"Feature {c_idx+1}"))
+        ctb = s.shapes.add_textbox(Inches(rx + 0.25), Inches(cy + 0.12), Inches(rw - 0.50), Inches(0.35))
+        _put_lines(ctb.text_frame, c_title, 14, True, _PRIMARY)
+
+        bullets = c_data.get("bullets", [])
+        if isinstance(bullets, str):
+            bullets = [bullets]
+        detail = str(c_data.get("detail", "")).strip()
+        lines = ([detail] if detail else []) + [f"• {b}" for b in bullets if str(b).strip()][:3]
+        if lines:
+            dtb = s.shapes.add_textbox(Inches(rx + 0.25), Inches(cy + 0.48), Inches(rw - 0.50), Inches(c_h - 0.60))
+            _fit_lines(dtb.text_frame, lines, 11, False, _TEXT, 1.15)
+
+    verb = "rebuilt" if slide_number is not None else "added"
+    return f"{verb} hero split slide {position}: '{title}'"
+
 
 
 def _walk_shapes(shapes, parent_path: tuple[int, ...] = ()):
@@ -1659,8 +2022,8 @@ def _ppt_compose(h, kind: str, **kw) -> str:
             missing = sorted(required - set(item))
             if missing:
                 raise ValueError(f"quadrant {index} missing: {', '.join(missing)}")
-            if not isinstance(item["bullets"], list) or len(item["bullets"]) > 3:
-                raise ValueError(f"quadrant {index} bullets must be an array of at most 3 strings")
+            if not isinstance(item["bullets"], list) or len(item["bullets"]) > 6:
+                raise ValueError(f"quadrant {index} bullets must be an array of at most 6 strings")
         slide_number = kw.get("slide_number")
         # ``replace_template`` is the model-facing way to say "rebuild the
         # auto-opened template slide instead of appending a second page".
@@ -1673,6 +2036,46 @@ def _ppt_compose(h, kind: str, **kw) -> str:
         if slide_number is None:
             _assert_can_append_slide(h)
         return _quadrant_slide(h, kw.get("title", ""), kw.get("subtitle", ""), quadrants, slide_number)
+    if kind in {"workflow", "workflow_pipeline", "step_process", "process_pipeline", "process_cards", "steps"}:
+        steps = kw.get("steps") or []
+        if not steps and kw.get("nodes"):
+            steps = [{"title": n, "detail": ""} for n in kw["nodes"]]
+        if not steps:
+            raise ValueError("workflow_pipeline requires non-empty steps array")
+        return _workflow_pipeline_slide(
+            h,
+            kw.get("title", ""),
+            steps,
+            kw.get("subtitle", ""),
+            kw.get("takeaway", ""),
+            kw.get("slide_number"),
+            kw.get("insert_after"),
+        )
+    if kind in {"html_mockup", "web_dashboard", "html_page", "web_mockup", "html_style", "html"}:
+        cards = kw.get("cards") or kw.get("components") or kw.get("quadrants") or []
+        if not cards and kw.get("steps"):
+            cards = kw["steps"]
+        return _html_mockup_slide(
+            h,
+            kw.get("title", "Web Dashboard"),
+            cards,
+            kw.get("subtitle", ""),
+            kw.get("url_bar", ""),
+            kw.get("slide_number"),
+            kw.get("insert_after"),
+        )
+    if kind in {"hero_split", "hero", "keynote_focus", "hero_cards"}:
+        return _hero_split_slide(
+            h,
+            kw.get("title", ""),
+            kw.get("hero_title", "Key Insight"),
+            kw.get("hero_text", ""),
+            kw.get("cards") or [],
+            kw.get("hero_metric", ""),
+            kw.get("subtitle", ""),
+            kw.get("slide_number"),
+            kw.get("insert_after"),
+        )
     if kind == "flowchart":
         slide_number = kw.get("slide_number")
         if slide_number is None and kw.get("insert_after") is not None:
@@ -1693,6 +2096,7 @@ def _ppt_compose(h, kind: str, **kw) -> str:
             "text": kw.get("text", ""), "size": kw.get("size", 18), "bold": kw.get("bold", False),
         })
     raise ValueError(f"unsupported compose kind: {kind}")
+
 
 
 def _is_explicit_list_paragraph(paragraph) -> bool:
@@ -2822,11 +3226,11 @@ def _verify(h, policy: str = "auto") -> str:
 
 
 def _quality_check(h) -> str:
-    """Run a conservative PPT design lint before the visual gate.
+    """Run an aesthetic & design quality lint before the visual gate.
 
-    This is intentionally a quality gate, not an aesthetic oracle: it checks
-    relationships that are deterministic from the native slide geometry and
-    reports warnings separately from blocking findings.
+    Checks geometry health, visual element diversity, card container presence,
+    and text density. Emits quality score (0-100), letter grade, and actionable
+    design recommendations.
     """
     from pptx.enum.shapes import MSO_SHAPE_TYPE
     line_types = {MSO_SHAPE_TYPE.LINE}
@@ -2840,10 +3244,15 @@ def _quality_check(h) -> str:
     slide_h = h.deck.slide_height
     errors: list[str] = []
     warnings: list[str] = []
+    recommendations: list[str] = []
     slide_rows: list[str] = []
+
+    total_slides = len(h.deck.slides)
     for index, slide in enumerate(h.deck.slides, 1):
         text_shapes = []
         visible_shapes = []
+        container_shapes = []
+        total_chars = 0
         for shape in slide.shapes:
             if getattr(shape, "width", 0) <= 0 or getattr(shape, "height", 0) <= 0:
                 continue
@@ -2852,12 +3261,26 @@ def _quality_check(h) -> str:
             text = (shape.text_frame.text or "").strip() if getattr(shape, "has_text_frame", False) else ""
             if text:
                 text_shapes.append(shape)
+                total_chars += len(text)
             elif shape.shape_type not in line_types and shape.width > Inches(0.12) and shape.height > Inches(0.12):
                 visible_shapes.append(shape)
+                if shape.width > Inches(1.5) and shape.height > Inches(0.8):
+                    container_shapes.append(shape)
+
         if not text_shapes:
             warnings.append(f"slide {index}: no visible text content")
-        if len(visible_shapes) > 18:
+        if len(visible_shapes) > 30:
             warnings.append(f"slide {index}: high shape density ({len(visible_shapes)} visible shapes)")
+
+        is_cover = index == 1 and total_slides > 1 and total_chars < 100
+        if not is_cover and not container_shapes and len(text_shapes) >= 3:
+            recommendations.append(
+                f"slide {index}: layout consists of bare flat text only; consider upgrading to "
+                "workflow_pipeline, html_mockup, quadrant, or comparison cards for richer presentation."
+            )
+        if not is_cover and total_chars < 80:
+            warnings.append(f"slide {index}: content is relatively sparse ({total_chars} visible chars; target 120-400)")
+
         for left_index, first in enumerate(text_shapes):
             for second in visible_shapes:
                 if first is second:
@@ -2868,10 +3291,6 @@ def _quality_check(h) -> str:
                     continue
                 ratio = (overlap_w * overlap_h) / min(first.width * first.height, second.width * second.height)
                 full_bleed = second.width >= slide_w * 0.92 and second.height >= slide_h * 0.92
-                # A text box that sits entirely inside a non-picture autoshape is
-                # the normal "text on card/container" layout, not an overlap
-                # defect. Only real content collisions — text over an image, or
-                # text poking out of its container — should block verification.
                 contained = (
                     first.left >= second.left
                     and first.top >= second.top
@@ -2887,23 +3306,31 @@ def _quality_check(h) -> str:
                 for run in paragraph.runs:
                     if run.font.size:
                         font_sizes.append(run.font.size.pt)
-        if font_sizes and min(font_sizes) < 10:
+        if font_sizes and min(font_sizes) < 9:
             warnings.append(f"slide {index}: very small text ({min(font_sizes):.1f}pt)")
-        slide_rows.append(f"slide {index}: text={len(text_shapes)}, visible={len(visible_shapes)}")
+        slide_rows.append(f"slide {index}: text={len(text_shapes)}, containers={len(container_shapes)}, chars={total_chars}")
+
+    score = 100 - len(errors) * 25 - len(warnings) * 5 - len(recommendations) * 5
+    quality_score = max(0, min(100, score))
+    grade = "A" if quality_score >= 90 else "B" if quality_score >= 80 else "C" if quality_score >= 60 else "D"
+
     passed = not errors
     payload = {
         "schema": "xiaopu.ppt-quality.v1",
         "passed": passed,
+        "quality_score": quality_score,
+        "grade": grade,
         "profile": getattr(h.state, "task_profile", ""),
         "design_policy": getattr(h.state, "design_policy", ""),
         "slides": len(h.deck.slides),
         "errors": errors,
         "warnings": warnings,
+        "recommendations": recommendations,
         "rows": slide_rows,
     }
     summary = json.dumps(payload, ensure_ascii=False, indent=2)
     if passed:
-        h.state.record_evidence("ppt_quality", f"ppt quality lint passed: {len(h.deck.slides)} slides")
+        h.state.record_evidence("ppt_quality", f"ppt quality lint passed (grade {grade}, score {quality_score}): {len(h.deck.slides)} slides")
         h.state.unresolved_checks.discard("ppt_quality")
         h.state.last_verification_failed = False
         if getattr(h, "recorder", None):
@@ -2916,6 +3343,7 @@ def _quality_check(h) -> str:
     if getattr(h, "recorder", None):
         h.recorder.check("ppt_quality", False, summary)
     return summary
+
 
 
 def _make(name: str, description: str, params: dict[str, dict], required: list[str], fn: Callable):
@@ -3013,10 +3441,48 @@ ppt_tools = [
     ),
     _make(
         "ppt_compose",
-        "Create one semantic presentation unit. Only provide fields needed by the selected kind. kind=content with slide_number rebuilds that page in place; kind=flowchart requires slide_number and draws native rounded-rectangle nodes with connector arrows (use for process/architecture diagrams); kind=quadrant builds a 4-card dashboard page; kind=new_deck starts a fresh deck.",
+        "Create one semantic presentation unit. kind='workflow_pipeline' (or 'workflow') builds a modern horizontal step-card pipeline with badges, action lines, and detail bullets (use for agent workflows, architectures, processes); kind='html_mockup' (or 'web_dashboard') builds a Web/Browser interface with window chrome (macOS 3 dots), URL bar, sidebar, and component card grid (use for HTML/Web UI styles); kind='hero_split' builds a left 1/3 key takeaway highlight + right 2/3 breakdown cards; kind='quadrant' builds a 4-card dashboard page; kind='comparison' builds a 2-column contrast slide; kind='content' builds a general bullet page; kind='flowchart' draws connected nodes; kind='new_deck' starts a fresh deck.",
         {
-            "kind": {"type": "string", "enum": ["new_deck", "content", "comparison", "from_slides", "from_outline", "table", "quadrant", "flowchart", "textbox"]},
+            "kind": {"type": "string", "enum": ["new_deck", "content", "comparison", "from_slides", "from_outline", "table", "quadrant", "flowchart", "textbox", "workflow_pipeline", "workflow", "step_process", "html_mockup", "web_dashboard", "html_page", "hero_split"]},
             "slide_number": {"type": "integer"}, "title": {"type": "string"}, "subtitle": {"type": "string"},
+            "takeaway": {"type": "string", "description": "Bottom conclusion/takeaway banner text."},
+            "url_bar": {"type": "string", "description": "Address bar text for html_mockup."},
+            "hero_title": {"type": "string"}, "hero_text": {"type": "string"}, "hero_metric": {"type": "string"},
+            "steps": {
+                "type": "array", "minItems": 2, "maxItems": 8,
+                "description": "Step items for workflow_pipeline. Each object has title, action/summary, detail, bullets, and optional tech tag.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "action": {"type": "string"},
+                        "summary": {"type": "string"},
+                        "detail": {"type": "string"},
+                        "bullets": {"type": "array", "items": {"type": "string"}},
+                        "tag": {"type": "string"},
+                        "tech": {"type": "string"},
+                    },
+                    "required": ["title"], "additionalProperties": True,
+                },
+            },
+            "cards": {
+                "type": "array", "minItems": 1, "maxItems": 6,
+                "description": "Component cards for html_mockup or hero_split.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "status": {"type": "string"},
+                        "badge": {"type": "string"},
+                        "metric": {"type": "string"},
+                        "highlight": {"type": "string"},
+                        "detail": {"type": "string"},
+                        "bullets": {"type": "array", "items": {"type": "string"}},
+                        "html_anchor": {"type": "string"},
+                    },
+                    "required": ["title"], "additionalProperties": True,
+                },
+            },
             "source_slides": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer"}},
             "insert_after": {"type": "integer"},
             "add_table": {"type": "boolean", "description": "Accepted for clarity; from_slides always includes a comparison table."},
@@ -3061,19 +3527,20 @@ ppt_tools = [
                     "properties": {
                         "title": {"type": "string"}, "metric": {"type": "string"},
                         "detail": {"type": "string"},
-                        "bullets": {"type": "array", "maxItems": 3, "items": {"type": "string"}},
+                        "bullets": {"type": "array", "maxItems": 6, "items": {"type": "string"}},
                         "source": {"type": "string"},
                     },
                     "required": ["title", "metric", "detail", "bullets", "source"],
                     "additionalProperties": False,
                 },
             },
-            "nodes": {"type": "array", "minItems": 3, "maxItems": 5, "items": {"type": "string"}},
+            "nodes": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "string"}},
             "x": {"type": "number"}, "y": {"type": "number"}, "w": {"type": "number"}, "width": {"type": "number"}, "height": {"type": "number"}, "h": {"type": "number"},
             "text": {"type": "string"}, "bold": {"type": "boolean"},
         }, ["kind"],
         lambda h, **kw: _ppt_compose(h, **kw),
     ),
+
     _make(
         "ppt_arrange",
         "Targeted layout operations on any shape (including pictures): geometry moves/resizes a shape via x/y/w/height, delete_shape/delete_slide/move_slide, or reflow_two_columns to split an existing checklist. Use geometry to resize an image that overlaps newly added content. Inspect first.",

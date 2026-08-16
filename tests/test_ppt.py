@@ -743,6 +743,68 @@ class PowerPointTests(unittest.TestCase):
             self.assertIn("ppt_structural", h.state.unresolved_checks)
             self.assertFalse(any(record.kind == "ppt_structural" for record in h.state.fresh_evidence()))
 
+    def test_workflow_pipeline_slide_composes_and_verifies(self):
+        h = DummyHarness()
+        dispatch("new_deck", json.dumps({"title": "AI Workflow"}), h)
+        steps = [
+            {"title": "Goal Parsing", "action": "Deconstruct Intent", "bullets": ["Natural Language Understanding", "Task DAG Generation"], "tag": "NLU"},
+            {"title": "Tool Selection", "action": "Dynamic Routing", "bullets": ["MCP Tool Registry", "Permission Gating"], "tag": "MCP"},
+            {"title": "Execution Loop", "action": "ReAct Deliberation", "bullets": ["Atomic Transactions", "Self-Correction"], "tag": "Engine"},
+            {"title": "Verification", "action": "Evidence Audit", "bullets": ["Deterministic Checks", "Rollback Boundary"], "tag": "CEGAR-H"},
+        ]
+        result = dispatch("ppt_compose", json.dumps({
+            "kind": "workflow_pipeline",
+            "slide_number": 1,
+            "title": "Autonomous Agent Pipeline",
+            "steps": steps,
+            "takeaway": "Evidence-driven loop guarantees deterministic convergence.",
+        }), h)
+        self.assertIn("workflow pipeline slide 1", result)
+        check = dispatch("ppt_check", json.dumps({"policy": "full"}), h)
+        self.assertIn("no structural issues", check)
+        self.assertEqual(len(h.deck.slides), 1)
+
+    def test_html_mockup_slide_composes_and_verifies(self):
+        h = DummyHarness()
+        dispatch("new_deck", json.dumps({"title": "App Console"}), h)
+        cards = [
+            {"title": "Planner", "status": "ACTIVE", "metric": "99.8% Precision", "bullets": ["Multi-turn DAG", "Dependency Resolver"], "html_anchor": "div.planner"},
+            {"title": "Memory Buffer", "status": "SYNCED", "metric": "128k Context", "bullets": ["Micro-compaction", "Episodic Recall"], "html_anchor": "div.memory"},
+            {"title": "Tool Registry", "status": "READY", "metric": "42 Capabilities", "bullets": ["Schema Validation", "ACID Rollback"], "html_anchor": "div.tools"},
+            {"title": "Runtime Loop", "status": "RUNNING", "metric": "<120ms Latency", "bullets": ["Event Bus Stream", "State Journal"], "html_anchor": "div.runtime"},
+        ]
+        result = dispatch("ppt_compose", json.dumps({
+            "kind": "html_mockup",
+            "title": "Agent System Workbench",
+            "subtitle": "Real-time Component Status & Telemetry",
+            "cards": cards,
+            "url_bar": "https://console.agent.internal/dashboard",
+        }), h)
+        self.assertIn("HTML mockup slide 2", result)
+        check = dispatch("ppt_check", json.dumps({"policy": "full"}), h)
+        self.assertIn("no structural issues", check)
+        self.assertEqual(len(h.deck.slides), 2)
+
+    def test_hero_split_slide_composes_and_verifies(self):
+        h = DummyHarness()
+        dispatch("new_deck", json.dumps({"title": "Architecture Focus"}), h)
+        cards = [
+            {"title": "Safety Sandbox", "detail": "Containerized isolation with strict path jail and stripped credentials.", "bullets": ["Dockerized Runner", "Subprocess Isolation"]},
+            {"title": "Freshness Epoch", "detail": "Every mutating action invalidates prior verification certificates.", "bullets": ["Monotonic Counter", "Anti-Stale Gating"]},
+        ]
+        result = dispatch("ppt_compose", json.dumps({
+            "kind": "hero_split",
+            "slide_number": 1,
+            "title": "Xiaopu Core Invariants",
+            "hero_title": "100% Deterministic Guarantee",
+            "hero_metric": "0 False Passes",
+            "hero_text": "By binding task completion to fresh, un-mutated certificates, Xiaopu eliminates speculative hallucination.",
+            "cards": cards,
+        }), h)
+        self.assertIn("hero split slide 1", result)
+        check = dispatch("ppt_check", json.dumps({"policy": "full"}), h)
+        self.assertIn("no structural issues", check)
+
     def test_mutation_registry_covers_all_stateful_ppt_operations(self):
         expected = {
             "new_deck", "add_slide", "add_two_column_slide", "compose_quadrant_slide", "add_metric_slide",
@@ -753,6 +815,7 @@ class PowerPointTests(unittest.TestCase):
             "ppt_edit_text", "ppt_style", "ppt_metadata", "ppt_notes", "ppt_compose", "ppt_arrange", "ppt_save",
         }
         self.assertEqual(_PPT_MUTATORS, expected)
+
 
 
 if __name__ == "__main__":

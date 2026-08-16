@@ -9,14 +9,18 @@ allowed_tools: ppt_open, ppt_inspect, ppt_edit_text, ppt_style, ppt_compose, ppt
 
 1. Use the harness-provided ContentIR brief as the authoritative task scope. Do not rediscover or reread sources already listed there.
 2. For an existing deck, call `ppt_open`, then `ppt_inspect` for the affected scope. The harness preserves the original.
-3. For a new deck, call `ppt_compose(kind="new_deck")` then add slides with `ppt_compose` using the layout that best matches each page's content (flowchart, quadrant, comparison, content, table).
-4. Make every slide content-rich:
-   - Include 3-8 substantive bullet points per content slide
-   - Each bullet can be a full sentence or phrase with concrete details
-   - Use comparison layouts for pros/cons or feature comparisons
-   - Use quadrant layouts for dashboards or multi-metric views
-   - Use flowchart layouts for process or architecture diagrams
+3. For a new deck, call `ppt_compose(kind="new_deck")` then compose each page using the semantic layout that best matches its intent:
+   - **Process / Workflow / Architecture**: Use `ppt_compose(kind="workflow_pipeline", title="...", steps=[{"title": "...", "action": "...", "bullets": [...], "tag": "..."}], takeaway="...")` with 3-6 step cards, step badges `01, 02`, action highlights, and detail bullets. Never use plain text bullet lists for workflows.
+   - **HTML / Web UI / System Console**: Use `ppt_compose(kind="html_mockup", title="...", cards=[{"title": "...", "status": "ACTIVE", "metric": "...", "bullets": [...], "html_anchor": "..."}], url_bar="...")` to render authentic browser window chrome (🔴🟡🟢), navigation sidebar, and card grids.
+   - **Keynote / Core Highlight**: Use `ppt_compose(kind="hero_split", title="...", hero_title="...", hero_metric="...", hero_text="...", cards=[...])` for left 1/3 key takeaway + right 2/3 breakdown cards.
+   - **Multi-Metric Dashboard**: Use `ppt_compose(kind="quadrant", title="...", quadrants=[...])` for 2x2 executive dashboards.
+   - **Comparison / Pros & Cons**: Use `ppt_compose(kind="comparison", title="...", left_title="...", left_bullets=[...], right_title="...", right_bullets=[...])`.
+4. High Design Quality & Information Density Standards:
+   - Every slide must use container cards, badges, or structured grids.
+   - Target 150-400 substantive characters per slide (rich technical depth, avoid empty single-line bullet points).
+   - Use slide-numbered compose (`slide_number=1`) to transform fresh deck cover scaffolds into real content pages when multi-page custom builds are requested.
 5. Call `ppt_save`, then `ppt_check`, then `finish`. Finish owns task-native evaluation, final rendering, visual audit, provenance, and trajectory completion.
 6. Repair only concrete defects on specific slides/shapes, remain within the repair budget, and rerun the failed check after every repair.
-7. Low-level PPT primitives, evaluator invocation, rendering and provenance are harness-owned. They are not part of the normal model-facing tool surface.
+7. Low-level PPT primitives, evaluator invocation, rendering and provenance are harness-owned.
 8. Finish only with a saved final PPTX, fresh structural evidence, applicable render/pixel evidence, the output path, slide count, checks performed, provenance, and any renderer limitation.
+
