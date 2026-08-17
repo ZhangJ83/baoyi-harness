@@ -13,7 +13,10 @@ OUTCOMES = {"artifact_success", "verification_count", "generated_output_tokens",
 
 
 def digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    data = path.read_bytes()
+    if path.suffix.lower() in {".py", ".json", ".md", ".txt", ".yml", ".yaml", ".toml"}:
+        data = data.replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 def validate(protocol: dict, root: Path) -> dict:

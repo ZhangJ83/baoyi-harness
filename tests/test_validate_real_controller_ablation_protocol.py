@@ -114,6 +114,6 @@ def test_canonical_real_controller_protocol_is_frozen_and_paired():
     protocol_path = ROOT / "benchmarks/real_controller_ablation_v1.json"
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     result = validate(protocol, ROOT)
-    assert result["valid"] is True
+    assert result["valid"] is True, f"Real controller protocol invalid: {result.get('errors')}"
     assert result["expected_cells"] == 48
     assert result["result_available"] is False

@@ -1,0 +1,14 @@
+# Enforce LF line endings for all text files across Linux and Windows
+* text=auto eol=lf
+
+# Binary file types
+*.pptx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.whl binary
+*.gz binary
+*.zip binary

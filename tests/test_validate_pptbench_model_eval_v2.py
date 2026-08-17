@@ -157,7 +157,7 @@ def test_canonical_frozen_pptbench_protocol_is_valid():
     protocol_path = ROOT / "benchmarks/pptbench_model_eval_v2.json"
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     result = validate(protocol, ROOT, credential_present=False)
-    assert result["valid"] is True
+    assert result["valid"] is True, f"PPTBench protocol invalid: {result.get('errors')}"
     assert result["assets_ready"] is True
     assert result["task_count"] == 12
     assert result["expected_decks"] == 36
