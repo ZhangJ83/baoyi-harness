@@ -316,6 +316,18 @@ def _get_deck_content_data(pptx_path: Path) -> dict[str, Any]:
             text_sections.append(f"{prefix}{it}")
         text_sections.append("")
 
+    html_files = []
+    try:
+        parent_dir = pptx_path.parent
+        for html_candidate in sorted(parent_dir.glob("*.html")):
+            if html_candidate.is_file() and not html_candidate.name.startswith("."):
+                html_files.append({
+                    "filename": html_candidate.name,
+                    "content": html_candidate.read_text(encoding="utf-8", errors="ignore")[:15000],
+                })
+    except Exception:
+        pass
+
     return {
         "success": True,
         "deck_name": pptx_path.name,
@@ -323,6 +335,7 @@ def _get_deck_content_data(pptx_path: Path) -> dict[str, Any]:
         "total_slides": len(prs.slides),
         "slides": slides_info,
         "text_content": "\n".join(text_sections).strip(),
+        "html_files": html_files,
     }
 
 

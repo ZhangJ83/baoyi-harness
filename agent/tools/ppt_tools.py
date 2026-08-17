@@ -678,11 +678,11 @@ def _workflow_pipeline_slide(
         _put_lines(sub_box.text_frame, subtitle, 12, False, RGBColor(0xD0, 0xD0, 0xD0))
 
     margin_x = 0.55
-    y = 1.40
+    y = 1.35
     total_w = _W - 2 * margin_x
     gap = 0.20
     step_w = (total_w - gap * (len(steps) - 1)) / len(steps)
-    card_h = 4.70 if not takeaway else 4.05
+    card_h = 4.85 if not takeaway else 4.40
 
     for index, step in enumerate(steps, 1):
         x = margin_x + (index - 1) * (step_w + gap)
@@ -714,15 +714,33 @@ def _workflow_pipeline_slide(
             bullets = [bullets]
         detail = str(step.get("detail", "")).strip()
         lines = ([detail] if detail else []) + [f"• {b}" for b in bullets if str(b).strip()][:5]
-        if lines:
-            detail_h = max(1.0, card_h - (cur_y - y) - 0.45)
-            dtb = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(detail_h))
-            _fit_lines(dtb.text_frame, lines, 10, False, _TEXT, 1.15)
-
+        
+        deliverable = str(step.get("deliverable", step.get("output", ""))).strip()
         tag = str(step.get("tag", step.get("tech", ""))).strip()
+        
+        bottom_reserved = 0.75 if deliverable else 0.45
+        if lines:
+            detail_h = max(1.2, card_h - (cur_y - y) - bottom_reserved)
+            dtb = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(detail_h))
+            _fit_lines(dtb.text_frame, lines, 10.5, False, _TEXT, 1.20)
+
+        # Output Deliverable Pill
+        if deliverable:
+            deliv_text = deliverable if deliverable.startswith("📦") or deliverable.startswith("产物") else f"📦 {deliverable}"
+            del_box = _rounded_rect(s, x + 0.14, y + card_h - 0.68, step_w - 0.28, 0.26, RGBColor(0xF1, 0xF5, 0xF9), RGBColor(0xE2, 0xE8, 0xF0))
+            del_box.text_frame.clear()
+            del_box.text_frame.word_wrap = True
+            del_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+            dp = del_box.text_frame.paragraphs[0]
+            dp.alignment = PP_ALIGN.LEFT
+            drun = dp.add_run()
+            drun.text = f" {deliv_text}"
+            _style_run(drun, 9.5, False, RGBColor(0x33, 0x41, 0x55))
+
         if tag:
             tag_w = max(0.95, min(step_w - 0.28, 0.35 + len(tag) * 0.16))
-            tag_box = _rounded_rect(s, x + 0.14, y + card_h - 0.38, tag_w, 0.24, _BLUE_BG)
+            tag_y = y + card_h - 0.34
+            tag_box = _rounded_rect(s, x + 0.14, tag_y, tag_w, 0.24, _BLUE_BG)
             tag_box.text_frame.clear()
             tag_box.text_frame.word_wrap = False
             tag_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -739,7 +757,7 @@ def _workflow_pipeline_slide(
             _put_lines(atb.text_frame, "▶", 12, True, _ACCENT)
 
     if takeaway:
-        note_y = y + card_h + 0.18
+        note_y = y + card_h + 0.15
         _rounded_rect(s, margin_x, note_y, total_w, 0.65, _WHITE, _CARD_BORDER)
         _rounded_rect(s, margin_x, note_y, 0.08, 0.65, _ACCENT)
         ntb = s.shapes.add_textbox(Inches(margin_x + 0.20), Inches(note_y + 0.10), Inches(total_w - 0.40), Inches(0.45))
@@ -1090,10 +1108,10 @@ def _html_to_vector_slide(
             c_head = c_soup.find(["h1", "h2", "h3", "h4", "h5", "strong", "b"])
             c_title = _clean_presentation_title(c_head.get_text().strip()) if c_head else f"模块 0{idx+1}"
             
-            badge_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("badge", "status", "tag", "pill", "chip")))
+            badge_el = c_soup.find(class_=lambda c: c and any(k in str(c).lower() for k in ("badge", "status", "chip")))
             c_status = badge_el.get_text().strip().upper() if badge_el else ("RUNNING" if idx == 0 else ("ACTIVE" if idx == 1 else "READY"))
 
-            metric_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("metric", "stat", "num", "highlight", "time")))
+            metric_el = c_soup.find(class_=lambda c: c and any(k in str(c).lower() for k in ("metric", "stat", "num", "highlight", "time", "speed", "latency", "perf", "qps")))
             c_metric = metric_el.get_text().strip() if metric_el else ""
 
             # Extract ONLY leaf bullet items (<p> or <li>), NEVER the parent container div!
@@ -1109,7 +1127,7 @@ def _html_to_vector_slide(
                     if not any(t == b for b in bullets):
                         bullets.append(t)
             
-            tag_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("tech", "code", "anchor", "foot")))
+            tag_el = c_soup.find(class_=lambda c: c and any(k in str(c).lower() for k in ("tech", "code", "anchor", "foot", "tag")))
             c_tag = tag_el.get_text().strip() if tag_el else ""
 
             cards_data.append({

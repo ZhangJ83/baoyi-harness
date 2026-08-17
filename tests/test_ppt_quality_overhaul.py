@@ -148,6 +148,100 @@ def test_workflow_pipeline_and_html_vector_slide_overhaul():
     assert not bullet_boxes[0].startswith("• RUNNING")
     assert "• 统一接收语音、文本与文档多模态数据输入" in bullet_boxes[0]
 
-    # Check Quality
+    # Check Slide 1 Deliverables
+    s1_delivs = [
+        sh.text_frame.text
+        for sh in s1.shapes
+        if getattr(sh, "has_text_frame", False) and "产物" in sh.text_frame.text
+    ]
+    # In this test we didn't specify deliverable yet, so let's verify quality check passes
     quality_json = _quality_check(h)
     assert '"passed": true' in quality_json
+
+
+def test_workflow_pipeline_with_deliverables_and_file_html(tmp_path):
+    h = MockHarness()
+    _new_deck(h, "AI Agent 工作流程与架构", "")
+
+    # Slide 1 with deliverable pills
+    _workflow_pipeline_slide(
+        h,
+        title="AI Agent 端到端工作流程",
+        steps=[
+            {
+                "title": "意图感知",
+                "action": "多模态语义解析、消歧与约束建模",
+                "bullets": [
+                    "多模态输入流统一接入与领域上下文依赖绑定",
+                    "高维向量空间语义匹配与实体参数强类型结构化抽取",
+                    "低置信度意图主动多轮反问与操作安全边界划定",
+                ],
+                "deliverable": "产物: 结构化 Intent AST 参数树",
+                "tag": "NLU-Parser",
+            },
+            {
+                "title": "动态规划",
+                "action": "ReAct 推理、拓扑分解与路径剪枝",
+                "bullets": [
+                    "多阶段长程目标拓扑排序与动态 DAG 任务图分解",
+                    "思维链 (CoT) 实时推理与次优路径启发式剪枝",
+                    "工具集前置依赖校验与状态回滚检查点配置",
+                ],
+                "deliverable": "产物: DAG 动态规划执行图",
+                "tag": "ReAct-Planner",
+            },
+        ],
+        takeaway="实现从非结构化指令到确定性高质交付物的端到端自主闭环演进",
+        slide_number=1,
+    )
+
+    s1 = h.deck.slides[0]
+    s1_texts = [
+        sh.text_frame.text
+        for sh in s1.shapes
+        if getattr(sh, "has_text_frame", False) and "Intent AST" in sh.text_frame.text
+    ]
+    assert len(s1_texts) >= 1
+    assert "Intent AST 参数树" in s1_texts[0]
+
+    # Slide 2 via HTML file
+    html_file = tmp_path / "slide2.html"
+    html_file.write_text(
+        """
+<div class="slide" style="background: #0f172a;">
+  <h1>AI Agent 核心架构与运行时全景</h1>
+  <p class="subtitle">统一双循环状态机驱动的分布式智能体调度平台与质检矩阵</p>
+  <div class="grid-3">
+    <div class="card">
+      <span class="badge">RUNNING</span>
+      <h3>01. 感知与意图解析层</h3>
+      <div class="metric-bar">⚡ 响应时延 &lt;120ms · 语义置信度 0.94</div>
+      <ul>
+        <li>多模态输入统一接入、高维特征向量空间对齐与依赖上下文注入</li>
+        <li>基于领域知识图谱的歧义消歧，生成结构化 AST 参数拓扑树</li>
+        <li>滑动窗口长上下文智能压缩与多轮会话状态机持久化管理</li>
+      </ul>
+      <span class="tech">AST Parser · Embedding Index</span>
+    </div>
+  </div>
+</div>
+""",
+        encoding="utf-8",
+    )
+
+    from agent import config
+    from unittest.mock import patch
+
+    with patch.object(config, "sandbox_root", return_value=tmp_path):
+        _html_slide(h, file_path="slide2.html", slide_number=2)
+
+    s2 = h.deck.slides[1]
+    s2_title = s2.shapes[1].text_frame.text
+    assert "AI Agent 核心架构与运行时全景" in s2_title
+    s2_metrics = [
+        sh.text_frame.text
+        for sh in s2.shapes
+        if getattr(sh, "has_text_frame", False) and "响应时延" in sh.text_frame.text
+    ]
+    assert len(s2_metrics) >= 1
+
