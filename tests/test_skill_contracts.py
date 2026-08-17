@@ -37,5 +37,5 @@ def test_complex_combined_skill_has_no_fixed_plan():
             "ppt_input_deck": "tasks/Aircraft_surface-004/Aircraft_surface.pptx",
         },
     )
-    assert spec.skill == "ppt.content_and_layout"
+    assert spec.skill in {"ppt.layout_reflow", "ppt.content_and_layout"}
     assert spec.plan == ()

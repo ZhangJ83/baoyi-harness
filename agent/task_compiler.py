@@ -75,8 +75,9 @@ def portable_contract_for(request: str, facts: dict[str, str] | None = None, bri
     from domains import get_domain_pack
 
     facts = facts or {}
+    capability = facts.get("task_capability", "")
     instruction = facts.get("task_instruction", "")
-    text = f"{request}\n{instruction}\n{brief}"
+    text = f"{capability}\n{request}\n{instruction}".strip() or brief
     pack = get_domain_pack("ppt")
     return compile_portable(
         Task(id=facts.get("manifest_task_id", "") or "task", instruction=text),
@@ -84,110 +85,68 @@ def portable_contract_for(request: str, facts: dict[str, str] | None = None, bri
     )
 
 
-def compile_task(request: str, facts: dict[str, str] | None = None, brief: str = "") -> TaskSpec:
+def compile_task(
+    request: str,
+    facts: dict[str, str] | None = None,
+    brief: str = "",
+    portable: Any = None,
+) -> TaskSpec:
     facts = facts or {}
     instruction = facts.get("task_instruction", "")
     text = f"{request}\n{instruction}\n{brief}".casefold()
-    # New portable contract is computed first so real runs traverse
-    # Discovery -> Intake -> PPTTaskDefinition -> TaskContract. Legacy output
-    # below remains the compatibility-facing TaskSpec.
-    try:
-        portable = portable_contract_for(request, facts, brief)
-    except Exception:
-        portable = None
+
+    if portable is None:
+        try:
+            portable = portable_contract_for(request, facts, brief)
+        except Exception:
+            portable = None
+
     task_root = facts.get("task_root", "") or facts.get("manifest_task_id", "")
     primary = facts.get("ppt_input_deck", "")
     output = facts.get("required_output_pptx", "")
-    # Never infer page scope from the full ContentIR: source JSON and prior
-    # trajectory text often contain every slide number.  Scope comes from the
-    # user's request or authoritative instruction only.
     source = _slides(f"{request}\n{instruction}".casefold())
-    capability = facts.get("task_capability", "").casefold().strip()
-    # A template deck is source material for a NEW deck, not an artifact to
-    # edit in place. Keyword-driven template/xmind/outline builds must not be
-    # downgraded to edit_existing merely because intake bound the template as
-    # the discovered input deck. An explicit task-card capability always wins
-    # over noisy keywords in instruction/brief text.
-    template_build_requested = bool(not capability) and any(
-        marker in text for marker in ("template", "xmind", "outline", "模板", "大纲")
-    )
-    mode = (
-        "new_deck"
-        if template_build_requested
-        else ("edit_existing" if primary or ".pptx" in text else "new_deck")
-    )
-    intent = "atomic_edit"
-    skill = "ppt.atomic_edit"
-    # Task cards may carry more than one capability (``;``, ``/``, ``、`` or
-    # ``+`` separated).  Each segment is matched against the frozen table so a
-    # compound capability resolves to the first supported PPT skill.
-    contract_skill = ""
-    if capability:
-        segments = [part.strip() for part in re.split(r"[;+、]|,|/", capability) if part.strip()]
-        for segment in segments:
-            if segment in SKILL_BY_CAPABILITY:
-                contract_skill = SKILL_BY_CAPABILITY[segment]
-                break
-        if not contract_skill and segments[0] in SKILL_BY_CAPABILITY:
-            contract_skill = SKILL_BY_CAPABILITY[segments[0]]
-    if contract_skill:
-        skill = contract_skill
-        intent = skill.removeprefix("ppt.")
-        if skill == "ppt.template_build":
-            mode = "new_deck"
-    elif any(x in text for x in ("xlsx", "source_sync", "源数据", "数据更新", "同步到", "excel")):
-        intent, skill = "source_sync", "ppt.source_sync"
-    elif any(x in text for x in ("overlap", "overlap repair", "图片重叠", "内容修改并修复")):
-        intent, skill = "content_and_layout", "ppt.content_and_layout"
-    elif any(x in text for x in ("cross-slide", "composite", "combine", "merge", "合并", "合成", "插入一张新")):
-        intent, skill = "compose_from_slides", "ppt.compose_from_slides"
-    elif any(x in text for x in ("quadrant", "html", "source-grounded", "多来源", "四象限")):
-        intent, skill = "source_grounded_build", "ppt.source_grounded_build"
-    elif any(x in text for x in ("template", "xmind", "outline", "模板")):
-        intent, skill = "template_build", "ppt.template_build"
-    elif any(x in text for x in ("reflow", "two-column", "layout", "geometry", "排版", "分栏")):
-        intent, skill = "layout_reflow", "ppt.layout_reflow"
-    elif any(x in text for x in ("diagram", "flowchart", "process", "流程图")):
-        intent, skill = "diagram_composition", "ppt.diagram_composition"
-    elif any(x in text for x in ("font", "color", "fill", "字号", "字体", "颜色")):
-        intent, skill = "atomic_style", "ppt.atomic_style"
-    elif any(x in text for x in ("textbox", "text box", "add element", "文本框")):
-        intent, skill = "element_creation", "ppt.element_creation"
-    if mode == "new_deck" and skill == "ppt.atomic_edit":
-        skill, intent = "ppt.template_build", "template_build"
+
+    if portable is not None:
+        from agent.execution_contract import project_verification_contract
+
+        intent = str(portable.task_type)
+        skill = f"ppt.{portable.task_type}"
+        verification = tuple(project_verification_contract(portable.verification))
+    else:
+        intent = "atomic_edit"
+        skill = "ppt.atomic_edit"
+        verification = ("ppt_structural",)
+
+    if intent in {"template_build", "source_grounded_build"} and not primary:
+        mode = "new_deck"
+    else:
+        mode = "edit_existing" if primary or ".pptx" in text else "new_deck"
+
     operation = ""
-    if skill == "ppt.atomic_edit":
+    if intent in {"atomic_edit", "atomic_style"}:
         if any(x in text for x in ("bullet", "项目符号", "要点", "after “", "after \"")):
             operation = "append_bullet"
         elif any(x in text for x in ("replace", "change", "替换", "改为", "修改")):
             operation = "replace"
+
     if intent == "compose_from_slides" and len(source) >= 2:
         mutation = (max(source) + 1,)
     else:
         mutation = source[:1]
-    verification = ["ppt_structural"]
-    if skill not in {"ppt.atomic_edit", "ppt.atomic_style"}:
-        verification += ["ppt_render", "ppt_visual"]
-    # The compiler no longer emits a fixed step-by-step plan. It only records
-    # the coarse artifact route and contract fields; sequencing decisions
-    # belong to the model inside the Loop.
-    # Reconciliation with the portable contract: when the legacy decision and
-    # the PPTTaskDefinition agree on a canonical type, the portable type wins.
-    # Legacy-only types (source_sync / content_and_layout) stay authoritative
-    # for backward compatibility.
-    if (
-        portable is not None
-        and not contract_skill
-        and skill not in {"ppt.source_sync", "ppt.content_and_layout"}
-        and not (mode == "new_deck" and skill == "ppt.template_build")
-    ):
-        portable_skill = f"ppt.{portable.task_type}"
-        if portable_skill.startswith("ppt."):
-            skill, intent = portable_skill, portable.task_type
-    return TaskSpec(task_root=task_root, artifact_mode=mode, intent=intent, skill=skill,
-                    primary_input=primary, output_path=output, source_slides=source,
-                    operation=operation, mutation_slides=mutation,
-                    verification=tuple(verification), plan=())
+
+    return TaskSpec(
+        task_root=task_root,
+        artifact_mode=mode,
+        intent=intent,
+        skill=skill,
+        primary_input=primary,
+        output_path=output,
+        source_slides=source,
+        operation=operation,
+        mutation_slides=mutation,
+        verification=verification,
+        plan=(),
+    )
 
 
 def brief_json(spec: TaskSpec) -> str:

@@ -382,28 +382,18 @@ class Harness:
             )
             if multi_page_build:
                 fast_path_hint = (
-                    "\n--- New-deck creation fast path (multi-page custom build) ---\n"
-                    "This is a from-scratch new deck task. Do NOT call ppt_open on leftover files in the workspace. "
-                    "Compose ALL requested pages directly with ppt_compose:\n"
-                    "- Slide 1 (Native PPT elements / Workflows): call ppt_compose(kind='workflow_pipeline', slide_number=1, title='报一 AI Agent 端到端认知与执行流水线', steps=[\n"
-                    "    {'title': '意图感知', 'action': '多模态语义解析、消歧与约束建模', 'metric': '意图识别准确率 96.8% · 参数提取 F1=0.94', 'bullets': ['多模态输入流统一接入与领域上下文依赖绑定', '高维向量空间语义匹配与实体参数强类型结构化抽取', '低置信度意图主动多轮反问与操作安全边界划定'], 'deliverable': '产物: 结构化 Intent AST 参数树', 'tag': 'NLU-Parser'},\n"
-                    "    {'title': '动态规划', 'action': 'ReAct 推理、拓扑分解与路径剪枝', 'metric': 'DAG 生成耗时 <200ms · 路径剪枝率 73%', 'bullets': ['多阶段长程目标拓扑排序与动态 DAG 任务图分解', '思维链 (CoT) 实时推理与次优路径启发式剪枝', '工具集前置依赖校验与状态回滚检查点配置'], 'deliverable': '产物: DAG 动态规划执行图', 'tag': 'ReAct-Planner'},\n"
-                    "    {'title': '工具调度', 'action': '异构 API 并发调度与沙箱隔离执行', 'metric': '并发 64 任务 · 调度成功率 99.8%', 'bullets': ['沙箱隔离环境参数化安全注入与权限鉴权控制', '异步高并发工具调度与流式结果增量收集', '运行时网络与接口异常自动熔断、重试与降级自愈'], 'deliverable': '产物: 沙箱执行回传与观测日志', 'tag': 'Sandbox-Exec'},\n"
-                    "    {'title': '质检验收', 'action': '多源结果交叉聚合与自省对齐审计', 'metric': '静态审计覆盖 100% · 目标对齐率 99.2%', 'bullets': ['静态代码语法语义审计与动态运行时鲁棒性验收', '业务考核指标 (KPI) 对齐度打分与可信度数字签名', '多源异构执行产物交叉一致性复核与异常溯源'], 'deliverable': '产物: 可信验收报告与质量签名', 'tag': 'Evaluator'},\n"
-                    "    {'title': '终态交付', 'action': '确定性成果交付与增量向量记忆固化', 'metric': '交付完整率 100% · 经验固化延迟 <500ms', 'bullets': ['标准化交付物打包输出与人机协同闭环确认', '多轮人机交互执行经验自动固化至长期向量记忆库', '智能体核心能力演进追踪与终态归档入库'], 'deliverable': '产物: 长期经验记忆与终态资产', 'tag': 'Memory-Bank'}\n"
-                    "  ], takeaway='实现从非结构化指令到确定性高质交付物的端到端自主闭环演进')\n"
-                    "- Slide 2 (HTML / Web UI style): call ppt_compose(kind='html_slide', slide_number=2, html='<div class=\"slide\"><div class=\"header-area\"><h1>报一 AI Agent 核心架构与运行时全景</h1><p class=\"subtitle\">统一双循环状态机驱动的报一智能体调度平台与质量门禁矩阵</p></div><div class=\"grid-6\"><div class=\"card\"><div class=\"card-header\"><h3>01. 意图感知与语义解析</h3><span class=\"badge\">RUNNING</span></div><p class=\"card-desc\">多模态输入消歧、特征空间对齐与边界约束建模</p><ul><li>统一接入语音、文本与文档流，高维特征空间向量对齐</li><li>基于领域知识图谱消除多义性，构建结构化 Intent 参数树</li></ul><div class=\"card-footer\"><span class=\"deliverable-pill\">📦 产物: 结构化 Intent AST</span><span class=\"tech-tag\">#NLU #Embedding</span></div></div><div class=\"card\"><div class=\"card-header\"><h3>02. ReAct 动态规划引擎</h3><span class=\"badge\">ACTIVE</span></div><p class=\"card-desc\">思维链实时分解、拓扑排序与执行路径动态剪枝</p><ul><li>思维链 (CoT) 实时分解目标，动态生成 DAG 拓扑执行图</li><li>工具前置依赖校验与环境状态感知，次优路径启发式剪枝</li></ul><div class=\"card-footer\"><span class=\"deliverable-pill\">📦 产物: DAG 动态规划执行图</span><span class=\"tech-tag\">#ReAct #Planner</span></div></div><div class=\"card\"><div class=\"card-header\"><h3>03. 异构工具沙箱调度</h3><span class=\"badge\">RUNNING</span></div><p class=\"card-desc\">外部 API 异步并发调度与代码执行沙箱安全隔离</p><ul><li>沙箱隔离环境参数化安全注入，细粒度权限鉴权控制</li><li>异步并发调度外部异构工具，增量流式收集多源执行结果</li></ul><div class=\"card-footer\"><span class=\"deliverable-pill\">📦 产物: 沙箱执行回传流</span><span class=\"tech-tag\">#Sandbox #RPC</span></div></div><div class=\"card\"><div class=\"card-header\"><h3>04. 质量门禁与自省验收</h3><span class=\"badge\">READY</span></div><p class=\"card-desc\">静态规则合规扫描、运行时鲁棒性验收与 KPI 审计</p><ul><li>静态语法/语义合规扫描与动态运行时用例鲁棒性双重验收</li><li>多源执行产物交叉一致性复核，业务对齐度量化评估打分</li></ul><div class=\"card-footer\"><span class=\"deliverable-pill\">📦 产物: 可信质检验收报告</span><span class=\"tech-tag\">#Evaluator #Audit</span></div></div><div class=\"card\"><div class=\"card-header\"><h3>05. 长期向量记忆沉淀</h3><span class=\"badge\">ACTIVE</span></div><p class=\"card-desc\">执行经验轨迹自动提炼与长期向量知识库索引固化</p><ul><li>多轮人机交互执行经验自动结构化提炼，向量索引增量固化</li><li>相似场景经验秒级语义检索，动态注入少样本上下文提示</li></ul><div class=\"card-footer\"><span class=\"deliverable-pill\">📦 产物: 专家经验知识库</span><span class=\"tech-tag\">#VectorDB #Memory</span></div></div><div class=\"card\"><div class=\"card-header\"><h3>06. 终态交付与人机协同</h3><span class=\"badge\">READY</span></div><p class=\"card-desc\">确定性成果标准化打包输出与人机在环闭环确认</p><ul><li>高标准交付资产格式化规范输出，自动生成全流程轨迹审计</li><li>人机在环 (HITL) 关键决策确认，支持历史状态断点回溯自愈</li></ul><div class=\"card-footer\"><span class=\"deliverable-pill\">📦 产物: 终态交付物资产</span><span class=\"tech-tag\">#Delivery #HITL</span></div></div></div><div class=\"summary-bar\"><span>💡 <strong>架构核心价值：</strong>构建从“非结构化多模态指令”到“确定性高质交付物”的端到端自主闭环，兼具高灵活性与工业级可信确定性。</span></div></div>')\n"
-                    "  The harness renders html_slide via headless browser screenshot (raster mode): it auto-injects a premium glassmorphism CSS design system (gradients, box-shadow, backdrop-filter, border-radius, Inter font) and captures a 1920x1080 screenshot that is embedded as a full-bleed image in the PPTX. The result looks pixel-identical to opening the HTML in Chrome. The HTML source is also auto-persisted as slide2.html in the workspace.\n"
-                    "- NEVER use ppt_compose(kind='content') to fake an HTML slide. HTML slides must use kind='html_slide'.\n"
-                    "- DO NOT put meta tokens like (HTML 页面风格) or (PPTX 原生元素) into presentation titles or subtitles.\n"
-                    "- DO NOT overwrite composed workflow_pipeline or html_slide with empty placeholder boxes or bare bullet lists.\n"
-                    "- Make each slide content-rich (200-600 chars, structured cards with badges, deliverables and multi-level points). Bare bullet lists fail quality gates.\n"
-                    "- Once all requested slides are composed: call ppt_save(), then ppt_check(policy='full'), then finish().\n"
+                    "\n--- Multi-page new-deck creation guidance ---\n"
+                    "For multi-page new-deck tasks:\n"
+                    "- create every requested content page;\n"
+                    "- choose compose primitives according to page semantics;\n"
+                    "- do not leave placeholder/cover pages;\n"
+                    "- preserve requested page count and ordering;\n"
+                    "- save, verify, then finish.\n"
                 )
             else:
                 fast_path_hint = (
-                    "\n--- New-deck creation fast path ---\n"
-                    "This is a from-scratch new deck task. Do NOT call ppt_open on leftover files in the workspace. "
+                    "\n--- New-deck creation guidance ---\n"
+                    "This is a from-scratch new deck task. Do NOT call ppt_open on leftover files in the workspace.\n"
                     "Compose each page with ppt_compose using the layout that best matches the content:\n"
                     "- workflow_pipeline (with slide_number) for processes/architectures/workflows\n"
                     "- html_slide (with slide_number and html) for editable vector HTML slide designs\n"
@@ -411,7 +401,7 @@ class Harness:
                     "- hero_split for key highlight + breakdown\n"
                     "- quadrant for 2x2 executive dashboards\n"
                     "- comparison for side-by-side contrasts\n"
-                    "Make every slide content-rich with container cards, badges, and substantive bullet points (150-400 chars per slide). "
+                    "Make every slide content-rich with container cards, badges, and substantive bullet points (150-400 chars per slide).\n"
                     "Then call ppt_save() and ppt_check(policy='full') once the deck is complete.\n"
                 )
         return (
@@ -547,13 +537,19 @@ class Harness:
         self._last_planning_signature = None
         ppt_task = self._is_ppt_task(objective)
         from .intake import prepare_task_brief
-        from .task_compiler import portable_contract_for
-        prepare_task_brief(objective, self.state, self.recorder) if ppt_task else ""
-        spec = compile_task(objective, self.state.facts, self.state.content_brief)
-        portable = portable_contract_for(objective, self.state.facts, self.state.content_brief) if ppt_task else None
-        contract = compile_execution_contract(spec, ppt_task, None if ppt_task else compile_code_task(objective, config.sandbox_root()), portable=portable)
-        self.state.execution_contract = contract
-        self.active_goal = goal_from_contract(objective, contract)
+        from runner.runtime import compile_runtime_task
+        if ppt_task:
+            prepare_task_brief(objective, self.state, self.recorder)
+        compiled = compile_runtime_task(
+            objective,
+            facts=self.state.facts,
+            brief=self.state.content_brief,
+            domain="ppt" if ppt_task else "code",
+            sandbox_root=config.sandbox_root(),
+        )
+        self.task_spec = compiled.task_spec
+        self.state.execution_contract = compiled.execution_contract
+        self.active_goal = goal_from_contract(objective, compiled.execution_contract)
         self.goal_store.save(self.active_goal)
         self.events.publish(EventKind.GOAL_UPDATED, goal=self.active_goal.objective, status=self.active_goal.status,
                             milestones=self.active_goal.milestones, completed=[])
@@ -1006,21 +1002,25 @@ class Harness:
         from .intake import prepare_task_brief
         preflight_brief = prepare_task_brief(effective_task, self.state, self.recorder) if self._is_ppt_task(effective_task) else ""
         preflight_open = self._auto_open_preflight_deck() if preflight_brief else ""
-        self.task_spec = compile_task(effective_task, self.state.facts, preflight_brief)
         is_ppt = self._is_ppt_task(effective_task) or (
             prior_ppt_context and not self._looks_like_code_request(effective_task)
         )
-        code_spec = None if is_ppt else compile_code_task(effective_task, config.sandbox_root())
-        from .task_compiler import portable_contract_for
-        portable = portable_contract_for(effective_task, self.state.facts, preflight_brief) if is_ppt else None
-        self.state.execution_contract = compile_execution_contract(self.task_spec, is_ppt, code_spec, portable=portable)
+        from runner.runtime import compile_runtime_task
+        compiled = compile_runtime_task(
+            effective_task,
+            facts=self.state.facts,
+            brief=preflight_brief,
+            domain="ppt" if is_ppt else "code",
+            sandbox_root=config.sandbox_root(),
+        )
+        self.task_spec = compiled.task_spec
+        self.state.execution_contract = compiled.execution_contract
         self.state.record_fact("task_spec", brief_json(self.task_spec))
         self.state.record_fact("selected_skill", self.task_spec.skill)
         self.state.record_fact("task_intent", self.task_spec.intent)
-        self.state.record_fact("execution_capability", self.state.execution_contract.capability)
-        if code_spec is not None:
-            self.state.record_fact("code_language", code_spec.language)
-            self.state.record_fact("code_test_runner", code_spec.runner or "none")
+        if self.state.execution_contract.language:
+            self.state.record_fact("code_language", self.state.execution_contract.language)
+            self.state.record_fact("code_test_runner", self.state.execution_contract.test_runner or "none")
         if self.task_spec.primary_input:
             self.state.record_fact("primary_input", self.task_spec.primary_input)
         if self.task_spec.output_path:
@@ -1215,9 +1215,9 @@ class Harness:
         # Give code tasks their deterministic language/test-runner context so the
         # model runs the actual tests (run_checks) instead of stopping at a
         # content-only verify_files assertion.
-        if not is_ppt and code_spec is not None and code_spec.runner:
+        if not is_ppt and self.state.execution_contract.test_runner:
             code_message = (
-                f"Code task context: language={code_spec.language}, test runner={code_spec.runner}. "
+                f"Code task context: language={self.state.execution_contract.language}, test runner={self.state.execution_contract.test_runner}. "
                 "After changing files, run the tests with run_checks using this runner, then finish."
             )
             if not any(message.get("content") == code_message for message in self.messages[-4:]):

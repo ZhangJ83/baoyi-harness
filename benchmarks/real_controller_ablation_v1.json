@@ -2,13 +2,13 @@
   "schema": "real-controller-ablation-protocol-v1",
   "status": "prospective_not_run",
   "registered_at": "2026-08-11T05:59:00+08:00",
-  "amended_at": "2026-08-17T12:00:00+08:00",
-  "amendment_boundary": "before any live controller cell was run, the production harness was upgraded so the preregistered CEGAR-H meta-action selector executes online (semantic no-progress control, phase-aware tools, stable artifacts, bounded context, preflight ContentIR, automatic provenance binding, plan injection, finish auto-save, COM render retry). The verify-before-continue gate was then fixed to open on current-epoch structural evidence even when ppt_check reports blocking findings, so the bounded repair cycle cannot deadlock. New from-scratch deck turns now reopen the production facade from any leftover phase, clear stale task facts, convert the new_deck cover when a slide-targeted page is composed, and give multi-page creations explicit per-page layout guidance. Runtime hashes were refreshed prospectively; paired tasks, policies, caps, outcomes, and statistics are unchanged.",
+  "amended_at": "2026-08-18T04:40:00+08:00",
+  "amendment_boundary": "before any live controller cell was run, canonical input decks were relocated to tracked fixtures and the production harness converged to the native composition root with TaskContract as single semantic truth. Runtime hashes were refreshed prospectively; paired tasks, policies, caps, outcomes, and statistics are unchanged.",
   "research_question": "At a fixed model and budget, does CEGAR-H improve real PPT artifact success or reduce verification cost at matched success?",
   "null_hypothesis": "CEGAR-H has no paired success or verification-cost advantage over direct, always-verify, or evidence-only.",
   "task_source": {
     "path": "benchmarks/pptbench_model_eval_v2.json",
-    "sha256": "8f96b5c4d3df5a8c0afe770861953d1adc60937e271653a756d794f87e08441a"
+    "sha256": "d2ae94b87173fd2af434b5dd3d5b6a7668596b0ffcaf60093b0ecc552bafc1c0"
   },
   "paired_task_set": true,
   "n_tasks": 12,
@@ -80,7 +80,7 @@
     "path": "agent/controller_policies.py",
     "sha256": "02a007ee907e2e38b134f113e3f41af305eb62d2aaa26683f48a2b90c0ad7eff",
     "harness_path": "agent/harness.py",
-    "harness_sha256": "05e27aed9875a9053f0d913040aa0e4831aa4e8f36bebfc28bd423ad6f8ba3d2",
+    "harness_sha256": "2d4909eede0caa0eebf5f6ef925fce517da49d90d36140a135a266cbcc28935b",
     "harness_argument": "controller_policy"
   },
   "model": {

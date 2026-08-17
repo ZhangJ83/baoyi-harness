@@ -29,6 +29,24 @@ def classify_ppt_task(text: str) -> PPTTaskType:
     t = (text or "").lower()
     has = lambda *needles: any(n in t for n in needles)  # noqa: E731
 
+    # Task card explicit capabilities first
+    if has("precise text editing", "text structure editing", "global cross-slide text replacement"):
+        return PPTTaskType.ATOMIC_EDIT
+    if has("shape/color editing", "font formatting"):
+        return PPTTaskType.ATOMIC_STYLE
+    if has("cross-slide synthesis and composite generation"):
+        return PPTTaskType.COMPOSE_FROM_SLIDES
+    if has("diagram generation"):
+        return PPTTaskType.DIAGRAM_COMPOSITION
+    if has("content editing plus overlap repair"):
+        return PPTTaskType.LAYOUT_REFLOW
+    if has("element creation and spatial positioning"):
+        return PPTTaskType.ELEMENT_CREATION
+    if has("pptx update from xlsx source; consistency editing", "source-grounded one-slide synthesis; four-quadrant layout; provenance"):
+        return PPTTaskType.SOURCE_GROUNDED_BUILD
+    if has("structured deck generation from mindmap; template following"):
+        return PPTTaskType.TEMPLATE_BUILD
+
     # Legacy xlsx source-sync -> canonical source-grounded build.
     if has("xlsx", "登记簿", "register", "source sync", "同步", "workbook", "工作簿"):
         return PPTTaskType.SOURCE_GROUNDED_BUILD

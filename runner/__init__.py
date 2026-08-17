@@ -17,6 +17,7 @@ from core import (
     compile_task,
 )
 from adapters.base import HarnessAdapter
+from .runtime import CompiledRuntimeTask, compile_runtime_task
 
 
 @dataclass

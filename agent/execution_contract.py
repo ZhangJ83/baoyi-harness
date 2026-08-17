@@ -70,9 +70,38 @@ class ExecutionContract:
         return visible | {"finish"}
 
 
-def compile_execution_contract(spec: TaskSpec | None, ppt_task: bool, code_spec=None, portable=None) -> ExecutionContract:
+def project_verification_contract(verification: Any) -> list[str]:
+    """Map domain verification requirements into runtime evidence certificates."""
+    if hasattr(verification, "required_kinds"):
+        kinds = list(verification.required_kinds())
+    elif isinstance(verification, (tuple, list, set)):
+        kinds = list(verification)
+    else:
+        kinds = ["ppt_structural"]
+    mapping = {
+        "structural": "ppt_structural",
+        "render": "ppt_render",
+        "visual": "ppt_visual",
+        "layout": "ppt_structural",
+        "immutability": "ppt_structural",
+        "content_grounding": "ppt_structural",
+    }
+    projected = [mapping.get(k, k) for k in kinds]
+    if not projected:
+        projected = ["ppt_structural"]
+    return list(dict.fromkeys(projected))
+
+
+def compile_execution_contract(
+    spec: TaskSpec | None,
+    ppt_task: bool,
+    code_spec=None,
+    portable: Any = None,
+) -> ExecutionContract:
     if ppt_task:
-        skill = spec.skill if spec is not None else "ppt.atomic_edit"
+        task_type = str(portable.task_type) if portable is not None else (spec.intent if spec else "atomic_edit")
+        skill = f"ppt.{task_type}" if portable is not None else (spec.skill if spec is not None else "ppt.atomic_edit")
+
         # Single source for capability-to-tool-surface routing.
         from .task_profiles import PPT_OBSERVE, PPT_COMMIT, PPT_VERIFY, tools_for_skill
 
@@ -83,10 +112,17 @@ def compile_execution_contract(spec: TaskSpec | None, ppt_task: bool, code_spec=
         if portable is not None:
             portable_kwargs = {
                 "task_type": portable.task_type,
-                "portable_capabilities": portable.capabilities,
+                "portable_capabilities": tuple(portable.capabilities),
                 "mutation_policy": portable.mutation,
-                "verification_kinds": portable.verification.required_kinds(),
+                "verification_kinds": tuple(portable.verification.required_kinds()) if hasattr(portable.verification, "required_kinds") else (),
             }
+
+        finish_certs = (
+            frozenset(project_verification_contract(portable.verification))
+            if portable is not None and getattr(portable, "verification", None) is not None
+            else frozenset(spec.verification if spec else ("ppt_structural",))
+        )
+
         return ExecutionContract(
             domain=Domain.PPT,
             capability=skill,
@@ -97,12 +133,12 @@ def compile_execution_contract(spec: TaskSpec | None, ppt_task: bool, code_spec=
                 StageSpec("produce", "执行领域操作", (RuntimePhase.PRODUCE,), frozenset(set(PPT_OBSERVE) | mutate | set(PPT_COMMIT) | set(PPT_VERIFY))),
                 StageSpec("verify", "保存并验证", (RuntimePhase.VERIFY,), frozenset(set(PPT_COMMIT) | set(PPT_VERIFY)), frozenset({"ppt_structural"})),
             ),
-            finish_certificates=frozenset(spec.verification if spec else ("ppt_structural",)),
+            finish_certificates=finish_certs,
             max_repairs=(
-                1 if skill in {"ppt.atomic_edit", "ppt.atomic_style"}
-                else 8 if skill in {
-                    "ppt.template_build", "ppt.source_grounded_build",
-                    "ppt.compose_from_slides", "ppt.diagram_composition",
+                1 if task_type in {"atomic_edit", "atomic_style"}
+                else 8 if task_type in {
+                    "template_build", "source_grounded_build",
+                    "compose_from_slides", "diagram_composition",
                 }
                 else 6
             ),

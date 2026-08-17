@@ -2,8 +2,8 @@
   "schema": "pptbench-model-eval-protocol-v2",
   "status": "prospective_not_run",
   "registered_at": "2026-08-11T05:35:00+08:00",
-  "amended_at": "2026-08-18T03:00:00+08:00",
-  "amendment_boundary": "before any model deck generation or reviewer score existed, the Xiaopu runtime was upgraded to the CEGAR-H native artifact architecture, preflight ContentIR intake, and automatic provenance binding; the locally installed Claude Code version is 2.1.228. Runtime hashes were refreshed prospectively; tasks, budgets, outcomes, and statistics are unchanged.",
+  "amended_at": "2026-08-18T04:40:00+08:00",
+  "amendment_boundary": "before any model deck generation or reviewer score existed, canonical input decks were relocated to tracked fixtures and the production harness converged to the native composition root with TaskContract as single semantic truth. Runtime hashes were refreshed prospectively; tasks, budgets, outcomes, and statistics are unchanged.",
   "anti_harking_boundary": "The five deterministic v1 fixtures and controlled four-slide demo are excluded from model-evaluation statistics.",
   "systems": [
     "xiaopu",
