@@ -435,6 +435,56 @@ class HarnessTests(unittest.TestCase):
         self.assertIn("已按用户要求中止", result)
         self.assertNotIn("request closed", result)
 
+    def test_unresolved_checks_prevent_premature_finish_on_plain_text(self):
+        first = LLMReply.from_message(AssistantMessage(content="I think I am done deliberating"))
+        second = LLMReply.from_message(AssistantMessage(tool_calls=[ToolCall("ppt-finish", ToolFn("finish", json.dumps({"summary": "now done"})))]))
+        harness = self.make_harness([first, second])
+        harness.state.record_fact("ppt_input_deck", "deck.pptx")
+        harness.state.record_fact("required_output_pptx", "output.pptx")
+        harness.state.record_change("deck:slide:1:shape:1:text")
+        harness.state.record_evidence("ppt_structural", "passed")
+        harness.state.record_evidence("ppt_render", "passed")
+        harness.state.record_evidence("ppt_visual", "passed")
+        harness.state.unresolved_checks = {"q4_risk_actions_placeholder"}
+        harness.recorder = type("Recorder", (), {
+            "completed": False,
+            "event": lambda *a, **k: None,
+            "finish": lambda *a, **k: None,
+            "manifest": {"artifacts": [{"role": "final-pptx", "path": "output/final.pptx"}]},
+        })()
+        
+        # When first turn returns plain text while unresolved checks remain, harness must reject and steer to second turn
+        def clear_on_second(messages, tools=None):
+            harness.state.unresolved_checks.clear()
+            return second
+        
+        orig_chat = harness.llm.chat
+        call_count = 0
+        def fake_chat(messages, tools=None):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return first
+            harness.state.unresolved_checks.clear()
+            return second
+
+        harness.llm.chat = fake_chat
+        res = harness.run("update slide 1")
+        self.assertEqual(res, "now done")
+        self.assertEqual(call_count, 2)
+
+    def test_completion_summary_generation_for_generic_finish(self):
+        harness = self.make_harness([])
+        harness.deck_path = "output/deck.pptx"
+        harness.deck = type("Deck", (), {"slides": [1, 2]})()
+        harness.state.record_change("output/deck.pptx")
+        harness.state.record_evidence("ppt_structural", "passed", passed=True)
+        summary = harness._build_completion_summary("task marked complete")
+        self.assertIn("任务已顺利完成", summary)
+        self.assertIn("deck.pptx", summary)
+        self.assertIn("共 2 页幻灯片", summary)
+        self.assertIn("ppt_structural", summary)
+
 
 if __name__ == "__main__":
     unittest.main()

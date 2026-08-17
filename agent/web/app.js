@@ -1781,18 +1781,28 @@
       }
     } else if (type === "result") {
       removeWorkingStatus();
-      // Providers occasionally return no token deltas; render the final text
-      // so a completed turn is never invisible in the bubble.
-      const finalText = directText || "";
-      if (finalText && currentAssistantCard && !currentAssistantCard.innerText.trim()) {
-        currentAssistantCard.innerHTML = formatMarkdown(finalText);
+      const finalText = (directText || payload.content || "").trim();
+      if (finalText) {
+        if (!currentAssistantCard) {
+          appendAssistantMessage(finalText);
+        } else if (!currentAssistantCard.innerText.trim()) {
+          currentAssistantCard.innerHTML = formatMarkdown(finalText);
+        } else if (!currentAssistantCard.innerText.includes(finalText.slice(0, 40))) {
+          const summaryDiv = document.createElement("div");
+          summaryDiv.className = "final-summary-card";
+          summaryDiv.style.marginTop = "12px";
+          summaryDiv.style.paddingTop = "12px";
+          summaryDiv.style.borderTop = "1px solid var(--border-color, #e2e8f0)";
+          summaryDiv.innerHTML = formatMarkdown(finalText);
+          currentAssistantCard.appendChild(summaryDiv);
+        }
         scrollToBottom();
       }
       const paused = /已安全暂停|STUCK|额度已用完/.test(finalText);
       livePhase.innerText = "Phase: done";
       liveAction.innerHTML = paused
         ? `<span class="icon" style="color: var(--danger);">${ICONS.close}</span><span>运行安全暂停</span>`
-        : `<span class="icon" style="color: var(--accent-emerald);">${ICONS.check}</span><span>本次运行结束</span>`;
+        : `<span class="icon" style="color: var(--accent-emerald);">${ICONS.check}</span><span>任务已完成并验证</span>`;
     } else if (type === "error") {
       removeWorkingStatus();
       appendSystemMessage(`请求异常: ${directText || payload.content || "未知错误"}`);

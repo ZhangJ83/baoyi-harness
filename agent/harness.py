@@ -570,6 +570,52 @@ class Harness:
             + ("下一里程碑：" + remaining[0] if remaining else "完成条件已满足")
         )
 
+    def _build_completion_summary(self, explicit_summary: str = "") -> str:
+        """Construct a structured, professional task completion summary if needed."""
+        summary_clean = (explicit_summary or "").strip()
+        if summary_clean and summary_clean != "task marked complete":
+            return summary_clean
+
+        ppt_changed = any(str(p).startswith("deck:") or str(p).lower().endswith((".pptx", ".ppt")) for p in self.state.changed_files)
+        target_deck = None
+        if ppt_changed or getattr(self, "deck", None) is not None:
+            target_deck = getattr(self, "deck_path", None)
+            if not target_deck:
+                for p in reversed(list(self.state.changed_files)):
+                    if str(p).lower().endswith(".pptx"):
+                        target_deck = p
+                        break
+            if not target_deck:
+                target_deck = self.state.facts.get("required_output_pptx")
+
+        sections = []
+        if summary_clean and summary_clean != "task marked complete":
+            sections.append(summary_clean)
+        else:
+            goal_text = self.state.goal or "任务执行"
+            sections.append(f"### 🎉 任务已顺利完成\n\n已成功完成目标：**{goal_text}**。")
+
+        # Deliverables block
+        if target_deck:
+            from pathlib import Path
+            deck_p = Path(target_deck)
+            slide_info = ""
+            if getattr(self, "deck", None) is not None and hasattr(self.deck, "slides"):
+                slide_info = f"（共 {len(self.deck.slides)} 页幻灯片）"
+            sections.append(f"**📦 交付产物**：\n- 📄 PPT 演示文稿：`{deck_p.name}` {slide_info}\n- 📁 产物路径：`{target_deck}`")
+        elif self.state.changed_files:
+            file_list = "\n".join(f"- `{f}`" for f in sorted(self.state.changed_files)[:6])
+            sections.append(f"**📦 已修改/交付文件**：\n{file_list}")
+
+        # Verification evidence block
+        evidence_records = self.state.fresh_evidence()
+        if evidence_records:
+            checks_passed = [f"✅ {rec.kind}: {rec.summary}" for rec in evidence_records if rec.passed]
+            if checks_passed:
+                sections.append(f"**🔍 校验与验收状态**：\n" + "\n".join(checks_passed[:5]))
+
+        return "\n\n".join(sections).strip()
+
     def _effective_goal_task(self, task: str) -> tuple[str, bool]:
         """Resolve a bare continuation against the durable goal objective."""
         goal = getattr(self, "active_goal", None)
@@ -1531,12 +1577,24 @@ class Harness:
                     self.messages.append({"role": "assistant", "content": answer})
                     self.messages.append({"role": "user", "content": "You changed files but provided no verification evidence. Run the relevant checks, inspect their output, then finish."})
                     continue
+                if self.state.unresolved_checks:
+                    blockers = sorted(self.state.unresolved_checks)
+                    self.messages.append({"role": "assistant", "content": answer})
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            f"The task cannot finish yet: there are unresolved verification obligations: {', '.join(blockers)}. "
+                            "Repair the cited items, execute ppt_save to persist changes, and run ppt_check to verify before completing."
+                        ),
+                    })
+                    continue
                 if incomplete:
                     self.messages.append({"role": "assistant", "content": answer})
                     self.messages.append({"role": "user", "content": "The task list still contains unfinished items. Continue working or mark genuinely blocked items with evidence."})
                     continue
-                self.state.final_summary = answer
-                return answer
+                final_ans = self._build_completion_summary(answer) if (action_task or ppt_task) else answer
+                self.state.final_summary = final_ans
+                return final_ans
 
             msg.tool_calls = self._coalesce_atomic_inspect_batch(list(msg.tool_calls))
 

@@ -165,7 +165,7 @@ def _finish(h, summary: str):
     elif h.state.changed_files:
         from ..certificate import require_finish_certificates
         require_finish_certificates(h.state)
-    h._done = summary.strip()
+    h._done = h._build_completion_summary(summary) if hasattr(h, "_build_completion_summary") else summary.strip()
     h.state.final_summary = h._done
     if getattr(h, "recorder", None):
         h.recorder.finish(h._done, h.state)
