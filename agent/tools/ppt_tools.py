@@ -6,6 +6,7 @@ an accent underline — built from plain shapes (no templates / no external asse
 """
 import math
 import json
+import re
 import platform
 import shutil
 import subprocess
@@ -14,6 +15,7 @@ from io import BytesIO
 from types import SimpleNamespace
 from typing import Any, Callable
 
+from bs4 import BeautifulSoup
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE, MSO_CONNECTOR
@@ -422,6 +424,7 @@ def _resolve_target_slide(h, slide_number: int | None = None, insert_after: int 
 
 def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: int | None = None, slide_number: int | None = None) -> str:
     prs = _deck(h)
+    title = _clean_presentation_title(title)
     s, position, is_rebuild = _resolve_target_slide(h, slide_number, insert_after)
     _rect(s, 0, 0, _W, _H, _BG)
     # header band
@@ -445,6 +448,7 @@ def _content_slide(h, title: str, bullets: list[str], size: int, insert_after: i
 def _two_column(h, title: str, left_title: str, left: list[str], right_title: str, right: list[str], insert_after: int | None = None) -> str:
     _assert_can_append_slide(h)
     prs = _deck(h)
+    title = _clean_presentation_title(title)
     s = _blank_slide(prs)
     position = _position_new_slide(prs, s, insert_after)
     _rect(s, 0, 0, _W, _H, _BG)
@@ -455,7 +459,7 @@ def _two_column(h, title: str, left_title: str, left: list[str], right_title: st
     for x, heading, bullets in ((0.7, left_title, left), (6.85, right_title, right)):
         card = _rect(s, x, 1.6, 5.75, 5.1, _WHITE, RGBColor(0xDD, 0xDD, 0xD8))
         heading_box = s.shapes.add_textbox(Inches(x + 0.35), Inches(1.9), Inches(5.05), Inches(0.65))
-        _put_lines(heading_box.text_frame, heading, 20, True, _PRIMARY)
+        _put_lines(heading_box.text_frame, _clean_presentation_title(heading), 20, True, _PRIMARY)
         body = s.shapes.add_textbox(Inches(x + 0.35), Inches(2.75), Inches(5.05), Inches(3.55))
         _fit_lines(body.text_frame, [f"•  {item}" for item in bullets], 17, False, _TEXT, 1.2)
     return f"added two-column slide {position}: '{title}'"
@@ -471,7 +475,8 @@ def _quadrant_slide(h, title: str, subtitle: str, quadrants: list[dict], slide_n
     if len(quadrants) != 4:
         raise ValueError("quadrant slide requires exactly four quadrants")
     prs = _deck(h)
-    title = (title or "").strip() or "季度四象限看板"
+    title = _clean_presentation_title(title) or "季度四象限看板"
+    subtitle = _clean_presentation_title(subtitle)
     slide, target, is_rebuild = _resolve_target_slide(h, slide_number)
 
     # Predominantly black and white, with one restrained amber signal color.
@@ -658,6 +663,8 @@ def _workflow_pipeline_slide(
     prs = _deck(h)
     if not 1 <= len(steps) <= 8:
         raise ValueError("workflow_pipeline requires 1-8 steps")
+    title = _clean_presentation_title(title) or "AI Agent 端到端认知与执行流水线"
+    subtitle = _clean_presentation_title(subtitle)
     s, position, is_rebuild = _resolve_target_slide(h, slide_number, insert_after)
 
     _rect(s, 0, 0, _W, _H, _SLATE_LIGHT_BG)
@@ -691,7 +698,7 @@ def _workflow_pipeline_slide(
         brun.text = f"{index:02d}"
         _style_run(brun, 12, True, _WHITE)
 
-        step_title = str(step.get("title", f"步骤 {index}"))
+        step_title = _clean_presentation_title(str(step.get("title", f"步骤 {index}")))
         stb = s.shapes.add_textbox(Inches(x + 0.68), Inches(y + 0.12), Inches(step_w - 0.82), Inches(0.40))
         _put_lines(stb.text_frame, step_title, 14, True, _PRIMARY)
 
@@ -714,9 +721,10 @@ def _workflow_pipeline_slide(
 
         tag = str(step.get("tag", step.get("tech", ""))).strip()
         if tag:
-            tag_w = min(step_w - 0.28, 0.18 + len(tag) * 0.13)
+            tag_w = max(0.95, min(step_w - 0.28, 0.35 + len(tag) * 0.16))
             tag_box = _rounded_rect(s, x + 0.14, y + card_h - 0.38, tag_w, 0.24, _BLUE_BG)
             tag_box.text_frame.clear()
+            tag_box.text_frame.word_wrap = False
             tag_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
             tp = tag_box.text_frame.paragraphs[0]
             tp.alignment = PP_ALIGN.CENTER
@@ -735,7 +743,8 @@ def _workflow_pipeline_slide(
         _rounded_rect(s, margin_x, note_y, total_w, 0.65, _WHITE, _CARD_BORDER)
         _rounded_rect(s, margin_x, note_y, 0.08, 0.65, _ACCENT)
         ntb = s.shapes.add_textbox(Inches(margin_x + 0.20), Inches(note_y + 0.10), Inches(total_w - 0.40), Inches(0.45))
-        _put_lines(ntb.text_frame, f"💡 核心结论: {takeaway}", 12, True, _PRIMARY)
+        clean_takeaway = re.sub(r"^(核心结论|核心价值|主要结论|总结)[:：\s]*", "", str(takeaway).strip())
+        _put_lines(ntb.text_frame, f"💡 核心价值：{clean_takeaway}", 12, True, _PRIMARY)
 
     verb = "rebuilt" if slide_number is not None else "added"
     return f"{verb} workflow pipeline slide {position}: '{title}' ({len(steps)} step cards)"
@@ -945,6 +954,20 @@ body {{
         return png_file.read_bytes()
 
 
+def _clean_presentation_title(title: str) -> str:
+    """Sanitize slide titles/subtitles by stripping AI prompt meta-instructions."""
+    if not title:
+        return ""
+    t = str(title).strip()
+    # Strip meta tokens like (HTML 页面风格), （PPTX 原生元素）, [HTML 制作], 基于现代Web排版 etc.
+    t = re.sub(r"[\(（]\s*(HTML|网页|PPTX|原生|代码|风格|页面|组件).*?[\)）]", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"[\(（]\s*.*?(风格|制作|生成|排版|模式)\s*[\)）]", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\[\s*(HTML|PPTX|原生|网页).*?\]", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"基于.*?(网格|组件|排版|风格|渲染).*?([，,。；;]|$)", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t or str(title).strip()
+
+
 def _compile_html_to_vector_slide(
     h: Any,
     html: str,
@@ -953,40 +976,57 @@ def _compile_html_to_vector_slide(
     default_title: str = "",
 ) -> str:
     """Compile HTML DOM structure into native, 100% editable PowerPoint vector shapes and text boxes."""
-    from bs4 import BeautifulSoup
-    from pptx.util import Inches, Pt
-    from pptx.enum.shapes import MSO_SHAPE
-    from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
-    from pptx.dml.color import RGBColor
-
     soup = BeautifulSoup(html, "html.parser")
-
-    # Detect theme preference (dark vs light)
-    body_style = (soup.find("body").get("style", "") if soup.find("body") else "") + (soup.find(class_=lambda c: c and "slide" in c.split()).get("style", "") if soup.find(class_=lambda c: c and "slide" in c.split()) else "")
-    is_dark = any(kw in body_style.lower() for kw in ("#0f172a", "#1e293b", "#000", "#111", "dark", "background: #1", "background: #0"))
-    if not body_style:
-        is_dark = True
-
-    # Color palette
-    bg_color = RGBColor(0x0F, 0x17, 0x2A) if is_dark else RGBColor(0xF8, 0xFA, 0xFC)
-    card_bg = RGBColor(0x1E, 0x29, 0x3B) if is_dark else RGBColor(0xFF, 0xFF, 0xFF)
-    card_border = RGBColor(0x33, 0x41, 0x55) if is_dark else RGBColor(0xCB, 0xD5, 0xE1)
-    title_color = RGBColor(0x38, 0xBD, 0xF8) if is_dark else RGBColor(0x1E, 0x3A, 0x8A)
-    subtitle_color = RGBColor(0x94, 0xA3, 0xB8) if is_dark else RGBColor(0x47, 0x55, 0x69)
-    text_color = RGBColor(0xF1, 0xF5, 0xF9) if is_dark else RGBColor(0x1E, 0x29, 0x3B)
-    muted_text = RGBColor(0x94, 0xA3, 0xB8) if is_dark else RGBColor(0x64, 0x74, 0x8B)
-    accent_blue = RGBColor(0x25, 0x63, 0xEB)
-    badge_green_bg = RGBColor(0x06, 0x4E, 0x3B) if is_dark else RGBColor(0xDC, 0xFC, 0xE7)
-    badge_green_fg = RGBColor(0x34, 0xD3, 0x99) if is_dark else RGBColor(0x16, 0x65, 0x34)
-    badge_amber_bg = RGBColor(0x78, 0x35, 0x0F) if is_dark else RGBColor(0xFE, 0xF3, 0xC7)
-    badge_amber_fg = RGBColor(0xFB, 0xBF, 0x24) if is_dark else RGBColor(0x92, 0x40, 0x0E)
-    badge_blue_bg = RGBColor(0x1E, 0x3A, 0x8A) if is_dark else RGBColor(0xDB, 0xEA, 0xFE)
-    badge_blue_fg = RGBColor(0x60, 0xA5, 0xFA) if is_dark else RGBColor(0x1E, 0x40, 0xAF)
-
     s, target_index, _ = _resolve_target_slide(h, slide_number, insert_after)
+    return _html_to_vector_slide(h, soup, target_index, default_title=default_title)
+
+
+def _html_to_vector_slide(
+    h: Any,
+    soup: BeautifulSoup,
+    target_index: int,
+    default_title: str = "",
+    theme: str = "dark",
+) -> str:
+    """Compile HTML DOM tree directly into native PowerPoint shapes & vector cards."""
+    prs = _deck(h)
+    s = prs.slides[target_index - 1]
     _clear_slide_shapes(s)
 
-    # 1. Slide Canvas Background Shape
+    # 1. Colors & Theme
+    is_dark = theme.lower() in ("dark", "night", "slate", "black") or soup.find(style=lambda s: s and ("#0f172a" in s or "#1e293b" in s or "black" in s or "#111" in s))
+    if is_dark:
+        bg_color = RGBColor(0x0F, 0x17, 0x2A)       # Deep slate 900
+        card_bg = RGBColor(0x1E, 0x29, 0x3B)        # Slate 800
+        card_border = RGBColor(0x33, 0x41, 0x55)    # Slate 700
+        title_color = RGBColor(0x38, 0xBD, 0xF8)    # Sky blue 400
+        subtitle_color = RGBColor(0x94, 0xA3, 0xB8) # Slate 400
+        text_color = RGBColor(0xF1, 0xF5, 0xF9)     # Slate 100
+        muted_text = RGBColor(0x64, 0x74, 0x8B)     # Slate 500
+        badge_green_bg = RGBColor(0x06, 0x4E, 0x3B)
+        badge_green_fg = RGBColor(0x34, 0xD3, 0x99)
+        badge_amber_bg = RGBColor(0x78, 0x35, 0x0F)
+        badge_amber_fg = RGBColor(0xFB, 0xBF, 0x24)
+        badge_blue_bg = RGBColor(0x1E, 0x3A, 0x8A)
+        badge_blue_fg = RGBColor(0x60, 0xA5, 0xFA)
+        accent_blue = RGBColor(0x02, 0x84, 0xC7)
+    else:
+        bg_color = RGBColor(0xF8, 0xFA, 0xFC)       # Slate 50
+        card_bg = _WHITE
+        card_border = RGBColor(0xE2, 0xE8, 0xF0)
+        title_color = RGBColor(0x0F, 0x17, 0x2A)
+        subtitle_color = RGBColor(0x47, 0x55, 0x69)
+        text_color = RGBColor(0x1E, 0x29, 0x3B)
+        muted_text = RGBColor(0x64, 0x74, 0x8B)
+        badge_green_bg = RGBColor(0xDC, 0xFC, 0xE7)
+        badge_green_fg = RGBColor(0x15, 0x80, 0x3D)
+        badge_amber_bg = RGBColor(0xFE, 0xF3, 0xC7)
+        badge_amber_fg = RGBColor(0xB4, 0x53, 0x09)
+        badge_blue_bg = RGBColor(0xDB, 0xEA, 0xFE)
+        badge_blue_fg = RGBColor(0x1D, 0x4E, 0xD8)
+        accent_blue = _ACCENT
+
+    # Background canvas
     bg_shape = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(_W), Inches(_H))
     bg_shape.fill.solid()
     bg_shape.fill.fore_color.rgb = bg_color
@@ -994,7 +1034,8 @@ def _compile_html_to_vector_slide(
 
     # 2. Header (Title + Subtitle)
     title_el = soup.find(["h1", "h2", "title"])
-    title_text = title_el.get_text().strip() if title_el else (default_title or "AI Agent 架构与执行流程")
+    raw_title = title_el.get_text().strip() if title_el else (default_title or "AI Agent 核心架构与运行时全景")
+    title_text = _clean_presentation_title(raw_title) or "AI Agent 核心架构与运行时全景"
     
     title_box = s.shapes.add_textbox(Inches(0.8), Inches(0.4), Inches(_W - 1.6), Inches(0.55))
     tf_title = title_box.text_frame
@@ -1006,7 +1047,8 @@ def _compile_html_to_vector_slide(
     p_title.font.color.rgb = title_color
 
     sub_el = soup.find(class_=lambda c: c and "sub" in c) or (title_el.find_next_sibling("p") if title_el else soup.find("p"))
-    subtitle_text = sub_el.get_text().strip() if sub_el and sub_el.get_text().strip() != title_text else ""
+    raw_sub = sub_el.get_text().strip() if sub_el and sub_el.get_text().strip() != raw_title else ""
+    subtitle_text = _clean_presentation_title(raw_sub)
     if subtitle_text:
         sub_box = s.shapes.add_textbox(Inches(0.8), Inches(0.95), Inches(_W - 1.6), Inches(0.35))
         tf_sub = sub_box.text_frame
@@ -1030,23 +1072,23 @@ def _compile_html_to_vector_slide(
 
     cards_data = []
     if not cards:
-        all_p = [p for p in soup.find_all(["p", "li"]) if p.get_text().strip() and p.get_text().strip() != subtitle_text]
+        all_p = [p for p in soup.find_all(["li", "p"]) if p.get_text().strip() and p.get_text().strip() != raw_sub]
         if all_p:
             chunk_size = max(1, math.ceil(len(all_p) / 3))
             for c_idx in range(0, min(3, len(all_p))):
                 sub_items = all_p[c_idx * chunk_size : (c_idx + 1) * chunk_size]
                 cards_data.append({
                     "title": f"阶段 0{c_idx+1}",
-                    "bullets": [it.get_text().strip() for it in sub_items],
+                    "bullets": [re.sub(r"^[•\-▶\*\s]+", "", it.get_text().strip()) for it in sub_items if it.get_text().strip()],
                     "status": "ACTIVE" if c_idx == 0 else "READY",
                 })
         else:
-            cards_data = [{"title": "模块概览", "bullets": ["无子模块定义"], "status": "ACTIVE"}]
+            cards_data = [{"title": "核心模块", "bullets": ["多模态智能体协同执行闭环"], "status": "ACTIVE"}]
     else:
         for idx, card in enumerate(cards):
             c_soup = BeautifulSoup(str(card), "html.parser")
-            c_head = c_soup.find(["h2", "h3", "h4", "h5", "strong", "b"])
-            c_title = c_head.get_text().strip() if c_head else f"模块 0{idx+1}"
+            c_head = c_soup.find(["h1", "h2", "h3", "h4", "h5", "strong", "b"])
+            c_title = _clean_presentation_title(c_head.get_text().strip()) if c_head else f"模块 0{idx+1}"
             
             badge_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("badge", "status", "tag", "pill", "chip")))
             c_status = badge_el.get_text().strip().upper() if badge_el else ("RUNNING" if idx == 0 else ("ACTIVE" if idx == 1 else "READY"))
@@ -1054,11 +1096,17 @@ def _compile_html_to_vector_slide(
             metric_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("metric", "stat", "num", "highlight", "time")))
             c_metric = metric_el.get_text().strip() if metric_el else ""
 
+            # Extract ONLY leaf bullet items (<p> or <li>), NEVER the parent container div!
             bullets = []
-            for p in c_soup.find_all(["p", "li", "span", "div"]):
-                t = p.get_text().strip()
-                if t and t != c_title and t != c_status and t != c_metric and not any(t == b for b in bullets):
-                    if not any(t.startswith(b) and len(t) > len(b) for b in bullets):
+            leaf_tags = c_soup.find_all("li")
+            if not leaf_tags:
+                leaf_tags = [p for p in c_soup.find_all("p") if p.get_text().strip() and p.get_text().strip() != raw_sub]
+
+            for item in leaf_tags:
+                t = item.get_text().strip()
+                t = re.sub(r"^[•\-▶\*\s]+", "", t).strip()
+                if t and t != c_title and t != c_status and t != c_metric:
+                    if not any(t == b for b in bullets):
                         bullets.append(t)
             
             tag_el = c_soup.find(class_=lambda c: c and any(k in c.split() for k in ("tech", "code", "anchor", "foot")))
@@ -1093,19 +1141,27 @@ def _compile_html_to_vector_slide(
     gap_x = 0.28
     gap_y = 0.25
     card_w = (max_w - (cols - 1) * gap_x) / cols
-    card_h = (avail_h - (rows - 1) * gap_y) / rows
+    
+    # Adaptive card height based on rows:
+    if rows == 1:
+        card_h = min(4.8, max(3.8, avail_h * 0.85))
+        # Center cards vertically in available height
+        start_cy = grid_top_y + (avail_h - card_h) / 2
+    else:
+        card_h = (avail_h - (rows - 1) * gap_y) / rows
+        start_cy = grid_top_y
 
     for c_idx, card_info in enumerate(cards_data[: cols * rows]):
         c_col = c_idx % cols
         c_row = c_idx // cols
         cx = 0.8 + c_col * (card_w + gap_x)
-        cy = grid_top_y + c_row * (card_h + gap_y)
+        cy = start_cy + c_row * (card_h + gap_y)
 
         c_box = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(cx), Inches(cy), Inches(card_w), Inches(card_h))
         c_box.fill.solid()
         c_box.fill.fore_color.rgb = card_bg
         c_box.line.color.rgb = card_border
-        c_box.line.width = Pt(1)
+        c_box.line.width = Pt(1.1)
 
         acc_bar = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(cx), Inches(cy), Inches(card_w), Inches(0.06))
         acc_bar.fill.solid()
@@ -1115,16 +1171,18 @@ def _compile_html_to_vector_slide(
         stat = card_info.get("status", "")
         bw = 0.0
         if stat:
-            bw = min(card_w * 0.35, 0.18 + len(stat) * 0.08)
+            # Adequate badge width to prevent any vertical text wrap
+            bw = max(0.95, min(card_w * 0.38, 0.30 + len(stat) * 0.12))
             bx = cx + card_w - bw - 0.15
             by = cy + 0.12
-            badge_shape = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(bx), Inches(by), Inches(bw), Inches(0.24))
+            badge_shape = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(bx), Inches(by), Inches(bw), Inches(0.26))
             badge_shape.fill.solid()
             badge_shape.fill.fore_color.rgb = badge_green_bg if any(k in stat for k in ("RUN", "SUCC", "OK", "DONE")) else (badge_amber_bg if any(k in stat for k in ("ACT", "WARN", "PLAN")) else badge_blue_bg)
             badge_shape.line.fill.background()
             
             tf_b = badge_shape.text_frame
             tf_b.clear()
+            tf_b.word_wrap = False
             tf_b.vertical_anchor = MSO_ANCHOR.MIDDLE
             p_b = tf_b.paragraphs[0]
             p_b.alignment = PP_ALIGN.CENTER
@@ -1172,8 +1230,10 @@ def _compile_html_to_vector_slide(
 
         tag = card_info.get("tag", "")
         if tag:
-            tag_box = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cy + card_h - 0.30), Inches(card_w - 0.30), Inches(0.25))
+            tag_w = max(0.95, min(card_w - 0.30, 0.35 + len(tag) * 0.15))
+            tag_box = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cy + card_h - 0.30), Inches(tag_w), Inches(0.25))
             tf_tag = tag_box.text_frame
+            tf_tag.word_wrap = False
             p_tag = tf_tag.paragraphs[0]
             p_tag.text = f"<{tag}>" if not tag.startswith("<") else tag
             p_tag.font.size = Pt(10)
