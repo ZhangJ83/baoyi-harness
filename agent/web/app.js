@@ -455,7 +455,8 @@
   // ------------------------------------------------------------------ PPT Preview & Content Sync
   async function loadPptPreview(slideNum = 1, forceTextUpdate = false) {
     try {
-      const res = await fetch("/api/ppt/content");
+      const wsParam = activeWorkspacePath ? `?workspace=${encodeURIComponent(activeWorkspacePath)}` : "";
+      const res = await fetch(`/api/ppt/content${wsParam}`);
       if (!res.ok) return;
       const data = await res.json();
       currentPptData = data;
@@ -492,7 +493,8 @@
 
       // Render Visual Preview Image
       if (pptPreviewImg) {
-        pptPreviewImg.src = `/api/ppt/preview?slide=${currentSlideIndex}&t=${Date.now()}`;
+        const previewWs = activeWorkspacePath ? `&workspace=${encodeURIComponent(activeWorkspacePath)}` : "";
+        pptPreviewImg.src = `/api/ppt/preview?slide=${currentSlideIndex}${previewWs}&t=${Date.now()}`;
         pptPreviewImg.style.display = "block";
         if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "none";
       }
@@ -516,7 +518,8 @@
       });
     }
     if (pptPreviewImg) {
-      pptPreviewImg.src = `/api/ppt/preview?slide=${currentSlideIndex}&t=${Date.now()}`;
+      const previewWs = activeWorkspacePath ? `&workspace=${encodeURIComponent(activeWorkspacePath)}` : "";
+      pptPreviewImg.src = `/api/ppt/preview?slide=${currentSlideIndex}${previewWs}&t=${Date.now()}`;
       pptPreviewImg.style.display = "block";
       if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "none";
     }
@@ -1166,6 +1169,7 @@
       body: JSON.stringify({ workspace: workspacePath })
     });
     fetchArtifacts();
+    loadPptPreview(1, true);
   }
 
   function newSessionInProject(workspacePath) {
@@ -1207,6 +1211,7 @@
       renderHistory(data);
       refreshTree();
       fetchArtifacts();
+      loadPptPreview(1, true);
       showToast("历史会话已加载，可接着继续对话");
     } catch (e) {
       console.error("Load session failed:", e);
