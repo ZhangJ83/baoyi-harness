@@ -43,6 +43,7 @@ logs/
 *.tar.gz
 *.tgz
 .smoke/
+.tmp/
 .test_runs/
 .test_tmp*/
 .acceptance/
