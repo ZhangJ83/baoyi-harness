@@ -659,7 +659,7 @@ def _workflow_pipeline_slide(
     slide_number: int | None = None,
     insert_after: int | None = None,
 ) -> str:
-    """Compose a modern multi-step horizontal workflow pipeline with cards, badges, and details."""
+    """Compose a modern multi-step workflow pipeline with colored cards, metrics, and grid layout."""
     prs = _deck(h)
     if not 1 <= len(steps) <= 8:
         raise ValueError("workflow_pipeline requires 1-8 steps")
@@ -667,67 +667,132 @@ def _workflow_pipeline_slide(
     subtitle = _clean_presentation_title(subtitle)
     s, position, is_rebuild = _resolve_target_slide(h, slide_number, insert_after)
 
+    # Per-step color palette: (accent, light_bg)
+    _STEP_COLORS = [
+        (RGBColor(0x25, 0x63, 0xEB), RGBColor(0xDB, 0xEA, 0xFE)),  # Blue
+        (RGBColor(0x7C, 0x3A, 0xED), RGBColor(0xED, 0xE9, 0xFE)),  # Purple
+        (RGBColor(0x05, 0x96, 0x69), RGBColor(0xD1, 0xFA, 0xE5)),  # Green
+        (RGBColor(0xD9, 0x77, 0x06), RGBColor(0xFE, 0xF3, 0xC7)),  # Amber
+        (RGBColor(0xDC, 0x26, 0x26), RGBColor(0xFE, 0xE2, 0xE2)),  # Red
+        (RGBColor(0x06, 0x4E, 0x3B), RGBColor(0xCC, 0xFB, 0xF1)),  # Teal
+        (RGBColor(0xDB, 0x27, 0x77), RGBColor(0xFC, 0xE7, 0xF3)),  # Pink
+        (RGBColor(0x47, 0x55, 0x69), RGBColor(0xF1, 0xF5, 0xF9)),  # Slate
+    ]
+
+    # Background & header
     _rect(s, 0, 0, _W, _H, _SLATE_LIGHT_BG)
-    _rect(s, 0, 0, _W, 1.10, _PRIMARY)
-    _rect(s, 0, 1.10, _W, 0.07, _ACCENT)
+    header_h = 0.85
+    _rect(s, 0, 0, _W, header_h, _PRIMARY)
+    _rect(s, 0, header_h, _W, 0.06, _ACCENT)
 
-    title_box = s.shapes.add_textbox(Inches(0.55), Inches(0.12), Inches(8.5), Inches(0.85))
-    _put_lines(title_box.text_frame, title, 25, True, _WHITE)
+    title_box = s.shapes.add_textbox(Inches(0.50), Inches(0.08), Inches(9.0), Inches(0.70))
+    _put_lines(title_box.text_frame, title, 24, True, _WHITE)
     if subtitle:
-        sub_box = s.shapes.add_textbox(Inches(7.2), Inches(0.18), Inches(5.6), Inches(0.70))
-        _put_lines(sub_box.text_frame, subtitle, 12, False, RGBColor(0xD0, 0xD0, 0xD0))
+        sub_box = s.shapes.add_textbox(Inches(7.0), Inches(0.10), Inches(6.0), Inches(0.65))
+        _put_lines(sub_box.text_frame, subtitle, 11, False, RGBColor(0xD0, 0xD0, 0xD0))
 
-    margin_x = 0.55
+    # Adaptive grid layout: wider cards via multi-row
+    n = len(steps)
+    if n <= 3:
+        cols, rows = n, 1
+    elif n == 4:
+        cols, rows = 2, 2
+    elif n <= 6:
+        cols, rows = 3, 2
+    else:
+        cols, rows = 4, 2
+
+    margin_x = 0.45
     total_w = _W - 2 * margin_x
-    gap = 0.20
-    step_w = (total_w - gap * (len(steps) - 1)) / len(steps)
-    card_h = 3.75 if not takeaway else 3.45
-    y = 1.70 if takeaway else 1.95
+    gap_x = 0.24
+    gap_y = 0.22
+    card_w = (total_w - gap_x * (cols - 1)) / cols
 
-    for index, step in enumerate(steps, 1):
-        x = margin_x + (index - 1) * (step_w + gap)
-        _rounded_rect(s, x, y, step_w, card_h, _WHITE, _CARD_BORDER)
-        _rounded_rect(s, x, y, step_w, 0.08, _ACCENT)
+    content_top = header_h + 0.06 + 0.14
+    takeaway_h = 0.52 if takeaway else 0
+    avail_h = _H - content_top - takeaway_h - 0.22
+    if rows == 1:
+        card_h = min(avail_h, 4.8)
+    else:
+        card_h = (avail_h - gap_y * (rows - 1)) / rows
 
-        badge = _rounded_rect(s, x + 0.14, y + 0.14, 0.46, 0.30, _PRIMARY)
+    for idx, step in enumerate(steps):
+        row = idx // cols
+        col = idx % cols
+        items_in_row = min(cols, n - row * cols)
+
+        # Center incomplete bottom row
+        if items_in_row < cols:
+            row_w = items_in_row * card_w + (items_in_row - 1) * gap_x
+            x = margin_x + (total_w - row_w) / 2 + (idx - row * cols) * (card_w + gap_x)
+        else:
+            x = margin_x + col * (card_w + gap_x)
+        y = content_top + row * (card_h + gap_y)
+
+        step_accent, step_bg = _STEP_COLORS[idx % len(_STEP_COLORS)]
+
+        # Card body + colored top bar
+        _rounded_rect(s, x, y, card_w, card_h, _WHITE, _CARD_BORDER)
+        _rounded_rect(s, x, y, card_w, 0.07, step_accent)
+
+        # Colored badge
+        badge = _rounded_rect(s, x + 0.14, y + 0.14, 0.42, 0.28, step_accent)
         badge.text_frame.clear()
         badge.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
         bp = badge.text_frame.paragraphs[0]
         bp.alignment = PP_ALIGN.CENTER
         brun = bp.add_run()
-        brun.text = f"{index:02d}"
-        _style_run(brun, 11.5, True, _WHITE)
+        brun.text = f"{idx + 1:02d}"
+        _style_run(brun, 11, True, _WHITE)
 
-        step_title = _clean_presentation_title(str(step.get("title", f"步骤 {index}")))
-        stb = s.shapes.add_textbox(Inches(x + 0.64), Inches(y + 0.10), Inches(step_w - 0.78), Inches(0.38))
-        _put_lines(stb.text_frame, step_title, 13.5, True, _PRIMARY)
+        # Title
+        step_title = _clean_presentation_title(str(step.get("title", f"步骤 {idx + 1}")))
+        stb = s.shapes.add_textbox(Inches(x + 0.60), Inches(y + 0.10), Inches(card_w - 0.74), Inches(0.34))
+        _put_lines(stb.text_frame, step_title, 14, True, _PRIMARY)
 
+        # Action subtitle
         action = str(step.get("action", step.get("summary", ""))).strip()
-        cur_y = y + 0.50
+        cur_y = y + 0.46
         if action:
-            act_box = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(0.48))
-            _put_lines(act_box.text_frame, action, 10.5, True, _BLUE_ACCENT)
-            cur_y += 0.48
+            act_box = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(card_w - 0.28), Inches(0.30))
+            _put_lines(act_box.text_frame, action, 11, False, step_accent)
+            cur_y += 0.32
 
+        # Metric line (new)
+        metric = str(step.get("metric", "")).strip()
+        if metric:
+            m_rect = _rounded_rect(s, x + 0.14, cur_y, card_w - 0.28, 0.24, step_bg)
+            m_rect.text_frame.clear()
+            m_rect.text_frame.word_wrap = True
+            m_rect.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+            mp = m_rect.text_frame.paragraphs[0]
+            mp.alignment = PP_ALIGN.LEFT
+            mrun = mp.add_run()
+            clean_m = metric if any(metric.startswith(c) for c in ("📊", "⚡", "🚀")) else f"📊 {metric}"
+            mrun.text = f" {clean_m}"
+            _style_run(mrun, 10, True, step_accent)
+            cur_y += 0.28
+
+        # Bullets
         bullets = step.get("bullets", [])
         if isinstance(bullets, str):
             bullets = [bullets]
         detail = str(step.get("detail", "")).strip()
         lines = ([detail] if detail else []) + [f"• {b}" for b in bullets if str(b).strip()][:5]
-        
+
         deliverable = str(step.get("deliverable", step.get("output", ""))).strip()
         tag = str(step.get("tag", step.get("tech", ""))).strip()
-        
-        bottom_reserved = 0.68 if deliverable else 0.38
-        if lines:
-            detail_h = max(0.9, card_h - (cur_y - y) - bottom_reserved)
-            dtb = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(detail_h))
-            _fit_lines(dtb.text_frame, lines, 10, False, _TEXT, 1.18)
 
-        # Output Deliverable Pill
+        bottom_reserved = 0.58 if deliverable else 0.30
+        if lines:
+            detail_h = max(0.6, card_h - (cur_y - y) - bottom_reserved)
+            dtb = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(card_w - 0.28), Inches(detail_h))
+            _fit_lines(dtb.text_frame, lines, 11, False, _TEXT, 1.25)
+
+        # Deliverable pill
         if deliverable:
             deliv_text = deliverable if deliverable.startswith("📦") or deliverable.startswith("产物") else f"📦 {deliverable}"
-            del_box = _rounded_rect(s, x + 0.14, y + card_h - 0.60, step_w - 0.28, 0.24, RGBColor(0xF1, 0xF5, 0xF9), RGBColor(0xE2, 0xE8, 0xF0))
+            del_box = _rounded_rect(s, x + 0.14, y + card_h - 0.54, card_w - 0.28, 0.24, step_bg, step_accent)
             del_box.text_frame.clear()
             del_box.text_frame.word_wrap = True
             del_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -735,12 +800,12 @@ def _workflow_pipeline_slide(
             dp.alignment = PP_ALIGN.LEFT
             drun = dp.add_run()
             drun.text = f" {deliv_text}"
-            _style_run(drun, 9.0, False, RGBColor(0x33, 0x41, 0x55))
+            _style_run(drun, 9.5, False, RGBColor(0x33, 0x41, 0x55))
 
+        # Tag pill (colored per step)
         if tag:
-            tag_w = max(0.95, min(step_w - 0.28, 0.35 + len(tag) * 0.16))
-            tag_y = y + card_h - 0.32
-            tag_box = _rounded_rect(s, x + 0.14, tag_y, tag_w, 0.22, _BLUE_BG)
+            tag_w = max(0.95, min(card_w - 0.28, 0.35 + len(tag) * 0.16))
+            tag_box = _rounded_rect(s, x + 0.14, y + card_h - 0.28, tag_w, 0.20, step_bg)
             tag_box.text_frame.clear()
             tag_box.text_frame.word_wrap = False
             tag_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -748,19 +813,20 @@ def _workflow_pipeline_slide(
             tp.alignment = PP_ALIGN.CENTER
             trun = tp.add_run()
             trun.text = f"#{tag}"
-            _style_run(trun, 9.5, True, _BLUE_ACCENT)
+            _style_run(trun, 9.5, True, step_accent)
 
-        if index < len(steps):
-            arrow_x = x + step_w + (gap - 0.18) / 2
-            arrow_y = y + card_h / 2 - 0.15
-            atb = s.shapes.add_textbox(Inches(arrow_x), Inches(arrow_y), Inches(0.25), Inches(0.30))
-            _put_lines(atb.text_frame, "▶", 12, True, _ACCENT)
+        # Arrow (within same row only)
+        if col < items_in_row - 1:
+            arrow_x = x + card_w + (gap_x - 0.18) / 2
+            arrow_y = y + card_h / 2 - 0.12
+            atb = s.shapes.add_textbox(Inches(arrow_x), Inches(arrow_y), Inches(0.20), Inches(0.24))
+            _put_lines(atb.text_frame, "▶", 11, True, step_accent)
 
     if takeaway:
-        note_y = y + card_h + 0.22
-        _rounded_rect(s, margin_x, note_y, total_w, 0.65, _WHITE, _CARD_BORDER)
-        _rounded_rect(s, margin_x, note_y, 0.08, 0.65, _ACCENT)
-        ntb = s.shapes.add_textbox(Inches(margin_x + 0.20), Inches(note_y + 0.10), Inches(total_w - 0.40), Inches(0.45))
+        note_y = _H - takeaway_h - 0.16
+        _rounded_rect(s, margin_x, note_y, total_w, 0.48, _WHITE, _CARD_BORDER)
+        _rounded_rect(s, margin_x, note_y, 0.08, 0.48, _ACCENT)
+        ntb = s.shapes.add_textbox(Inches(margin_x + 0.20), Inches(note_y + 0.06), Inches(total_w - 0.40), Inches(0.36))
         clean_takeaway = re.sub(r"^(核心结论|核心价值|主要结论|总结)[:：\s]*", "", str(takeaway).strip())
         _put_lines(ntb.text_frame, f"💡 核心价值：{clean_takeaway}", 12, True, _PRIMARY)
 
