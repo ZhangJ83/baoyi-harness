@@ -1,1 +1,0 @@
-create-system-architecture always_verify usage_ledger

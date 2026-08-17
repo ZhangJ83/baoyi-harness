@@ -1,1 +1,0 @@
-edit-coffee-comparison direct structural_report

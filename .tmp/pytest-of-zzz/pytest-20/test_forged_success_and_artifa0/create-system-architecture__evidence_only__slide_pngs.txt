@@ -1,1 +1,0 @@
-create-system-architecture evidence_only slide_pngs

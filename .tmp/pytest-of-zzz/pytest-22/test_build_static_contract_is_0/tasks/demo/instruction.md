@@ -1,1 +1,0 @@
-convert the checklist into a two-column layout

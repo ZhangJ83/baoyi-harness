@@ -1,1 +1,0 @@
-create-bilingual-program direct slide_pngs

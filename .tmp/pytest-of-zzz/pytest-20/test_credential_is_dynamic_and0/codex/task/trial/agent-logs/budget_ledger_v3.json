@@ -1,1 +1,0 @@
-{"system": "codex", "within_budget": true, "covered_local_tool_calls": 0, "output_tokens": 3, "caps": {"max_cumulative_output_tokens": 10, "max_covered_local_tool_calls": 2, "max_agent_wall_seconds": 5}, "parse_errors": [], "gateway_violations": [], "gateway_output_matches_cli_stream": true}

@@ -1,1 +1,0 @@
-create-scientific-result direct pdf

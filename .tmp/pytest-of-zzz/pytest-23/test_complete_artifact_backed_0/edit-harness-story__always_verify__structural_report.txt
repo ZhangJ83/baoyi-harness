@@ -1,1 +1,0 @@
-edit-harness-story always_verify structural_report
