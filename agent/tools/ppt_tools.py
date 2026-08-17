@@ -3405,15 +3405,31 @@ def _deck_completeness_gate(h) -> str:
             return f"slide {slide_number} has no visible body text objects; at least 1 is required"
         if is_new_deck and len(h.deck.slides) > 1 and slide_number > 1:
             has_cards = any(
-                (sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(2.0) < sh.width < Inches(_W * 0.9) and Inches(1.2) < sh.height < Inches(_H * 0.9))
+                (sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(1.5) < sh.width < Inches(_W * 0.98) and Inches(0.8) < sh.height < Inches(_H * 0.98))
                 or (sh.shape_type == MSO_SHAPE_TYPE.PICTURE)
                 or getattr(sh, "has_table", False)
                 for sh in slide.shapes
             )
-            if total_chars < 80 and not has_cards:
+            if total_chars < 100 and not has_cards:
                 return f"slide {slide_number} content density too sparse ({total_chars} visible chars); presentation slides require rich technical details (120-400 chars) with structured cards/steps/badges"
         if total_chars < 15:
             return f"slide {slide_number} is too thin ({total_chars} visible characters; minimum 15)"
+
+    # Enforce HTML slide requirement if task explicitly requested HTML
+    task_goal = str(getattr(getattr(h, "state", None), "initial_goal", "") or getattr(getattr(h, "state", None), "task_prompt", "") or "").casefold()
+    requires_html = any(kw in task_goal for kw in ("html 进行制作", "html制作", "html 制作", "第二页采用 html", "第二页使用 html", "第2页采用 html", "第2页使用 html"))
+    if requires_html and len(h.deck.slides) >= 2:
+        slide2 = h.deck.slides[1]
+        has_vector_cards = any(
+            sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(1.2) < sh.width < Inches(_W * 0.95) and Inches(0.6) < sh.height < Inches(_H * 0.95)
+            for sh in slide2.shapes
+        )
+        if not has_vector_cards:
+            return (
+                "Task explicitly requires Slide 2 to be created using HTML (网页/HTML组件风格). "
+                "Slide 2 currently lacks HTML vector card components. "
+                "Please call ppt_compose(kind='html_slide', slide_number=2, html='...') with rich modern web cards (<div class=\"card\">...</div>) and badges."
+            )
     return ""
 
 
