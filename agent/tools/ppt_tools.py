@@ -510,7 +510,7 @@ def _quadrant_slide(h, title: str, subtitle: str, quadrants: list[dict], slide_n
         if source:
             sources.append(f"Q{index}: {source}")
             chip = slide.shapes.add_textbox(Inches(x + 0.28), Inches(y + 2.19), Inches(5.35), Inches(0.22))
-            _put_lines(chip.text_frame, source, 8, False, _MUTED)
+            _put_lines(chip.text_frame, source, 10, False, _MUTED)
             try:
                 chip.name = f"Q{index}_provenance_{source[:36]}"
             except (AttributeError, ValueError):
@@ -722,7 +722,7 @@ def _workflow_pipeline_slide(
             tp.alignment = PP_ALIGN.CENTER
             trun = tp.add_run()
             trun.text = f"#{tag}"
-            _style_run(trun, 8, True, _BLUE_ACCENT)
+            _style_run(trun, 10, True, _BLUE_ACCENT)
 
         if index < len(steps):
             arrow_x = x + step_w + (gap - 0.18) / 2
@@ -839,7 +839,7 @@ def _html_mockup_slide(
             sp.alignment = PP_ALIGN.CENTER
             srun = sp.add_run()
             srun.text = status
-            _style_run(srun, 8, True, _GREEN_ACCENT)
+            _style_run(srun, 10, True, _GREEN_ACCENT)
 
         metric = str(card_data.get("metric", card_data.get("highlight", ""))).strip()
         cur_cy = cy + 0.42
@@ -861,7 +861,7 @@ def _html_mockup_slide(
         anchor = str(card_data.get("html_anchor", card_data.get("anchor", card_data.get("source", "")))).strip()
         if anchor:
             chip = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cy + ch - 0.28), Inches(cw - 0.30), Inches(0.22))
-            _put_lines(chip.text_frame, f"<{anchor}>", 8, False, _TEXT_MUTED)
+            _put_lines(chip.text_frame, f"<{anchor}>", 10, False, _TEXT_MUTED)
 
     verb = "rebuilt" if slide_number is not None else "added"
     return f"{verb} HTML mockup slide {position}: '{title}' ({len(cards)} UI cards)"
@@ -1130,7 +1130,7 @@ def _compile_html_to_vector_slide(
             p_b.alignment = PP_ALIGN.CENTER
             r_b = p_b.add_run()
             r_b.text = stat
-            r_b.font.size = Pt(8)
+            r_b.font.size = Pt(10)
             r_b.font.bold = True
             r_b.font.color.rgb = badge_green_fg if any(k in stat for k in ("RUN", "SUCC", "OK", "DONE")) else (badge_amber_fg if any(k in stat for k in ("ACT", "WARN", "PLAN")) else badge_blue_fg)
 
@@ -1176,7 +1176,7 @@ def _compile_html_to_vector_slide(
             tf_tag = tag_box.text_frame
             p_tag = tf_tag.paragraphs[0]
             p_tag.text = f"<{tag}>" if not tag.startswith("<") else tag
-            p_tag.font.size = Pt(8)
+            p_tag.font.size = Pt(10)
             p_tag.font.color.rgb = muted_text
 
     h.state.ppt_affected_slides.add(target_index)

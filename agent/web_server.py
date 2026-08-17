@@ -1115,7 +1115,40 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             self.close_connection = True
 
 
+def _kill_existing_server_on_port(port: int = 8765) -> None:
+    """Ensure any stale/zombie process occupying port is terminated before starting."""
+    if sys.platform != "win32":
+        return
+    import subprocess
+    import os
+    import time
+    current_pid = os.getpid()
+    try:
+        cmd = f'netstat -ano | findstr :{port}'
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, errors="ignore")
+        pids_to_kill = set()
+        for line in (res.stdout or "").strip().splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 5 and "LISTENING" in parts[3].upper():
+                try:
+                    pid = int(parts[4])
+                    if pid != current_pid and pid > 0:
+                        pids_to_kill.add(pid)
+                except ValueError:
+                    pass
+        for pid in pids_to_kill:
+            try:
+                subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+            except Exception:
+                pass
+        if pids_to_kill:
+            time.sleep(0.6)
+    except Exception:
+        pass
+
+
 def run_web_gui(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, model: str | None = None) -> None:
+    _kill_existing_server_on_port(port)
     XiaopuWebHandler.harness = Harness(model=model, interactive=True, max_steps=50)
     server = ThreadingHTTPServer((host, port), XiaopuWebHandler)
     url = f"http://{host}:{port}"
