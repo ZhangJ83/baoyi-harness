@@ -1490,6 +1490,9 @@ class Harness:
                     ),
                 })
                 if self.state.no_progress_streak >= 2:
+                    if getattr(self, "interactive", False):
+                        self.state.no_progress_streak = 0
+                        continue
                     saved = self._save_draft_before_pause()
                     saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
                     return f"已安全暂停：模型连续请求本阶段未开放的工具，控制器已阻止执行。{saved_note}"
@@ -1667,22 +1670,9 @@ class Harness:
                 return self.state.final_summary
             if ppt_task and self.state.no_progress_streak >= 2:
                 self.state.controller_redirects += 1
-                # Preflight ContentIR can advance the phase to PRODUCE before the
-                # first model turn, so a stuck observer is not always in
-                # INTAKE/UNDERSTAND. Force a bounded action pass whenever the
-                # run has produced nothing yet and is only re-reading unchanged
-                # inputs, regardless of the current phase label.
-                #
-                # The same bounded-pass rule applies after edits: if the model
-                # keeps issuing no-op equivalent edits while a saved, freshly
-                # verified draft already exists, the shortest path is to run the
-                # official evaluator and finish instead of pausing mid-loop.
                 official_eval = self.state.facts.get("official_evaluator_present") == "true"
-                redirect_limit = 8 if official_eval else 2
-                can_redirect = self.state.controller_redirects <= redirect_limit and (
-                    self.state.mutation_epoch == 0
-                    or (self.state.fresh_evidence() and self.state.mutation_epoch > 0)
-                )
+                redirect_limit = 25 if not strict_budget else (12 if official_eval else 6)
+                can_redirect = self.state.controller_redirects <= redirect_limit
                 if can_redirect:
                     previous_phase = self.state.phase
                     if self.state.mutation_epoch == 0:
@@ -1698,11 +1688,16 @@ class Harness:
                         blockers = sorted(self.state.unresolved_checks)
                         if blockers:
                             message = (
-                                "CEGAR-H detected repeated equivalent observations/edits with no new information, "
-                                f"but these verifier obligations are still unresolved: {', '.join(blockers)}. "
+                                "CEGAR-H detected repeated observations/edits with unresolved verifier obligations: "
+                                f"{', '.join(blockers)}. "
                                 "Do not reopen files or re-inspect unchanged slides. Repair ONLY the cited slides/shapes "
                                 "with ppt_edit_text (set_shape_text/set_table/batch_updates) or ppt_metadata, then "
                                 "ppt_save and rerun ppt_check. finish stays rejected until the blockers clear."
+                            )
+                        elif not self.state.fresh_evidence():
+                            message = (
+                                "CEGAR-H: Artifact modifications are in progress. "
+                                "Persist your changes with ppt_save, run ppt_check to verify integrity, and call finish to complete the task."
                             )
                         else:
                             message = (
@@ -1714,13 +1709,36 @@ class Harness:
                     self.messages.append({"role": "user", "content": message})
                     self._maybe_compact(force=True)
                     continue
+                if getattr(self, "interactive", False):
+                    saved = self._save_draft_before_pause()
+                    self.state.no_progress_streak = 0
+                    self.state.controller_redirects = 0
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            "Execution checkpoint: observation loop closed. "
+                            f"Active draft is saved ({saved or 'in memory'}). Execute ppt_check to verify obligations and call finish immediately."
+                        ),
+                    })
+                    continue
                 saved = self._save_draft_before_pause()
                 saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
                 return f"已安全暂停：连续三次执行相同操作或等价观察但没有获得新信息，控制器已阻止继续空转。{saved_note}"
-            if same_signature_streak >= 3 and self.state.no_progress_streak >= 3:
+            if same_signature_streak >= 3:
+                if getattr(self, "interactive", False):
+                    same_signature_streak = 0
+                    self.state.no_progress_streak = 0
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            "Notice: You called the same tool with identical arguments 3 times without progress. "
+                            "Do NOT repeat this call. Switch action now: execute ppt_save, ppt_check, or finish."
+                        ),
+                    })
+                    continue
                 saved = self._save_draft_before_pause()
                 saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
-                return f"⚠ 已安全暂停：连续三次执行相同操作且 obligations 无进展。{saved_note}\n\n会话与工作状态已保留；请检查工具参数，或输入“继续”让我换一种路径。"
+                return f"已安全暂停：连续三次执行相同操作或等价观察但没有获得新信息，控制器已阻止继续空转。{saved_note}"
             self._maybe_compact()
             if not strict_budget and (step_index + 1) % self.max_steps == 0:
                 self._maybe_compact(force=True)
@@ -2087,16 +2105,20 @@ class Harness:
                 del history[:-5]
                 stuck = len(history) == 5 and len(set(history)) == 1
                 if stuck:
-                    saved = self._save_draft_before_pause()
-                    blocker_text = ", ".join(sorted(blockers)) or str(exc)[:120]
-                    self.state.record_fact("blocking_obligations", blocker_text)
-                    self.state.record_fact("run_status", "paused_unresolved")
-                    self._done = (
-                        f"⚠ 已进入 STUCK（安全暂停）：同一 rejection signature 连续出现 3 次\n"
-                        f"   action={tc.function.name} · error={type(exc).__name__} · blockers=[{blocker_text}]\n"
-                        + (f"\n暂停前已保存当前草稿：{saved}。" if saved else "")
-                        + "\n\n未解决 obligations 已记录，模型调用已停止；输入“继续”或定向修复 blocker 后续接。"
-                    )
+                    history.clear()
+                    if not strict_budget:
+                        hint += " (STUCK prevention: switched to direct recovery; use ppt_save / ppt_check or set_shape_text instead)."
+                    else:
+                        saved = self._save_draft_before_pause()
+                        blocker_text = ", ".join(sorted(blockers)) or str(exc)[:120]
+                        self.state.record_fact("blocking_obligations", blocker_text)
+                        self.state.record_fact("run_status", "paused_unresolved")
+                        self._done = (
+                            f"⚠ 已进入 STUCK（安全暂停）：同一 rejection signature 连续出现 3 次\n"
+                            f"   action={tc.function.name} · error={type(exc).__name__} · blockers=[{blocker_text}]\n"
+                            + (f"\n暂停前已保存当前草稿：{saved}。" if saved else "")
+                            + "\n\n未解决 obligations 已记录，模型调用已停止；输入“继续”或定向修复 blocker 后续接。"
+                        )
                 if getattr(self, "recorder", None):
                     self.recorder.event("tool_failed", call_id=tc.id, tool=tc.function.name, error_type=type(exc).__name__, error=str(exc))
                 self.events.publish(EventKind.TOOL_FAILED, call_id=tc.id, tool=tc.function.name, error_type=type(exc).__name__, error=str(exc))

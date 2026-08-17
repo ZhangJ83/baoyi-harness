@@ -35,7 +35,7 @@ def test_web_static_index_html(web_test_server):
     assert req.status == 200
     assert "text/html" in req.headers.get("Content-Type", "")
     content = req.read().decode("utf-8")
-    assert "小朴" in content
+    assert "报一" in content or "Baoyi" in content
     assert "activity-drawer" in content
     assert "prompt-input" in content
     # Sidebar management v2 controls

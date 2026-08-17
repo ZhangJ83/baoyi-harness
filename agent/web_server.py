@@ -245,27 +245,85 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 
-def _find_active_deck(ws_path: Path | None = None) -> Path | None:
+def _find_active_deck(
+    ws_path: Path | None = None,
+    session_id: str | None = None,
+    specific_file: str | Path | None = None,
+    harness: Any = None,
+) -> Path | None:
+    # 1. Explicit file parameter passed from client
+    if specific_file:
+        sp = Path(specific_file)
+        if not sp.is_absolute() and ws_path:
+            sp = ws_path / sp
+        if sp.exists() and sp.is_file() and sp.suffix.lower() in (".pptx", ".ppt") and sp.stat().st_size > 0:
+            return sp
+
+    # 2. If session_id is provided, check if the session has an associated PPT deck
+    if session_id:
+        try:
+            from .session_store import load_session
+            snap = load_session(session_id)
+            if snap:
+                # Check deck_working_path or deck_source_path or required_output_pptx
+                for key in ("deck_working_path", "deck_source_path", "required_output_pptx"):
+                    val = snap.get(key)
+                    if val:
+                        p = Path(val)
+                        if not p.is_absolute() and ws_path:
+                            p = ws_path / p
+                        if p.exists() and p.is_file() and p.suffix.lower() in (".pptx", ".ppt") and p.stat().st_size > 0:
+                            return p
+                # Check messages for saved pptx paths
+                for msg in reversed(snap.get("messages", [])):
+                    content = str(msg.get("content", ""))
+                    import re
+                    matches = re.findall(r'[\'"]?([a-zA-Z0-9_\\/\-.:]+\.pptx)[\'"]?', content, re.IGNORECASE)
+                    for match in matches:
+                        mp = Path(match.strip("\'\""))
+                        if not mp.is_absolute() and ws_path:
+                            mp = ws_path / mp
+                        if mp.exists() and mp.is_file() and mp.stat().st_size > 0:
+                            return mp
+        except Exception:
+            pass
+
+    # 3. If harness has an active deck or changed pptx files in current task
+    if harness is not None:
+        deck_path = getattr(harness, "deck_path", None)
+        if deck_path:
+            dp = Path(deck_path)
+            if dp.exists() and dp.is_file() and dp.stat().st_size > 0:
+                return dp
+        changed = getattr(getattr(harness, "state", None), "changed_files", None)
+        if changed:
+            pptx_changed = [
+                Path(p) for p in changed
+                if str(p).lower().endswith((".pptx", ".ppt")) and Path(p).exists() and Path(p).is_file() and Path(p).stat().st_size > 0
+            ]
+            if pptx_changed:
+                pptx_changed.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                return pptx_changed[0]
+
+    # 4. Search in ws_path (or config.sandbox_root())
     root = ws_path or config.sandbox_root()
     if not root.is_dir():
         return None
-    d = root / "deck.pptx"
-    if d.exists() and d.is_file() and d.stat().st_size > 0:
-        return d
-    pptxs = sorted(
-        [p for p in root.glob("*.pptx") if not p.name.startswith("~$") and p.is_file()],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    if pptxs:
-        return pptxs[0]
-    rec_pptxs = sorted(
-        [p for p in root.rglob("*.pptx") if not p.name.startswith("~$") and p.is_file()],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    if rec_pptxs:
-        return rec_pptxs[0]
+
+    # Collect all valid .pptx files recursively, excluding temp & cache files
+    candidates: list[Path] = []
+    try:
+        for p in root.rglob("*.pptx"):
+            if not p.name.startswith("~$") and not any(part.startswith(".") for part in p.parts) and p.is_file() and p.stat().st_size > 0:
+                candidates.append(p)
+    except Exception:
+        pass
+
+    if candidates:
+        # Sort strictly by mtime descending (most recently modified/created first)
+        candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return candidates[0]
+
     return None
 
 
@@ -344,11 +402,13 @@ _COM_RENDER_LOCK = threading.Lock()
 
 def _render_deck_slide_preview(pptx_path: Path, slide_number: int = 1) -> bytes | None:
     import io
+    import hashlib
     # 1. Try Windows PowerPoint COM for 100% native pixel-perfect quality
     if sys.platform == "win32":
-        cache_dir = config.sandbox_root() / ".xiaopu" / "preview_cache"
+        cache_dir = config.sandbox_root() / ".baoyi" / "preview_cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
-        out_png = cache_dir / f"slide_{slide_number}_{int(pptx_path.stat().st_mtime)}.png"
+        path_hash = hashlib.md5(str(pptx_path.resolve()).encode("utf-8", errors="replace")).hexdigest()[:12]
+        out_png = cache_dir / f"slide_{path_hash}_{slide_number}_{int(pptx_path.stat().st_mtime)}.png"
         if out_png.exists() and out_png.stat().st_size > 0:
             return out_png.read_bytes()
 
@@ -374,13 +434,13 @@ def _render_deck_slide_preview(pptx_path: Path, slide_number: int = 1) -> bytes 
                             prs.Close()
                         except Exception:
                             pass
-                        del prs
+                        prs = None
                     if ppt_app is not None:
                         try:
                             ppt_app.Quit()
                         except Exception:
                             pass
-                        del ppt_app
+                        ppt_app = None
                     try:
                         pythoncom.CoUninitialize()
                     except Exception:
@@ -731,12 +791,14 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
 
         if path == "/api/ppt/content":
             ws_param = query.get("workspace", [None])[0]
+            session_param = query.get("session_id", [None])[0] or query.get("session", [None])[0]
+            file_param = query.get("file", [None])[0] or query.get("path", [None])[0]
             ws_root = Path(ws_param) if ws_param else config.sandbox_root()
-            deck_path = _find_active_deck(ws_root)
+            deck_path = _find_active_deck(ws_root, session_id=session_param, specific_file=file_param, harness=self.harness)
             if not deck_path or not deck_path.exists():
                 self._send_json({
                     "success": False,
-                    "error": "当前工作区暂未生成 PPT 文件",
+                    "error": "当前会话暂未生成 PPT 文件",
                     "deck_name": "",
                     "total_slides": 0,
                     "slides": [],
@@ -749,9 +811,11 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
 
         if path == "/api/ppt/preview":
             ws_param = query.get("workspace", [None])[0]
+            session_param = query.get("session_id", [None])[0] or query.get("session", [None])[0]
+            file_param = query.get("file", [None])[0] or query.get("path", [None])[0]
             ws_root = Path(ws_param) if ws_param else config.sandbox_root()
             slide_idx = int(query.get("slide", ["1"])[0])
-            deck_path = _find_active_deck(ws_root)
+            deck_path = _find_active_deck(ws_root, session_id=session_param, specific_file=file_param, harness=self.harness)
             if not deck_path or not deck_path.exists():
                 # Return empty fallback image
                 from PIL import Image

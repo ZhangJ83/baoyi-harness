@@ -55,6 +55,7 @@
   const btnApplyPptText = document.getElementById("btn-apply-ppt-text");
 
   let currentPptData = null;
+  let currentDeckPath = "";
   let currentSlideIndex = 1;
 
   // Topbar Actions
@@ -275,7 +276,7 @@
         artifactsWsInfo.innerText = `当前工作区：${data.workspace || activeWorkspacePath || "-"}`;
       }
       renderArtifactsList(cachedArtifacts);
-      loadPptPreview(currentSlideIndex, false);
+      loadPptPreview(currentSlideIndex, false, null, activeSessionId);
     } catch (e) {
       console.error("Fetch artifacts error:", e);
     }
@@ -387,6 +388,18 @@
         await handleUndoPpt();
       });
     });
+
+    document.querySelectorAll(".artifact-item-card").forEach(card => {
+      card.addEventListener("click", async () => {
+        const p = card.getAttribute("data-path");
+        if (p && (p.toLowerCase().endsWith(".pptx") || p.toLowerCase().endsWith(".ppt"))) {
+          if (tabPptBtn) tabPptBtn.click();
+          if (artifactsModal) artifactsModal.style.display = "none";
+          await loadPptPreview(1, true, p);
+          showToast(`已切换 PPT 预览：${p.split(/[\\/]/).pop()}`);
+        }
+      });
+    });
   }
 
   async function revealFile(filePath) {
@@ -453,10 +466,16 @@
   }
 
   // ------------------------------------------------------------------ PPT Preview & Content Sync
-  async function loadPptPreview(slideNum = 1, forceTextUpdate = false) {
+  async function loadPptPreview(slideNum = 1, forceTextUpdate = false, specificFile = null, sessionId = null) {
     try {
-      const wsParam = activeWorkspacePath ? `?workspace=${encodeURIComponent(activeWorkspacePath)}` : "";
-      const res = await fetch(`/api/ppt/content${wsParam}`);
+      const targetSessionId = sessionId !== null && sessionId !== undefined ? sessionId : activeSessionId;
+      const params = new URLSearchParams();
+      if (activeWorkspacePath) params.set("workspace", activeWorkspacePath);
+      if (targetSessionId) params.set("session_id", targetSessionId);
+      if (specificFile) params.set("file", specificFile);
+      const queryString = params.toString() ? `?${params.toString()}` : "";
+
+      const res = await fetch(`/api/ppt/content${queryString}`);
       if (!res.ok) return;
       const data = await res.json();
       currentPptData = data;
@@ -468,6 +487,7 @@
         if (pptPreviewImg) pptPreviewImg.style.display = "none";
         if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "flex";
         if (forceTextUpdate && pptContentTxt) pptContentTxt.value = "";
+        currentDeckPath = "";
         return;
       }
 
@@ -493,15 +513,24 @@
 
       // Render Visual Preview Image
       if (pptPreviewImg) {
-        const previewWs = activeWorkspacePath ? `&workspace=${encodeURIComponent(activeWorkspacePath)}` : "";
-        pptPreviewImg.src = `/api/ppt/preview?slide=${currentSlideIndex}${previewWs}&t=${Date.now()}`;
+        const previewParams = new URLSearchParams();
+        previewParams.set("slide", currentSlideIndex);
+        if (activeWorkspacePath) previewParams.set("workspace", activeWorkspacePath);
+        if (targetSessionId) previewParams.set("session_id", targetSessionId);
+        if (specificFile) previewParams.set("file", specificFile);
+        else if (data.deck_path) previewParams.set("file", data.deck_path);
+        previewParams.set("t", Date.now());
+        pptPreviewImg.src = `/api/ppt/preview?${previewParams.toString()}`;
         pptPreviewImg.style.display = "block";
         if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "none";
       }
 
-      // Populate TXT Content (if empty or forced)
-      if (pptContentTxt && (forceTextUpdate || !pptContentTxt.value.trim())) {
-        pptContentTxt.value = data.text_content || "";
+      // Populate TXT Content
+      if (pptContentTxt) {
+        if (forceTextUpdate || !pptContentTxt.value.trim() || currentDeckPath !== (data.deck_path || "")) {
+          pptContentTxt.value = data.text_content || "";
+          currentDeckPath = data.deck_path || "";
+        }
       }
     } catch (e) {
       console.warn("Failed to load PPT preview:", e);
@@ -518,8 +547,13 @@
       });
     }
     if (pptPreviewImg) {
-      const previewWs = activeWorkspacePath ? `&workspace=${encodeURIComponent(activeWorkspacePath)}` : "";
-      pptPreviewImg.src = `/api/ppt/preview?slide=${currentSlideIndex}${previewWs}&t=${Date.now()}`;
+      const previewParams = new URLSearchParams();
+      previewParams.set("slide", currentSlideIndex);
+      if (activeWorkspacePath) previewParams.set("workspace", activeWorkspacePath);
+      if (activeSessionId) previewParams.set("session_id", activeSessionId);
+      if (currentPptData && currentPptData.deck_path) previewParams.set("file", currentPptData.deck_path);
+      previewParams.set("t", Date.now());
+      pptPreviewImg.src = `/api/ppt/preview?${previewParams.toString()}`;
       pptPreviewImg.style.display = "block";
       if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "none";
     }
@@ -1175,6 +1209,8 @@
   function newSessionInProject(workspacePath) {
     if (isRunning) return;
     activeSessionId = null;
+    currentPptData = null;
+    currentDeckPath = "";
     if (sidebarView !== "active") {
       sidebarView = "active";
       sidebarViewTabs.forEach(t => t.classList.toggle("active", (t.getAttribute("data-view") || "active") === "active"));
@@ -1193,6 +1229,12 @@
     refreshCounts(0, 0, 0);
     refreshTree();
     fetchArtifacts();
+    if (pptDeckName) pptDeckName.textContent = "未检测到 PPT";
+    if (pptSlideCounter) pptSlideCounter.textContent = "-";
+    if (pptSlideNavBar) pptSlideNavBar.innerHTML = "";
+    if (pptPreviewImg) pptPreviewImg.style.display = "none";
+    if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "flex";
+    if (pptContentTxt) pptContentTxt.value = "";
     promptInput.focus();
   }
 
@@ -1211,7 +1253,7 @@
       renderHistory(data);
       refreshTree();
       fetchArtifacts();
-      loadPptPreview(1, true);
+      await loadPptPreview(1, true, null, sessionId);
       showToast("历史会话已加载，可接着继续对话");
     } catch (e) {
       console.error("Load session failed:", e);
@@ -2026,7 +2068,7 @@
         if (tabPptPanel) tabPptPanel.style.display = "flex";
         tabTimelinePanel.style.display = "none";
         tabCotPanel.style.display = "none";
-        loadPptPreview(currentSlideIndex, false);
+        loadPptPreview(currentSlideIndex, false, null, activeSessionId);
       });
     }
 
@@ -2050,7 +2092,7 @@
 
     if (btnRefreshPpt) {
       btnRefreshPpt.addEventListener("click", async () => {
-        await loadPptPreview(currentSlideIndex, true);
+        await loadPptPreview(currentSlideIndex, true, null, activeSessionId);
         showToast("PPT 预览与文本已刷新");
       });
     }
