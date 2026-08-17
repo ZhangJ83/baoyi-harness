@@ -3761,6 +3761,12 @@ def _deck_completeness_gate(h) -> str:
         return f"deck only has {len(h.deck.slides)} slide(s); user task explicitly requested at least {req_count} slides"
     is_new_deck = not getattr(getattr(h, "state", None), "ppt_existing_deck", False)
     for slide_number, slide in enumerate(h.deck.slides, 1):
+        has_full_raster = any(
+            sh.shape_type == MSO_SHAPE_TYPE.PICTURE and sh.width >= Inches(_W * 0.85) and sh.height >= Inches(_H * 0.85)
+            for sh in slide.shapes
+        )
+        if has_full_raster:
+            continue
         boxes = []
         for shape, _path in _walk_shapes(slide.shapes):
             if getattr(shape, "has_text_frame", False) and shape.text_frame is not None:
@@ -3795,14 +3801,15 @@ def _deck_completeness_gate(h) -> str:
     requires_html = any(kw in task_goal for kw in ("html 进行制作", "html制作", "html 制作", "第二页采用 html", "第二页使用 html", "第2页采用 html", "第2页使用 html"))
     if requires_html and len(h.deck.slides) >= 2:
         slide2 = h.deck.slides[1]
-        has_vector_cards = any(
-            sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(1.2) < sh.width < Inches(_W * 0.95) and Inches(0.6) < sh.height < Inches(_H * 0.95)
+        has_html_content = any(
+            (sh.shape_type == MSO_SHAPE_TYPE.PICTURE and sh.width >= Inches(_W * 0.85))
+            or (sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(1.2) < sh.width < Inches(_W * 0.95) and Inches(0.6) < sh.height < Inches(_H * 0.95))
             for sh in slide2.shapes
         )
-        if not has_vector_cards:
+        if not has_html_content:
             return (
                 "Task explicitly requires Slide 2 to be created using HTML (网页/HTML组件风格). "
-                "Slide 2 currently lacks HTML vector card components. "
+                "Slide 2 currently lacks HTML components. "
                 "Please call ppt_compose(kind='html_slide', slide_number=2, html='...') with rich modern web cards (<div class=\"card\">...</div>) and badges."
             )
     return ""
