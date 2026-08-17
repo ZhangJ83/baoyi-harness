@@ -1672,28 +1672,56 @@ def _add_flowchart(h, slide_number: int, nodes: list[str], title: str = "") -> s
         y = 2.6 if title else 1.5
     elif title:
         title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.35), Inches(12), Inches(0.55))
-        _put_lines(title_box.text_frame, title, 24, True, _PRIMARY)
-        y = 3.0
+    has_multiline = any(("\n" in str(n)) or isinstance(n, dict) for n in nodes)
+    margin, gap = 0.75, 0.28
+    arrow_w = 0.38
+    height = 4.2 if (has_multiline or len(nodes) <= 5) else 1.2
+    if converted_cover or title:
+        y = 1.65 if height > 2.0 else (2.6 if title else 1.5)
     else:
-        y = 3.0
-    margin, gap, height = 0.75, 0.28, 1.0
-    arrow_w = 0.42
+        y = 1.8 if height > 2.0 else 3.0
+
     node_w = (_W - 2 * margin - (len(nodes) - 1) * (gap + arrow_w)) / len(nodes)
-    for index, label in enumerate(nodes):
+    for index, raw_node in enumerate(nodes):
         x = margin + index * (node_w + gap + arrow_w)
         node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(node_w), Inches(height))
         node.fill.solid(); node.fill.fore_color.rgb = _WHITE
         node.line.color.rgb = _PRIMARY
-        _put_lines(node.text_frame, label, 15, True, _PRIMARY)
+        node.line.width = Pt(1.5)
+
+        if isinstance(raw_node, dict):
+            n_title = raw_node.get("title", f"0{index+1} 阶段")
+            n_bullets = raw_node.get("bullets", [])
+        else:
+            lines = [l.strip() for l in str(raw_node).split("\n") if l.strip()]
+            n_title = lines[0] if lines else f"0{index+1} 阶段"
+            n_bullets = lines[1:] if len(lines) > 1 else []
+
+        # Card Title
+        tf = node.text_frame
+        tf.word_wrap = True
+        p_title = tf.paragraphs[0]
+        p_title.text = n_title
+        p_title.font.size = Pt(14)
+        p_title.font.bold = True
+        p_title.font.color.rgb = _PRIMARY
+
+        # Card Bullets / Detail
+        if n_bullets and height > 2.0:
+            for b in n_bullets:
+                p_b = tf.add_paragraph()
+                p_b.text = b if b.startswith("•") or b.startswith("-") else f"• {b}"
+                p_b.font.size = Pt(10.5)
+                p_b.font.color.rgb = _TEXT
+                p_b.line_spacing = 1.15
+
         if index < len(nodes) - 1:
             begin_x = Inches(x + node_w + gap / 4)
             end_x = Inches(x + node_w + gap + arrow_w - gap / 4)
-            mid_y = Inches(y + height / 2)
+            mid_y = Inches(y + (height / 2 if height < 2.0 else 0.8))
             connector = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, begin_x, mid_y, end_x, mid_y)
             connector.line.color.rgb = _ACCENT
             connector.line.width = Pt(2.0)
-            # Deterministic rubrics count MSO_SHAPE_TYPE.LINE connectors and
-            # inspect arrowheads; RIGHT_ARROW autoshapes do not satisfy them.
             line_element = connector.line._get_or_add_ln()
             line_element.append(line_element.makeelement(
                 "{http://schemas.openxmlformats.org/drawingml/2006/main}headEnd",

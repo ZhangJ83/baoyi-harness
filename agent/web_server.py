@@ -245,6 +245,164 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 
+def _find_active_deck(ws_path: Path | None = None) -> Path | None:
+    root = ws_path or config.sandbox_root()
+    if not root.is_dir():
+        return None
+    d = root / "deck.pptx"
+    if d.exists() and d.is_file() and d.stat().st_size > 0:
+        return d
+    pptxs = sorted(
+        [p for p in root.glob("*.pptx") if not p.name.startswith("~$") and p.is_file()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if pptxs:
+        return pptxs[0]
+    rec_pptxs = sorted(
+        [p for p in root.rglob("*.pptx") if not p.name.startswith("~$") and p.is_file()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if rec_pptxs:
+        return rec_pptxs[0]
+    return None
+
+
+def _get_deck_content_data(pptx_path: Path) -> dict[str, Any]:
+    from pptx import Presentation
+    try:
+        prs = Presentation(str(pptx_path))
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "total_slides": 0, "slides": [], "text_content": ""}
+
+    slides_info = []
+    text_sections = []
+    for idx, slide in enumerate(prs.slides, 1):
+        slide_title = ""
+        items = []
+        for sh in slide.shapes:
+            if getattr(sh, "has_text_frame", False) and sh.text_frame:
+                txt = (sh.text_frame.text or "").strip()
+                if not txt:
+                    continue
+                top = 0.0
+                try:
+                    top = sh.top.inches if sh.top is not None else 0.0
+                except Exception:
+                    pass
+                if not slide_title and top < 1.5:
+                    slide_title = txt
+                else:
+                    for p in sh.text_frame.paragraphs:
+                        ptxt = (p.text or "").strip()
+                        if ptxt and ptxt != slide_title and ptxt not in items:
+                            items.append(ptxt)
+            elif getattr(sh, "has_table", False):
+                for row in sh.table.rows:
+                    row_txt = " | ".join((c.text or "").strip() for c in row.cells if (c.text or "").strip())
+                    if row_txt and row_txt not in items:
+                        items.append(f"表格: {row_txt}")
+
+        title_display = slide_title or f"第 {idx} 页"
+        slides_info.append({
+            "slide_number": idx,
+            "title": title_display,
+            "items": items,
+        })
+        text_sections.append(f"=== 第 {idx} 页: {title_display} ===")
+        for it in items:
+            prefix = "" if any(it.startswith(k) for k in ("•", "-", "▶", "*", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")) else "• "
+            text_sections.append(f"{prefix}{it}")
+        text_sections.append("")
+
+    return {
+        "success": True,
+        "deck_name": pptx_path.name,
+        "deck_path": str(pptx_path.resolve()),
+        "total_slides": len(prs.slides),
+        "slides": slides_info,
+        "text_content": "\n".join(text_sections).strip(),
+    }
+
+
+_COM_RENDER_LOCK = threading.Lock()
+
+
+def _render_deck_slide_preview(pptx_path: Path, slide_number: int = 1) -> bytes | None:
+    import io
+    # 1. Try Windows PowerPoint COM for 100% native pixel-perfect quality
+    if sys.platform == "win32":
+        cache_dir = config.sandbox_root() / ".xiaopu" / "preview_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        out_png = cache_dir / f"slide_{slide_number}_{int(pptx_path.stat().st_mtime)}.png"
+        if out_png.exists() and out_png.stat().st_size > 0:
+            return out_png.read_bytes()
+
+        with _COM_RENDER_LOCK:
+            if out_png.exists() and out_png.stat().st_size > 0:
+                return out_png.read_bytes()
+            try:
+                import win32com.client
+                import pythoncom
+                pythoncom.CoInitialize()
+                ppt_app = None
+                prs = None
+                try:
+                    ppt_app = win32com.client.DispatchEx("PowerPoint.Application")
+                    prs = ppt_app.Presentations.Open(str(pptx_path.resolve()), ReadOnly=True, Untitled=False, WithWindow=False)
+                    if 1 <= slide_number <= prs.Slides.Count:
+                        prs.Slides(slide_number).Export(str(out_png), "PNG", 1920, 1080)
+                        if out_png.exists():
+                            return out_png.read_bytes()
+                finally:
+                    if prs is not None:
+                        try:
+                            prs.Close()
+                        except Exception:
+                            pass
+                        del prs
+                    if ppt_app is not None:
+                        try:
+                            ppt_app.Quit()
+                        except Exception:
+                            pass
+                        del ppt_app
+                    try:
+                        pythoncom.CoUninitialize()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+    # 2. Fallback: PIL rasterizer
+    try:
+        from pptx import Presentation
+        from PIL import Image, ImageDraw
+        prs = Presentation(str(pptx_path))
+        if 1 <= slide_number <= len(prs.slides):
+            slide = prs.slides[slide_number - 1]
+            img = Image.new("RGB", (1920, 1080), color=(15, 23, 42))
+            draw = ImageDraw.Draw(img)
+            draw.rectangle([(0, 0), (1920, 120)], fill=(30, 41, 59))
+            draw.text((60, 45), f"幻灯片预览 · 第 {slide_number} 页", fill=(56, 189, 248))
+            y = 180
+            for sh in slide.shapes:
+                if getattr(sh, "has_text_frame", False) and sh.text_frame:
+                    t = (sh.text_frame.text or "").strip()
+                    if t:
+                        draw.text((80, y), t[:120], fill=(241, 245, 249))
+                        y += 50
+                        if y > 980:
+                            break
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            return buf.getvalue()
+    except Exception:
+        pass
+    return None
+
+
 class XiaopuWebHandler(BaseHTTPRequestHandler):
     harness: Harness = None  # Class-level shared harness instance
     active_stream_queue: queue.Queue | None = None
@@ -270,6 +428,15 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _send_bytes(self, content: bytes, content_type: str = "image/png") -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "no-cache, must-revalidate")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(content)
 
@@ -549,6 +716,45 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if path == "/api/ppt/content":
+            ws_param = query.get("workspace", [None])[0]
+            ws_root = Path(ws_param) if ws_param else config.sandbox_root()
+            deck_path = _find_active_deck(ws_root)
+            if not deck_path or not deck_path.exists():
+                self._send_json({
+                    "success": False,
+                    "error": "当前工作区暂未生成 PPT 文件",
+                    "deck_name": "",
+                    "total_slides": 0,
+                    "slides": [],
+                    "text_content": "",
+                })
+                return
+            data = _get_deck_content_data(deck_path)
+            self._send_json(data)
+            return
+
+        if path == "/api/ppt/preview":
+            ws_param = query.get("workspace", [None])[0]
+            ws_root = Path(ws_param) if ws_param else config.sandbox_root()
+            slide_idx = int(query.get("slide", ["1"])[0])
+            deck_path = _find_active_deck(ws_root)
+            if not deck_path or not deck_path.exists():
+                # Return empty fallback image
+                from PIL import Image
+                import io
+                img = Image.new("RGB", (1920, 1080), color=(15, 23, 42))
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                self._send_bytes(buf.getvalue(), "image/png")
+                return
+            png_bytes = _render_deck_slide_preview(deck_path, slide_idx)
+            if png_bytes:
+                self._send_bytes(png_bytes, "image/png")
+                return
+            self.send_error(500, "Failed to render slide preview")
+            return
+
         self.send_error(404, "Not Found")
 
     def do_POST(self) -> None:
@@ -700,6 +906,21 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"result": res})
             except Exception as e:
                 self._send_json({"result": f"撤销失败: {e}"}, status=500)
+            return
+
+        if path == "/api/ppt/apply_content":
+            text_content = (body.get("text_content") or "").strip()
+            if not text_content:
+                self.send_error(400, "Missing text_content")
+                return
+            instruction = (
+                "请保持当前演示文稿的精美排版、布局结构与视觉设计风格，按照以下修改后的文本内容更新 PPT 对应的页面标题、卡片内容与要点细节，更新后自动保存并校验：\n\n"
+                + text_content
+            )
+            self._send_json({
+                "status": "ok",
+                "instruction": instruction,
+            })
             return
 
         if path == "/api/session/export":

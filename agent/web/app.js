@@ -23,12 +23,14 @@
   const themeToggleBtn = document.getElementById("theme-toggle-btn");
   const btnOpenSettings = document.getElementById("btn-open-settings");
 
-  // Activity Drawer
+  // Activity Drawer & Tabs
   const activityDrawer = document.getElementById("activity-drawer");
   const btnToggleActivity = document.getElementById("btn-toggle-activity");
   const drawerCloseBtn = document.getElementById("drawer-close-btn");
+  const tabPptBtn = document.getElementById("tab-ppt-btn");
   const tabTimelineBtn = document.getElementById("tab-timeline-btn");
   const tabCotBtn = document.getElementById("tab-cot-btn");
+  const tabPptPanel = document.getElementById("tab-ppt-panel");
   const tabTimelinePanel = document.getElementById("tab-timeline-panel");
   const tabCotPanel = document.getElementById("tab-cot-panel");
   const timelineLog = document.getElementById("timeline-log");
@@ -39,6 +41,21 @@
   const livePhase = document.getElementById("live-phase");
   const liveElapsed = document.getElementById("live-elapsed");
   const liveCounts = document.getElementById("live-counts");
+
+  // PPT Preview & TXT Editor Elements
+  const pptDeckName = document.getElementById("ppt-deck-name");
+  const pptSlideCounter = document.getElementById("ppt-slide-counter");
+  const btnRefreshPpt = document.getElementById("btn-refresh-ppt");
+  const btnSaveasPpt = document.getElementById("btn-saveas-ppt");
+  const pptSlideNavBar = document.getElementById("ppt-slide-nav-bar");
+  const pptPreviewImg = document.getElementById("ppt-preview-img");
+  const pptPreviewPlaceholder = document.getElementById("ppt-preview-placeholder");
+  const btnCopyPptText = document.getElementById("btn-copy-ppt-text");
+  const pptContentTxt = document.getElementById("ppt-content-txt");
+  const btnApplyPptText = document.getElementById("btn-apply-ppt-text");
+
+  let currentPptData = null;
+  let currentSlideIndex = 1;
 
   // Topbar Actions
   const btnArtifactsHub = document.getElementById("btn-artifacts-hub");
@@ -258,6 +275,7 @@
         artifactsWsInfo.innerText = `当前工作区：${data.workspace || activeWorkspacePath || "-"}`;
       }
       renderArtifactsList(cachedArtifacts);
+      loadPptPreview(currentSlideIndex, false);
     } catch (e) {
       console.error("Fetch artifacts error:", e);
     }
@@ -431,6 +449,93 @@
     appendAssistantContainer().innerHTML = formatMarkdown(`### ↩ 撤销结果\n\n${data.result}`);
     await fetchArtifacts();
     if (artifactsModal) artifactsModal.style.display = "none";
+    await loadPptPreview(currentSlideIndex, true);
+  }
+
+  // ------------------------------------------------------------------ PPT Preview & Content Sync
+  async function loadPptPreview(slideNum = 1, forceTextUpdate = false) {
+    try {
+      const res = await fetch("/api/ppt/content");
+      if (!res.ok) return;
+      const data = await res.json();
+      currentPptData = data;
+
+      if (!data.success || data.total_slides <= 0) {
+        if (pptDeckName) pptDeckName.textContent = "未检测到 PPT";
+        if (pptSlideCounter) pptSlideCounter.textContent = "-";
+        if (pptSlideNavBar) pptSlideNavBar.innerHTML = "";
+        if (pptPreviewImg) pptPreviewImg.style.display = "none";
+        if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "flex";
+        if (forceTextUpdate && pptContentTxt) pptContentTxt.value = "";
+        return;
+      }
+
+      const total = data.total_slides;
+      currentSlideIndex = Math.max(1, Math.min(slideNum, total));
+
+      if (pptDeckName) pptDeckName.textContent = data.deck_name || "deck.pptx";
+      if (pptSlideCounter) pptSlideCounter.textContent = `${total} 页`;
+
+      // Render Page Buttons
+      if (pptSlideNavBar) {
+        pptSlideNavBar.innerHTML = Array.from({ length: total }, (_, i) => i + 1)
+          .map(p => `<button class="ppt-page-pill ${p === currentSlideIndex ? 'active' : ''}" data-page="${p}">第 ${p} 页</button>`)
+          .join("");
+
+        pptSlideNavBar.querySelectorAll(".ppt-page-pill").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const page = parseInt(btn.getAttribute("data-page"), 10);
+            if (page) switchPptSlide(page);
+          });
+        });
+      }
+
+      // Render Visual Preview Image
+      if (pptPreviewImg) {
+        pptPreviewImg.src = `/api/ppt/preview?slide=${currentSlideIndex}&t=${Date.now()}`;
+        pptPreviewImg.style.display = "block";
+        if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "none";
+      }
+
+      // Populate TXT Content (if empty or forced)
+      if (pptContentTxt && (forceTextUpdate || !pptContentTxt.value.trim())) {
+        pptContentTxt.value = data.text_content || "";
+      }
+    } catch (e) {
+      console.warn("Failed to load PPT preview:", e);
+    }
+  }
+
+  function switchPptSlide(slideNum) {
+    if (!currentPptData || currentPptData.total_slides <= 0) return;
+    currentSlideIndex = Math.max(1, Math.min(slideNum, currentPptData.total_slides));
+    if (pptSlideNavBar) {
+      pptSlideNavBar.querySelectorAll(".ppt-page-pill").forEach(btn => {
+        const p = parseInt(btn.getAttribute("data-page"), 10);
+        btn.classList.toggle("active", p === currentSlideIndex);
+      });
+    }
+    if (pptPreviewImg) {
+      pptPreviewImg.src = `/api/ppt/preview?slide=${currentSlideIndex}&t=${Date.now()}`;
+      pptPreviewImg.style.display = "block";
+      if (pptPreviewPlaceholder) pptPreviewPlaceholder.style.display = "none";
+    }
+  }
+
+  async function applyPptContent() {
+    const text = pptContentTxt ? pptContentTxt.value.trim() : "";
+    if (!text) {
+      showToast("文本内容为空，请先编写或修改幻灯片要点");
+      return;
+    }
+    const instruction = "请保持当前演示文稿的精美排版、布局结构与视觉设计风格，按照以下修改后的文本内容更新 PPT 对应的页面标题、卡片内容与要点细节，更新后自动保存并校验：\n\n" + text;
+    if (promptInput) {
+      promptInput.value = instruction;
+      promptInput.style.height = "auto";
+      promptInput.style.height = Math.min(promptInput.scrollHeight, 180) + "px";
+    }
+    showToast("已组装修改指令，正在让小朴更新 PPT...");
+    await sendMessage();
   }
 
   // ------------------------------------------------------------------ Tree Management
@@ -1908,19 +2013,62 @@
       activityDrawer.classList.add("closed");
     });
 
+    if (tabPptBtn) {
+      tabPptBtn.addEventListener("click", () => {
+        tabPptBtn.classList.add("active");
+        tabTimelineBtn.classList.remove("active");
+        tabCotBtn.classList.remove("active");
+        if (tabPptPanel) tabPptPanel.style.display = "flex";
+        tabTimelinePanel.style.display = "none";
+        tabCotPanel.style.display = "none";
+        loadPptPreview(currentSlideIndex, false);
+      });
+    }
+
     tabTimelineBtn.addEventListener("click", () => {
       tabTimelineBtn.classList.add("active");
+      if (tabPptBtn) tabPptBtn.classList.remove("active");
       tabCotBtn.classList.remove("active");
+      if (tabPptPanel) tabPptPanel.style.display = "none";
       tabTimelinePanel.style.display = "flex";
       tabCotPanel.style.display = "none";
     });
 
     tabCotBtn.addEventListener("click", () => {
       tabCotBtn.classList.add("active");
+      if (tabPptBtn) tabPptBtn.classList.remove("active");
       tabTimelineBtn.classList.remove("active");
+      if (tabPptPanel) tabPptPanel.style.display = "none";
       tabCotPanel.style.display = "flex";
       tabTimelinePanel.style.display = "none";
     });
+
+    if (btnRefreshPpt) {
+      btnRefreshPpt.addEventListener("click", async () => {
+        await loadPptPreview(currentSlideIndex, true);
+        showToast("PPT 预览与文本已刷新");
+      });
+    }
+
+    if (btnSaveasPpt) {
+      btnSaveasPpt.addEventListener("click", async () => {
+        await handleSavePpt();
+      });
+    }
+
+    if (btnCopyPptText) {
+      btnCopyPptText.addEventListener("click", async () => {
+        const text = pptContentTxt ? pptContentTxt.value : "";
+        const ok = await copyText(text);
+        showToast(ok ? "幻灯片 TXT 文本已复制" : "复制失败");
+      });
+    }
+
+    if (btnApplyPptText) {
+      btnApplyPptText.addEventListener("click", async () => {
+        await applyPptContent();
+      });
+    }
 
     copyTimelineBtn.addEventListener("click", async () => {
       const ok = await copyText(timelineLog.innerText || "");

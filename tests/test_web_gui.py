@@ -330,3 +330,68 @@ def test_web_api_settings(web_test_server):
         res = json.loads(resp.read().decode("utf-8"))
         assert res["status"] == "ok"
 
+
+def test_web_gui_index_ppt_elements(web_test_server):
+    req = urllib.request.urlopen(f"{web_test_server}/")
+    assert req.status == 200
+    content = req.read().decode("utf-8")
+    assert "tab-ppt-btn" in content
+    assert "tab-ppt-panel" in content
+    assert "ppt-preview-img" in content
+    assert "ppt-content-txt" in content
+    assert "btn-apply-ppt-text" in content
+
+
+def test_web_api_ppt_content_and_preview(web_test_server):
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from agent.config import sandbox_root
+
+    # Create test deck.pptx in active workspace sandbox
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+    slide1 = prs.slides.add_slide(prs.slide_layouts[6])
+    tb1 = slide1.shapes.add_textbox(Inches(1), Inches(1), Inches(10), Inches(2))
+    p1 = tb1.text_frame.paragraphs[0]
+    p1.text = "AI Agent 端到端流水线"
+    p1.font.size = Pt(24)
+
+    slide2 = prs.slides.add_slide(prs.slide_layouts[6])
+    tb2 = slide2.shapes.add_textbox(Inches(1), Inches(1), Inches(10), Inches(2))
+    p2 = tb2.text_frame.paragraphs[0]
+    p2.text = "AI Agent 运行时架构"
+    p2.font.size = Pt(24)
+
+    deck_file = sandbox_root() / "deck.pptx"
+    prs.save(str(deck_file))
+
+    # Test GET /api/ppt/content
+    req_content = urllib.request.urlopen(f"{web_test_server}/api/ppt/content")
+    assert req_content.status == 200
+    content_data = json.loads(req_content.read().decode("utf-8"))
+    assert content_data["success"] is True
+    assert content_data["total_slides"] == 2
+    assert "AI Agent 端到端流水线" in content_data["text_content"]
+    assert "AI Agent 运行时架构" in content_data["text_content"]
+
+    # Test GET /api/ppt/preview
+    req_preview = urllib.request.urlopen(f"{web_test_server}/api/ppt/preview?slide=1")
+    assert req_preview.status == 200
+    assert req_preview.headers.get("Content-Type", "") == "image/png"
+    img_bytes = req_preview.read()
+    assert len(img_bytes) > 50
+
+    # Test POST /api/ppt/apply_content
+    post_apply = urllib.request.Request(
+        f"{web_test_server}/api/ppt/apply_content",
+        data=json.dumps({"text_content": "=== 第 1 页: 新标题 ===\n• 新要点 1"}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(post_apply) as resp:
+        assert resp.status == 200
+        apply_data = json.loads(resp.read().decode("utf-8"))
+        assert apply_data["status"] == "ok"
+        assert "新标题" in apply_data["instruction"]
+
+
