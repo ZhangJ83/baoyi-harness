@@ -11,9 +11,6 @@ import hashlib
 import json
 from pathlib import Path
 
-from datasets import load_dataset
-
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--instance-id", default="astropy__astropy-12907")
@@ -25,6 +22,7 @@ def main() -> int:
     elif args.dataset.endswith(".jsonl"):
         dataset = [json.loads(line) for line in Path(args.dataset).read_text(encoding="utf-8").splitlines()]
     else:
+        from datasets import load_dataset
         dataset = load_dataset(args.dataset, split="test", streaming=True)
     row = next(item for item in dataset if item["instance_id"] == args.instance_id)
     result = {

@@ -15,8 +15,6 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from datasets import Dataset
-
 from benchmarks.run_official_swe_local import _install_source_paths
 
 
@@ -33,6 +31,7 @@ def write_json(path: Path, value: dict) -> None:
 
 
 def load_frozen(protocol_path: Path, arrow_path: Path, selected: list[str] | None = None) -> tuple[dict, list[dict]]:
+    from datasets import Dataset
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     official = {row["instance_id"]: row for row in Dataset.from_file(str(arrow_path))}
     frozen_ids = [row["instance_id"] for row in protocol["instances"]]

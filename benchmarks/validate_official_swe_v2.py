@@ -7,10 +7,8 @@ import json
 import subprocess
 from pathlib import Path
 
-from datasets import Dataset
-
-
 def validate(protocol_path: Path, arrow_path: Path, evaluator_root: Path, checkout_smoke_path: Path) -> dict:
+    from datasets import Dataset
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     root = protocol_path.resolve().parents[1]
     ds = Dataset.from_file(str(arrow_path))

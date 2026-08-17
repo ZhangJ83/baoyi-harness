@@ -9,12 +9,17 @@ ROOT = PACKAGE_DIR.parent  # Development repo root fallback
 def env_file_path() -> Path:
     """Resolve project configuration file path.
 
-    Checks explicit BAOYI_ENV_FILE / ENV_FILE first, then current working
-    directory .env, and finally development repo root .env if present.
+    Checks explicit BAOYI_ENV_FILE / ENV_FILE first, then active workspace .env,
+    current working directory .env, and finally development repo root .env if present.
     """
     explicit = os.getenv("BAOYI_ENV_FILE", os.getenv("ENV_FILE", ""))
     if explicit:
         return Path(explicit).expanduser().resolve()
+    ws = os.getenv("BAOYI_WORKSPACE", os.getenv("WORKSPACE", ""))
+    if ws:
+        ws_env = Path(ws).expanduser().resolve() / ".env"
+        if ws_env.exists():
+            return ws_env
     cwd_env = Path.cwd().resolve() / ".env"
     if cwd_env.exists():
         return cwd_env
@@ -132,10 +137,11 @@ def update_env_settings(updates: dict[str, str]) -> None:
     for k, v in updates.items():
         os.environ[k] = str(v)
     
+    path = env_file_path()
     lines: list[str] = []
     existing_keys: set[str] = set()
-    if ENV_FILE.exists():
-        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
             if stripped and not stripped.startswith("#") and "=" in stripped:
                 k, _, _ = stripped.partition("=")
@@ -152,7 +158,7 @@ def update_env_settings(updates: dict[str, str]) -> None:
         if k not in existing_keys:
             lines.append(f"{k}={v}")
     
-    ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def thinking_enabled() -> bool:

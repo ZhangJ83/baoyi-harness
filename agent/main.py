@@ -73,7 +73,6 @@ def _print_incomplete_transaction_notice(workspace: Path) -> None:
 
 def main() -> int:
     _force_utf8_stdio()
-    config.load_dotenv()
     args = [a for a in sys.argv[1:] if not a.startswith("--fly--")]
 
     if any(a in ("-h", "--help") for a in args):
@@ -138,13 +137,14 @@ def main() -> int:
             i += 1
 
     task = " ".join(positional).strip()
-    # Match project-oriented CLIs: the directory from which Xiaopu is started
+    # Match project-oriented CLIs: the directory from which Baoyi is started
     # is the workspace unless the caller explicitly selects another one.
     selected_workspace = Path(workspace).expanduser().resolve() if workspace else Path.cwd().resolve()
     if not selected_workspace.is_dir():
         print(f"WORKSPACE ERROR: directory does not exist: {selected_workspace}", file=sys.stderr)
         return 2
     os.environ["WORKSPACE"] = str(selected_workspace)
+    config.load_dotenv()
     _print_incomplete_transaction_notice(selected_workspace)
 
     if list_sessions:

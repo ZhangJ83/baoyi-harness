@@ -30,6 +30,8 @@ def test_score_eligibility_accepts_resolved_or_unresolved_completed_trial():
     assert score_eligible(base, "x") is False
 
 
+@pytest.mark.swebench
+@pytest.mark.skipif(not ARROW.exists(), reason="official SWE-bench Arrow dataset not installed")
 def test_dry_run_freezes_all_12_without_credential(tmp_path):
     run_root = tmp_path / "run"
     result = subprocess.run([sys.executable, str(ROOT / "benchmarks/run_official_swe_verified_v2.py"),

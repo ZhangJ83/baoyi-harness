@@ -7,8 +7,6 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from datasets import Dataset
-
 from benchmarks.run_official_swe_local import _install_source_paths
 
 
@@ -24,6 +22,7 @@ def expected_image_key(instance_id: str) -> str:
 
 
 def plan(protocol_path: Path, arrow_path: Path, selected_ids: list[str] | None = None) -> tuple[dict, list[dict]]:
+    from datasets import Dataset
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
     dataset = Dataset.from_file(str(arrow_path))
     official = {row["instance_id"]: row for row in dataset}
