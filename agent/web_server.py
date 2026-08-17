@@ -1166,27 +1166,42 @@ def run_web_gui(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = 
     server = ThreadingHTTPServer((host, port), XiaopuWebHandler)
     url = f"http://{host}:{port}"
     print(f"\n=======================================================")
-    print(f"  小朴 Xiaopu Web GUI is running at: {url}")
+    print(f"  报一 Baoyi Web GUI is running at: {url}")
     print(f"=======================================================\n")
 
     if open_browser:
         try:
-            # Try launching in app mode if MS Edge or Chrome is available
-            import subprocess
+            import shutil
+            from pathlib import Path
+            browser_bin = None
             if sys.platform == "win32":
-                try:
-                    subprocess.Popen(["msedge", f"--app={url}"])
-                except Exception:
-                    webbrowser.open(url)
+                candidates = [
+                    shutil.which("msedge"),
+                    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+                    shutil.which("chrome"),
+                    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                ]
+                for cand in candidates:
+                    if cand and Path(cand).is_file():
+                        browser_bin = str(cand)
+                        break
+
+            if browser_bin:
+                subprocess.Popen([browser_bin, f"--app={url}"])
             else:
                 webbrowser.open(url)
         except Exception:
-            webbrowser.open(url)
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping Xiaopu Web GUI server...")
+        print("\nStopping Baoyi Web GUI server...")
         server.shutdown()
 
 

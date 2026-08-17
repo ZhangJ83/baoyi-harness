@@ -537,7 +537,7 @@
       promptInput.style.height = "auto";
       promptInput.style.height = Math.min(promptInput.scrollHeight, 180) + "px";
     }
-    showToast("已组装修改指令，正在让小朴更新 PPT...");
+    showToast("已组装修改指令，正在让报一更新 PPT...");
     await sendMessage();
   }
 
@@ -1470,7 +1470,7 @@
 
   let activeWorkingIndicator = null;
 
-  function showWorkingIndicator(title = "✨ 小朴正在思考与执行中…", detail = "正在分析任务意图与编排工具…") {
+  function showWorkingIndicator(title = "✨ 报一正在思考与执行中…", detail = "正在分析任务意图与编排工具…") {
     removeWorkingStatus();
     removeWelcomeHero();
     const indicator = document.createElement("div");
@@ -1497,7 +1497,7 @@
 
   function updateWorkingStatus(title, detail) {
     if (!activeWorkingIndicator || !activeWorkingIndicator.isConnected) {
-      showWorkingIndicator(title || "✨ 小朴正在思考与执行中…", detail || "正在执行…");
+      showWorkingIndicator(title || "✨ 报一正在思考与执行中…", detail || "正在执行…");
       return;
     }
     if (title) {
@@ -1629,7 +1629,7 @@
     abortController = new AbortController();
     rawReasoning = "";
     currentThoughtCard = null;
-    showWorkingIndicator("✨ 小朴正在思考与执行中…", "正在分析任务意图与编排工具…");
+    showWorkingIndicator("✨ 报一正在思考与执行中…", "正在分析任务意图与编排工具…");
     currentAssistantCard = appendAssistantContainer();
 
     try {
@@ -1708,7 +1708,7 @@
       const thoughtText = payload.text || directText || "";
       rawReasoning += thoughtText;
       cotLog.innerText = rawReasoning;
-      updateWorkingStatus("🧠 小朴正在深度思考…", "正在推理设计方案与结构…");
+      updateWorkingStatus("🧠 报一正在深度思考…", "正在推理设计方案与结构…");
 
       if (!currentThoughtCard) {
         currentThoughtCard = appendThoughtCard(rawReasoning);

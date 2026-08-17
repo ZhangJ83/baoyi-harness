@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>小朴 Agent · Xiaopu (Coding & PPT Assistant)</title>
+  <title>报一 Agent · Baoyi (Coding & PPT Assistant)</title>
   <link rel="icon" type="image/png" href="/assets/icon.png">
   <link rel="stylesheet" href="/style.css?v=15">
 </head>
@@ -13,9 +13,9 @@
     <aside id="sidebar">
       <div class="sidebar-header">
         <div class="brand-icon">
-          <img src="/assets/icon.png" alt="Logo" onerror="this.parentElement.innerHTML='朴'">
+          <img src="/assets/icon.png" alt="Logo" onerror="this.parentElement.innerHTML='报'">
         </div>
-        <div class="brand-title">小朴 Xiaopu</div>
+        <div class="brand-title">报一 Baoyi</div>
         <div class="brand-badge">v0.2.0</div>
       </div>
 
@@ -140,9 +140,9 @@
         <div class="chat-content-container" id="chat-container">
           <!-- Welcome Hero Cards (shown when empty) -->
           <div class="welcome-hero" id="welcome-hero">
-            <div class="welcome-logo-icon">朴</div>
+            <div class="welcome-logo-icon">报</div>
             <h1 class="welcome-title">有什么可以帮您？</h1>
-            <p class="welcome-subtitle">小朴是您的专业 AI 演示文稿与代码工程助理，支持复杂 PPT 结构解析、代码编写与自动化任务执行。</p>
+            <p class="welcome-subtitle">报一是您的专业 AI 演示文稿与代码工程助理，支持复杂 PPT 结构解析、代码编写与自动化任务执行。</p>
             <div class="welcome-cards-grid">
               <div class="quick-start-card" data-prompt="请分析当前 PPT 的整体结构与视觉排版，提出针对性的美化和优化建议。">
                 <div class="quick-card-header">
@@ -217,7 +217,7 @@
           <select id="composer-workspace-select" class="composer-workspace-select" title="切换当前工作区"></select>
           <span id="composer-workspace-path" class="composer-workspace-path" title="当前工作区路径">-</span>
         </div>
-        <div class="composer-footer-text">小朴 Agent · AI 智能代码与演示文稿助手 · Ctrl+Enter 发送</div>
+        <div class="composer-footer-text">报一 Agent · AI 智能代码与演示文稿助手 · Ctrl+Enter 发送</div>
       </div>
     </main>
 
@@ -285,11 +285,11 @@
               </div>
               <button id="btn-copy-ppt-text" class="pill-btn" style="font-size: 10px; padding: 1px 6px;">复制文本</button>
             </div>
-            <textarea id="ppt-content-txt" class="ppt-content-textarea" placeholder="幻灯片文本内容会在此实时解析...&#10;您可以直接在此修改文案、增删要点，点击下方按钮让小朴按新文本更新 PPT。"></textarea>
+            <textarea id="ppt-content-txt" class="ppt-content-textarea" placeholder="幻灯片文本内容会在此实时解析...&#10;您可以直接在此修改文案、增删要点，点击下方按钮让报一按新文本更新 PPT。"></textarea>
             <div class="ppt-text-actions">
-              <button id="btn-apply-ppt-text" class="ppt-apply-btn" title="让小朴按修改后的 TXT 内容更新 PPTX">
+              <button id="btn-apply-ppt-text" class="ppt-apply-btn" title="让报一按修改后的 TXT 内容更新 PPTX">
                 <span class="icon"><svg viewBox="0 0 24 24" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-                <span>✨ 让小朴按修改后的内容更新 PPT</span>
+                <span>✨ 让报一按修改后的内容更新 PPT</span>
               </button>
             </div>
           </div>
@@ -426,7 +426,7 @@
         </button>
       </div>
       <div class="modal-body">
-        <p style="margin-bottom: 8px; color: var(--text-secondary);">设置长期目标后，小朴将在复杂跨轮次会话中持续跟踪并对齐核心目标：</p>
+        <p style="margin-bottom: 8px; color: var(--text-secondary);">设置长期目标后，报一将在复杂跨轮次会话中持续跟踪并对齐核心目标：</p>
         <textarea id="goal-input" class="composer-input" rows="4" style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; background: var(--bg-root);" placeholder="例如：将当前 PPT 重构为科技蓝商务风格，并在最后一页增加附录表格..."></textarea>
       </div>
       <div class="modal-footer">
