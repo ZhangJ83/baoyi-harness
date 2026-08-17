@@ -1004,11 +1004,12 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: center;
+    gap: 18px;
     background: transparent !important;
 }
 .header-area {
-    margin-bottom: 16px;
+    margin-bottom: 4px;
 }
 h1 {
     font-size: 40px;
@@ -1026,16 +1027,12 @@ h1 {
 .grid-3, .grid-3x2, .grid-6 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 18px 22px;
-    flex: 1;
-    margin-bottom: 16px;
+    gap: 16px 20px;
 }
 .grid-2, .grid-2x2, .grid-4 {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 18px 22px;
-    flex: 1;
-    margin-bottom: 16px;
+    gap: 16px 20px;
 }
 .card {
     background: rgba(30, 41, 59, 0.78);
@@ -1043,7 +1040,7 @@ h1 {
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(148, 163, 184, 0.15);
     border-radius: 16px;
-    padding: 18px 20px 14px;
+    padding: 16px 18px 12px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -1111,20 +1108,19 @@ h3 {
 .feature-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    flex: 1;
+    gap: 6px;
 }
 .feature-item {
     background: rgba(15, 23, 42, 0.55);
     border: 1px solid rgba(148, 163, 184, 0.1);
     border-radius: 8px;
-    padding: 10px 12px;
+    padding: 9px 12px;
 }
 .feature-title {
     font-size: 13.5px;
     font-weight: 600;
     color: #38bdf8;
-    margin-bottom: 3px;
+    margin-bottom: 2px;
     display: flex;
     align-items: center;
     gap: 5px;
@@ -1137,7 +1133,7 @@ h3 {
 .card:nth-child(6) .feature-title { color: #67e8f9; }
 .feature-text {
     font-size: 12.5px;
-    line-height: 1.5;
+    line-height: 1.45;
     color: #cbd5e1;
 }
 ul {
@@ -1145,21 +1141,20 @@ ul {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    flex: 1;
+    gap: 6px;
 }
 ul li {
     position: relative;
     padding-left: 18px;
-    font-size: 13.5px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.45;
     color: #cbd5e1;
 }
 ul li::before {
     content: '';
     position: absolute;
     left: 0;
-    top: 8px;
+    top: 7px;
     width: 6px;
     height: 6px;
     border-radius: 50%;
@@ -1177,7 +1172,7 @@ ul li::before {
     justify-content: space-between;
     padding-top: 8px;
     border-top: 1px solid rgba(148, 163, 184, 0.12);
-    margin-top: auto;
+    margin-top: 2px;
 }
 .deliverable-pill {
     font-size: 11.5px;
@@ -4206,8 +4201,8 @@ def _quality_check(h) -> str:
                 f"slide {index}: layout consists of bare flat text only; consider upgrading to "
                 "workflow_pipeline, html_mockup, quadrant, or comparison cards for richer presentation."
             )
-        if not is_cover and total_chars < 80:
-            warnings.append(f"slide {index}: content is relatively sparse ({total_chars} visible chars; target 120-400)")
+        if not is_cover and total_chars < 120 and not any(s.shape_type == MSO_SHAPE_TYPE.PICTURE for s in slide.shapes):
+            warnings.append(f"slide {index}: content density is low ({total_chars} visible chars; target 180-600 chars with structured cards and deliverables)")
 
         for left_index, first in enumerate(text_shapes):
             for second in visible_shapes:
