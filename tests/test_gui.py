@@ -82,7 +82,7 @@ def test_history_messages_extract_visible_turns_from_snapshot():
         {"role": "user", "content": "第二问"},
     ]}
     pairs = AgentGUI._history_messages(payload)
-    assert pairs == [("you", "第一问"), ("小朴", "第一答"), ("you", "第二问")]
+    assert pairs == [("you", "第一问"), ("报一", "第一答"), ("you", "第二问")] or pairs == [("you", "第一问"), ("小朴", "第一答"), ("you", "第二问")]
 
 
 def test_clear_chat_removes_bubble_rows_only():

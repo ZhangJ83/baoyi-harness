@@ -31,7 +31,7 @@
     },
     "xiaopu_ppt_tools": {
       "path": "agent/tools/ppt_tools.py",
-      "sha256": "26a6c53f01dc7af9424fde5d7377f544bef4d599f4437c694ebe79d0c51e551f"
+      "sha256": "932f1a209c16ad804d2470152ff54308944d3d79966f2984d299541ff186e70e"
     },
     "cli_versions": {
       "xiaopu": "repository-runtime",

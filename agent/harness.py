@@ -702,10 +702,10 @@ class Harness:
         try:
             text = self._run_text(task)
             reason = self._infer_stop_reason(text)
-        except Exception:
+        except Exception as exc:
             if config.strict_run_budget():
                 raise
-            text = f"运行错误：{type(sys.exception()).__name__}: {sys.exception()}\n\n已保留当前状态，可输入“继续”重试。"
+            text = f"运行错误：{type(exc).__name__}: {exc}\n\n已保留当前状态，可输入“继续”重试。"
             reason = StopReason.ERROR
         outcome = TurnOutcome(
             text=text,

@@ -1,8 +1,7 @@
 import json
 from pathlib import Path
 
-from benchmarks.build_evidence_manifest import digest
-from benchmarks.validate_run_bundle import validate
+from agent.run_bundle_validator import digest, validate_run_bundle as validate
 
 
 def _write_json(path: Path, value) -> None:

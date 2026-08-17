@@ -1546,7 +1546,7 @@ def _html_slide(
     slide_number: int | None = None,
     insert_after: int | None = None,
     title: str = "",
-    render_mode: str = "raster",
+    render_mode: str = "vector",
 ) -> str:
     """Render HTML/CSS content into PPTX slides via headless browser screenshot (raster) or vector shapes."""
     from pathlib import Path

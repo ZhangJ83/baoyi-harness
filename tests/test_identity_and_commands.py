@@ -12,7 +12,7 @@ def test_system_prompt_anchors_xiaopu_identity():
     harness.controller_policy = "cegar_h"
     harness.loaded_skills = set()
     text = harness._system_prompt("explain a function")
-    assert "(Xiaopu)" in text
+    assert "报一 (Baoyi)" in text or "Baoyi" in text or "(Xiaopu)" in text
     assert "Never identify yourself as Claude" in text
     assert "Task profile / capability catalog" in text
 

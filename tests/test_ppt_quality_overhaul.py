@@ -107,7 +107,7 @@ def test_workflow_pipeline_and_html_raster_slide():
   </div>
 </div>
 """
-    _html_slide(h, html=html_code, slide_number=2)
+    _html_slide(h, html=html_code, slide_number=2, render_mode="raster")
 
     # Check Slide 1: title sanitized
     s1 = h.deck.slides[0]
