@@ -29,8 +29,8 @@ def bind_manifest_task(task: str, root: Path | None = None) -> tuple[str, str | 
     first input filename.  The selected task id is returned for audit/UI use.
     """
 
-    normalized = task.replace("/", "\\").casefold()
-    if "workspace_manifest.csv" not in normalized or "tasks\\<task_id>" not in normalized:
+    normalized = task.replace("\\", "/").casefold()
+    if "workspace_manifest.csv" not in normalized or "tasks/<task_id>" not in normalized:
         return task, None
     workspace = (root or config.sandbox_root()).resolve()
     manifest = workspace / "workspace_manifest.csv"
@@ -46,7 +46,8 @@ def bind_manifest_task(task: str, root: Path | None = None) -> tuple[str, str | 
         output_dir = candidate / "output"
         already_done = output_dir.is_dir() and any(output_dir.glob("*.pptx"))
         if task_id and candidate.is_dir() and status not in {"completed", "done"} and not already_done:
-            return task.replace("tasks\\<task_id>", task_dir.replace("/", "\\")), task_id
+            result_task = re.sub(r"tasks[\\/]<task_id>", task_dir, task, flags=re.IGNORECASE)
+            return result_task, task_id
     return task, None
 
 
@@ -64,12 +65,12 @@ def task_root_from_prompt(task: str, root: Path | None = None) -> Path | None:
         return indexed
     tasks_dir = workspace / "tasks"
     if tasks_dir.is_dir():
-        normalized = task.replace("/", "\\").casefold()
+        normalized = task.replace("\\", "/").casefold()
         matches = [
             path.resolve()
             for path in tasks_dir.iterdir()
             if path.is_dir() and (
-                f"tasks\\{path.name}".casefold() in normalized
+                f"tasks/{path.name}".casefold() in normalized
                 or path.name.casefold() in normalized
             )
         ]
@@ -399,8 +400,9 @@ def prepare_task_brief(task: str, state, recorder=None, *, max_sources: int = 24
         state.record_fact("task_instruction", instruction_text.strip())
         output_match = re.search(r"output[\\/][^`\r\n]+?\.pptx", instruction_text, re.IGNORECASE)
         if output_match:
-            required = task_root / output_match.group(0).replace("/", "\\")
-            state.record_fact("required_output_pptx", str(required.relative_to(config.sandbox_root())))
+            parts = re.split(r"[\\/]+", output_match.group(0))
+            required = task_root.joinpath(*parts)
+            state.record_fact("required_output_pptx", required.relative_to(config.sandbox_root()).as_posix())
         else:
             # Some task packages wrap the real instruction in
             # ``instruction_source.md`` while ``instruction.md`` stays a short
@@ -411,14 +413,15 @@ def prepare_task_brief(task: str, state, recorder=None, *, max_sources: int = 24
                 detailed_text = detailed.read_text(encoding="utf-8-sig", errors="replace")
             output_match = re.search(r"output[\\/][^`\r\n]+?\.pptx", detailed_text, re.IGNORECASE)
             if output_match:
-                required = task_root / output_match.group(0).replace("/", "\\")
-                state.record_fact("required_output_pptx", str(required.relative_to(config.sandbox_root())))
+                parts = re.split(r"[\\/]+", output_match.group(0))
+                required = task_root.joinpath(*parts)
+                state.record_fact("required_output_pptx", required.relative_to(config.sandbox_root()).as_posix())
             else:
                 # One-line tasks deliberately omit delivery details. Keep output
                 # placement deterministic and task-local instead of allowing the
                 # model to invent a workspace-root ``deck.pptx``.
                 required = task_root / "output" / "final.pptx"
-                state.record_fact("required_output_pptx", str(required.relative_to(config.sandbox_root())))
+                state.record_fact("required_output_pptx", required.relative_to(config.sandbox_root()).as_posix())
     task_card = task_root / "task_card.md"
     if task_card.is_file():
         card_text = task_card.read_text(encoding="utf-8-sig", errors="replace")

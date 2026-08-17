@@ -73,8 +73,8 @@ COMMANDS: dict[str, str] = {
     "/activity": "查看本轮工作摘要与审计信息",
     "/theme": "切换主题（dark/light）",
     "/help": "查看全部命令说明",
-    "/exit": "保存会话并退出小朴",
-    "/quit": "保存会话并退出小朴",
+    "/exit": "保存会话并退出报一",
+    "/quit": "保存会话并退出报一",
 }
 
 HELP_TEXT = """\
@@ -133,8 +133,8 @@ class HybridCompleter(Completer):
         yield from self.paths.get_completions(document, complete_event)
 
 
-class XiaopuCLI:
-    """Scrollable, selectable agent REPL."""
+class BaoyiCLI:
+    """Scrollable, selectable agent REPL for Baoyi."""
 
     def __init__(self, model: str | None = None) -> None:
         config.load_dotenv()
@@ -478,13 +478,13 @@ class XiaopuCLI:
                 if not self._streamed_text.endswith("\n"):
                     console.print()
                 if reply.startswith(("⚠", "⏹")):
-                    console.print(Panel(Markdown(reply), title="小朴 · 可恢复暂停", border_style="yellow"))
+                    console.print(Panel(Markdown(reply), title="报一 · 可恢复暂停", border_style="yellow"))
                 elif reply.strip() != self._streamed_text.strip():
                     console.print(Markdown(reply))
             else:
                 console.print()
                 if reply.startswith(("⚠", "⏹")):
-                    console.print(Panel(Markdown(reply), title="小朴 · 可恢复暂停", border_style="yellow"))
+                    console.print(Panel(Markdown(reply), title="报一 · 可恢复暂停", border_style="yellow"))
                 else:
                     console.print(Markdown(reply))
             state = self.h.state
@@ -499,7 +499,7 @@ class XiaopuCLI:
     def _handle_command(self, cmd: str, parts: list[str]) -> bool:
         """Return True when the REPL should exit."""
         if cmd == "/help":
-            console.print(Panel(HELP_TEXT, title="小朴 · 命令指南", border_style="cyan", padding=(0, 1)))
+            console.print(Panel(HELP_TEXT, title="报一 · 命令指南", border_style="cyan", padding=(0, 1)))
             return False
         if cmd in {"/exit", "/quit"}:
             try:
@@ -511,14 +511,14 @@ class XiaopuCLI:
             console.print("[bold cyan]再见。[/]\n")
             return True
         if cmd == "/new":
+            from .session_store import save_session
             try:
-                from .session_store import save_session
-                record = save_session(self.h, title="interactive session")
-                console.print(f"[dim]已保存前序会话：{record.id}[/]")
+                record = save_session(self.h, title="checkpoint before /new")
+                console.print(f"[dim]前序会话已归档：{record.id}[/]")
             except Exception:
                 pass
             self.h.reset()
-            console.print("[bold cyan]✓ 已新建会话，工作区与状态已重置。[/]\n")
+            console.print("[bold green]✓ 已新建会话并清空上下文。[/]\n")
             return False
         if cmd == "/sessions":
             from .session_store import list_sessions
@@ -526,7 +526,7 @@ class XiaopuCLI:
             if not records:
                 console.print("[dim]暂无已保存的会话。[/]\n")
                 return False
-            table = Table(title="小朴 · 已保存会话列表", border_style="cyan", header_style="bold cyan")
+            table = Table(title="报一 · 已保存会话列表", border_style="cyan", header_style="bold cyan")
             table.add_column("#", style="dim", width=4, justify="right")
             table.add_column("Session ID", style="bold cyan", width=14)
             table.add_column("Title / 任务概要", style="white", ratio=3)
@@ -567,13 +567,13 @@ class XiaopuCLI:
                 if role == "user" and content:
                     console.print(Panel(content, title="[bold cyan]你[/]", border_style="cyan", padding=(0, 1)))
                 elif role == "assistant" and content:
-                    console.print(Panel(Markdown(content), title="[bold green]小朴[/]", border_style="green", padding=(0, 1)))
+                    console.print(Panel(Markdown(content), title="[bold green]报一[/]", border_style="green", padding=(0, 1)))
             console.print()
             return False
         if cmd == "/export":
             from .session_store import export_session, save_session
             record = save_session(self.h, title="interactive session")
-            target = Path(parts[1]) if len(parts) > 1 else Path.cwd() / "xiaopu-session.md"
+            target = Path(parts[1]) if len(parts) > 1 else Path.cwd() / "baoyi-session.md"
             console.print(export_session(record.id, target))
             console.print()
             return False
@@ -594,7 +594,7 @@ class XiaopuCLI:
                 ("Tokens", f"{state.total_tokens} total · {state.generated_output_tokens} generated"),
             ):
                 table.add_row(key, value)
-            console.print(Panel(table, title="小朴 · 运行状态", border_style="cyan"))
+            console.print(Panel(table, title="报一 · 运行状态", border_style="cyan"))
             console.print()
             return False
         if cmd == "/context":
@@ -624,7 +624,7 @@ class XiaopuCLI:
             table.add_column("值", style="white")
             for key, value in payload.items():
                 table.add_row(str(key), str(value))
-            console.print(Panel(table, title="小朴 · Doctor 诊断（密钥永不显示）", border_style="cyan"))
+            console.print(Panel(table, title="报一 · Doctor 诊断（密钥永不显示）", border_style="cyan"))
             console.print()
             return False
         if cmd == "/model":
@@ -633,85 +633,100 @@ class XiaopuCLI:
                 try:
                     self.h.llm.model = value
                     console.print(f"[dim]模型已切换：{value}[/]\n")
-                except Exception as exc:
-                    console.print(f"[yellow]切换失败：{exc}[/]\n")
+                except Exception as e:
+                    console.print(f"[red]模型切换失败：{e}[/]\n")
             else:
-                console.print(f"[dim]当前模型：{self.h.llm.model} · 可用：{', '.join(config.known_models())}[/]\n")
+                active = self.h.llm.model if getattr(self.h, "llm", None) else config.model()
+                models = config.known_models()
+                table = Table(title="可选模型列表（用 /model <name> 切换）", border_style="cyan")
+                table.add_column("Model", style="white")
+                table.add_column("状态", style="bold cyan")
+                for m in models:
+                    tag = "● 当前使用" if m == active else ""
+                    table.add_row(m, tag)
+                console.print(table)
+                console.print()
             return False
         if cmd == "/thinking":
-            value = (parts[1].strip() if len(parts) > 1 else None) or ("off" if config.thinking_enabled() else "on")
-            config.set_thinking(value == "on")
-            console.print(f"[dim]思考模式：{value}[/]\n")
+            value = parts[1].strip().lower() if len(parts) > 1 else None
+            if value in {"on", "off"}:
+                enabled = value == "on"
+                config.set_thinking_enabled(enabled)
+                status = "已开启（provider 支持时生效）" if enabled else "已关闭"
+                console.print(f"[dim]思考模式：{status}[/]\n")
+            else:
+                status = "开启" if config.thinking_enabled() else "关闭"
+                console.print(f"[dim]思考模式当前状态：{status}（用 /thinking on|off 切换）[/]\n")
             return False
         if cmd == "/effort":
-            value = parts[1].strip() if len(parts) > 1 else None
-            if value:
+            value = parts[1].strip().lower() if len(parts) > 1 else None
+            if value in {"high", "max"}:
                 config.set_reasoning_effort(value)
-            console.print(f"[dim]推理强度：{config.reasoning_effort()}[/]\n")
+                console.print(f"[dim]推理强度已设为：{value}[/]\n")
+            else:
+                console.print(f"[dim]推理强度当前设置：{config.reasoning_effort()}（用 /effort high|max 设置）[/]\n")
             return False
         if cmd == "/permissions":
-            value = parts[1].strip() if len(parts) > 1 else None
-            if value and value not in {"allow", "ask", "deny"}:
-                console.print("[yellow]用法：/permissions allow|ask|deny[/]\n")
-                return False
-            if value:
+            value = parts[1].strip().lower() if len(parts) > 1 else None
+            if value in {"allow", "ask", "deny"}:
                 config.set_command_policy(value)
-            console.print(f"[dim]shell 策略：{config.command_policy()}[/]\n")
+                console.print(f"[dim]Shell 执行策略已设为：{value}[/]\n")
+            else:
+                console.print(f"[dim]Shell 执行策略当前设置：{config.command_policy()}（用 /permissions allow|ask|deny 切换）[/]\n")
             return False
         if cmd == "/plan":
-            value = parts[1].strip() if len(parts) > 1 else None
-            enabled = value == "on" if value in {"on", "off"} else not config.plan_mode()
-            config.set_plan_mode(enabled)
-            console.print(f"[dim]计划模式：{'on' if enabled else 'off'}[/]\n")
+            value = parts[1].strip().lower() if len(parts) > 1 else None
+            if value in {"on", "off"}:
+                config.set_plan_mode(value == "on")
+                status = "已开启（仅规划不修改）" if value == "on" else "已关闭"
+                console.print(f"[dim]计划模式：{status}[/]\n")
+            else:
+                status = "开启" if config.plan_mode() else "关闭"
+                console.print(f"[dim]计划模式当前状态：{status}（用 /plan on|off 切换）[/]\n")
             return False
         if cmd == "/process":
-            value = (parts[1].strip() if len(parts) > 1 else None) or "balanced"
-            if value not in {"quiet", "balanced", "detail"}:
-                console.print("[yellow]用法：/process quiet|balanced|detail[/]\n")
-                return False
-            self._process_view = value
-            console.print(f"[dim]过程显示：{value}[/]\n")
-            return False
-        if cmd == "/trajectory":
-            if not self._trajectory:
-                console.print("[dim]本轮暂无轨迹（先执行一个任务）。[/]\n")
-                return False
-            table = Table(title="本轮详细轨迹", border_style="cyan", expand=True)
-            table.add_column("#", style="dim", width=4)
-            table.add_column("阶段", style="bold cyan", width=12)
-            table.add_column("内容", style="white")
-            for index, (kind, content) in enumerate(self._trajectory, 1):
-                table.add_row(str(index), kind, content[:4000])
-            console.print(table)
-            console.print()
-            return False
-        if cmd == "/cot":
-            text = self.h.state.last_reasoning_text or self._reasoning_text
-            if not text.strip():
-                console.print("[dim]模型最近一次响应没有返回原始思维链（provider 未提供）。[/]\n")
-                return False
-            console.print(Panel(Text(text, style="magenta"), title="原始思维链（模型实际返回，未做任何加工）", border_style="magenta", padding=(0, 1)))
-            return False
-        if cmd == "/goal":
-            objective = parts[1].strip() if len(parts) > 1 else ""
-            console.print(self.h.start_goal(objective) if objective else self.h.goal_summary())
-            console.print()
+            value = parts[1].strip().lower() if len(parts) > 1 else None
+            if value in {"quiet", "balanced", "detail"}:
+                config.set_process_mode(value)
+                console.print(f"[dim]过程显示已设为：{value}[/]\n")
+            else:
+                console.print(f"[dim]过程显示当前设置：{config.process_mode()}（用 /process quiet|balanced|detail 切换）[/]\n")
             return False
         if cmd == "/theme":
-            value = (parts[1].strip() if len(parts) > 1 else None) or ("light" if self._theme == "dark" else "dark")
-            if value not in {"dark", "light"}:
-                console.print("[yellow]用法：/theme dark|light[/]\n")
-                return False
-            config.set_theme(value)
-            self._theme = value
-            self._prompt = self._make_prompt() if self._is_tty else None
-            console.print(f"[dim]主题已切换：{value}[/]\n")
+            value = parts[1].strip().lower() if len(parts) > 1 else None
+            if value in config.THEMES:
+                config.set_theme(value)
+                self._theme = value
+                console.print(f"[dim]主题已切换为：{value}[/]\n")
+            else:
+                console.print(f"[dim]当前主题：{config.theme()}（支持 {' / '.join(config.THEMES)}）[/]\n")
+            return False
+        if cmd == "/trajectory":
+            target = parts[1].strip() if len(parts) > 1 else None
+            out_path = self.h.export_trajectory(target)
+            console.print(f"[bold green]✓ 轨迹已导出：[/] [cyan]{out_path}[/]\n")
+            return False
+        if cmd == "/cot":
+            reasoning = getattr(self.h.state, "last_reasoning_content", "") or ""
+            if not reasoning.strip():
+                console.print("[dim]最近一轮未产生原始思维链（当前模型或推理配置未回传 reasoning_content）。[/]\n")
+            else:
+                console.print(Panel(Markdown(reasoning), title="原始思维链（未修改）", border_style="magenta", padding=(0, 1)))
+                console.print()
+            return False
+        if cmd == "/goal":
+            rest = " ".join(parts[1:]).strip()
+            if not rest:
+                console.print(f"[dim]当前长程目标：{self.h.goal or '（未设置，用 /goal <描述> 开启）'}[/]\n")
+            else:
+                self.h.set_goal(rest)
+                console.print(f"[bold green]✓ 长程目标已设定：[/] {rest}\n")
             return False
         if cmd == "/activity":
             if not self._latest_activity:
                 console.print("[dim]暂无工作摘要。[/]\n")
             else:
-                console.print(Panel("\n\n".join(self._latest_activity), title="小朴 · 工作摘要（可审计）", border_style="cyan"))
+                console.print(Panel("\n\n".join(self._latest_activity), title="报一 · 工作摘要（可审计）", border_style="cyan"))
             return False
         console.print(f"[yellow]未知命令：{cmd}（输入 /help 查看）[/]\n")
         return False
@@ -723,7 +738,7 @@ class XiaopuCLI:
                 if self._is_tty and self._prompt is not None:
                     user_input = self._prompt.prompt().strip()
                 else:
-                    user_input = console.input("[cyan]小朴 › [/]").strip()
+                    user_input = console.input("[cyan]报一 › [/]").strip()
             except (EOFError, KeyboardInterrupt):
                 console.print("\n[bold cyan]再见。[/]\n")
                 return 0
@@ -738,8 +753,12 @@ class XiaopuCLI:
         return 0
 
 
+# Backward-compatible class alias
+XiaopuCLI = BaoyiCLI
+
+
 def run_cli(model: str | None = None) -> int:
-    return XiaopuCLI(model=model).run_interactive()
+    return BaoyiCLI(model=model).run_interactive()
 
 
 if __name__ == "__main__":

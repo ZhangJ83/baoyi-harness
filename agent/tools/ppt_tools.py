@@ -962,13 +962,27 @@ def _html_mockup_slide(
 
 def _find_headless_browser_executable() -> str | None:
     from pathlib import Path
+    for name in (
+        "msedge",
+        "google-chrome",
+        "google-chrome-stable",
+        "chrome",
+        "chromium",
+        "chromium-browser",
+    ):
+        found = shutil.which(name)
+        if found:
+            return found
+
     for candidate in [
-        shutil.which("msedge"),
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
         r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        shutil.which("chrome"),
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
     ]:
         if candidate and Path(candidate).exists():
             return str(candidate)

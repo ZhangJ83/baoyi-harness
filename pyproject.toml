@@ -48,6 +48,10 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "swebench: tests requiring the external official SWE-bench environment",
+    "research_state: tests requiring local research state artifacts or external references",
+    "protocol_lock: tests asserting strict prospective research protocol hash locks",
+    "gui: tests requiring an active display or window manager",
+    "live_provider: tests requiring live model provider credentials",
 ]
 
 [project.scripts]

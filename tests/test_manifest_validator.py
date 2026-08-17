@@ -1,15 +1,21 @@
 import json
+from pathlib import Path
+
+import pytest
 
 from benchmarks.validate_task_manifest import validate
 
 
-def test_predeclared_manifest_is_valid():
-    from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
+OFFICIAL_TB_TASKS = ROOT / ".." / "official_refs" / "terminal-bench" / "original-tasks"
 
-    root = Path(__file__).resolve().parents[1]
+
+@pytest.mark.research_state
+@pytest.mark.skipif(not OFFICIAL_TB_TASKS.is_dir(), reason="external official_refs dataset not present")
+def test_predeclared_manifest_is_valid():
     result = validate(
-        root / "benchmarks/matched_12_task_manifest.json",
-        root / ".." / "official_refs" / "terminal-bench" / "original-tasks",
+        ROOT / "benchmarks/matched_12_task_manifest.json",
+        OFFICIAL_TB_TASKS,
     )
     assert result["valid"] is True
     assert result["task_count"] == 12

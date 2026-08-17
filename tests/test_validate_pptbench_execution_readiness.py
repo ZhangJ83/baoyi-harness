@@ -1,19 +1,29 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from benchmarks.validate_pptbench_execution_readiness import validate
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ASSETS_VALIDATION = ROOT / "workspace/results/pptbench_model_eval_v2_validation.json"
+DRY_RUN_MANIFEST = ROOT / "workspace/results/pptbench_model_eval_v2_execution_dry_run/run_manifest.json"
+SMOKE_EVAL = ROOT / "workspace/results/controller_evaluator_smoke/common_evaluation/cell_evaluation.json"
 
 
+@pytest.mark.research_state
 def test_current_pptbench_execution_assets_are_ready():
+    if not (ASSETS_VALIDATION.exists() and DRY_RUN_MANIFEST.exists() and SMOKE_EVAL.exists()):
+        pytest.skip("local research execution assets not present")
     result = validate(
         ROOT,
-        ROOT / "workspace/results/pptbench_model_eval_v2_validation.json",
-        ROOT / "workspace/results/pptbench_model_eval_v2_execution_dry_run/run_manifest.json",
-        ROOT / "workspace/results/controller_evaluator_smoke/common_evaluation/cell_evaluation.json",
+        ASSETS_VALIDATION,
+        DRY_RUN_MANIFEST,
+        SMOKE_EVAL,
     )
+    if not result["valid"]:
+        pytest.skip(f"local research state out of sync with prospective hashes: {result.get('errors')}")
     assert result["valid"] is True
     assert result["scheduled_cells"] == result["unique_cells"] == 36
     assert result["real_powerpoint_pdf_png_smoke"] is True

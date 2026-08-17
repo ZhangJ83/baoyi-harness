@@ -12,13 +12,14 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from agent.competitor_stream_ledger import normalize
 from benchmarks.evaluate_real_controller_cell import evaluate
 from benchmarks.prepare_pptbench_blind_review import prepare
 from benchmarks.validate_model_generated_ppt_eval import recompute_deck_checks, recompute_pixel_checks
-
-
-ROOT = Path(__file__).resolve().parents[1]
 SYSTEMS = ("xiaopu", "claude_code", "codex")
 
 

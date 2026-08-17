@@ -34,7 +34,7 @@ def test_xiaopu_command_carries_frozen_hard_caps(tmp_path):
 def test_full_dry_run_freezes_36_unique_cells_without_credential(tmp_path):
     run_root = tmp_path / "run"
     result = subprocess.run(
-        [sys.executable, str(ROOT / "benchmarks/run_pptbench_model_eval_v2.py"),
+        [sys.executable, "-m", "benchmarks.run_pptbench_model_eval_v2",
          "--run-root", str(run_root), "--dry-run"],
         cwd=ROOT, capture_output=True, text=True,
     )

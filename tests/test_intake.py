@@ -29,7 +29,7 @@ def test_preflight_builds_office_brief_without_contract_or_output():
         assert "ignore" not in brief
         assert len(state.source_paths) == 2
         assert (root / ".xiaopu" / "content_ir").is_dir()
-        assert state.facts["required_output_pptx"] == str(Path("tasks/demo/output/final.pptx"))
+        assert state.facts["required_output_pptx"] == "tasks/demo/output/final.pptx"
 
 
 def test_bare_task_directory_name_resolves_without_tasks_prefix():
@@ -92,7 +92,7 @@ def test_preflight_binds_one_exact_pptx_instead_of_guessing_its_name():
             persist_ir.return_value = artifact
             brief = prepare_task_brief("tasks/3-002", state)
         assert state.facts["ppt_input_deck"] == str(Path("tasks/3-002/3.pptx"))
-        assert state.facts["required_output_pptx"] == str(Path("tasks/3-002/output/final.pptx"))
+        assert state.facts["required_output_pptx"] == "tasks/3-002/output/final.pptx"
         assert json.loads(brief)["input_pptx"] == str(Path("tasks/3-002/3.pptx"))
 
 
@@ -151,7 +151,7 @@ def test_manifest_placeholder_binds_first_unfinished_task_deterministically():
             r"read workspace_manifest.csv then complete tasks\<task_id>", root
         )
         assert task_id == "3-002"
-        assert r"tasks\3-002" in bound
+        assert "tasks/3-002" in bound
 
 
 def test_bound_instruction_is_preserved_as_a_routing_fact():
