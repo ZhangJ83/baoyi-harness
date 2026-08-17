@@ -997,7 +997,7 @@ body {
     font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
     background: linear-gradient(135deg, #0b1120 0%, #0f172a 50%, #1e293b 100%);
     color: #f8fafc;
-    padding: 44px 56px;
+    padding: 40px 52px;
 }
 .slide {
     width: 100%;
@@ -1008,52 +1008,62 @@ body {
     background: transparent !important;
 }
 .header-area {
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 }
 h1 {
-    font-size: 42px;
+    font-size: 40px;
     font-weight: 700;
     color: #f1f5f9;
     letter-spacing: -0.5px;
     margin-bottom: 6px;
 }
 .subtitle {
-    font-size: 18px;
+    font-size: 17.5px;
     color: #94a3b8;
     font-weight: 400;
     letter-spacing: 0.2px;
 }
-.grid-3 {
+.grid-3, .grid-3x2, .grid-6 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
+    gap: 18px 22px;
     flex: 1;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
+}
+.grid-2, .grid-2x2, .grid-4 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px 22px;
+    flex: 1;
+    margin-bottom: 16px;
 }
 .card {
     background: rgba(30, 41, 59, 0.78);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(148, 163, 184, 0.15);
-    border-radius: 18px;
-    padding: 22px 22px 18px;
+    border-radius: 16px;
+    padding: 18px 20px 14px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+    gap: 8px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .card:nth-child(1) { border-top: 3px solid #10b981; }
 .card:nth-child(2) { border-top: 3px solid #f59e0b; }
 .card:nth-child(3) { border-top: 3px solid #3b82f6; }
+.card:nth-child(4) { border-top: 3px solid #8b5cf6; }
+.card:nth-child(5) { border-top: 3px solid #ec4899; }
+.card:nth-child(6) { border-top: 3px solid #06b6d4; }
 .card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 .badge {
-    padding: 4px 12px;
-    border-radius: 16px;
-    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 14px;
+    font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
@@ -1071,45 +1081,63 @@ h1 {
     color: #60a5fa;
     border-color: rgba(96, 165, 250, 0.25);
 }
+.card:nth-child(4) .badge {
+    background: linear-gradient(135deg, #4c1d95, #6d28d9);
+    color: #c4b5fd;
+    border-color: rgba(196, 181, 253, 0.25);
+}
+.card:nth-child(5) .badge {
+    background: linear-gradient(135deg, #831843, #be185d);
+    color: #f472b6;
+    border-color: rgba(244, 114, 182, 0.25);
+}
+.card:nth-child(6) .badge {
+    background: linear-gradient(135deg, #164e63, #0e7490);
+    color: #67e8f9;
+    border-color: rgba(103, 232, 249, 0.25);
+}
 h3 {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 600;
     color: #e2e8f0;
     letter-spacing: -0.2px;
 }
 .card-desc {
-    font-size: 13.5px;
+    font-size: 13px;
     color: #94a3b8;
-    line-height: 1.45;
+    line-height: 1.4;
     margin-bottom: 2px;
 }
 .feature-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     flex: 1;
 }
 .feature-item {
     background: rgba(15, 23, 42, 0.55);
     border: 1px solid rgba(148, 163, 184, 0.1);
-    border-radius: 10px;
-    padding: 12px 14px;
+    border-radius: 8px;
+    padding: 10px 12px;
 }
 .feature-title {
-    font-size: 14.5px;
+    font-size: 13.5px;
     font-weight: 600;
     color: #38bdf8;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 .card:nth-child(1) .feature-title { color: #34d399; }
 .card:nth-child(2) .feature-title { color: #fbbf24; }
 .card:nth-child(3) .feature-title { color: #60a5fa; }
+.card:nth-child(4) .feature-title { color: #c4b5fd; }
+.card:nth-child(5) .feature-title { color: #f472b6; }
+.card:nth-child(6) .feature-title { color: #67e8f9; }
 .feature-text {
-    font-size: 13.5px;
-    line-height: 1.55;
+    font-size: 12.5px;
+    line-height: 1.5;
     color: #cbd5e1;
 }
 ul {
@@ -1117,21 +1145,21 @@ ul {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     flex: 1;
 }
 ul li {
     position: relative;
-    padding-left: 20px;
-    font-size: 14.5px;
-    line-height: 1.55;
+    padding-left: 18px;
+    font-size: 13.5px;
+    line-height: 1.5;
     color: #cbd5e1;
 }
 ul li::before {
     content: '';
     position: absolute;
     left: 0;
-    top: 9px;
+    top: 8px;
     width: 6px;
     height: 6px;
     border-radius: 50%;
@@ -1140,23 +1168,26 @@ ul li::before {
 .card:nth-child(1) ul li::before { background: #34d399; }
 .card:nth-child(2) ul li::before { background: #fbbf24; }
 .card:nth-child(3) ul li::before { background: #60a5fa; }
+.card:nth-child(4) ul li::before { background: #8b5cf6; }
+.card:nth-child(5) ul li::before { background: #ec4899; }
+.card:nth-child(6) ul li::before { background: #06b6d4; }
 .card-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: 10px;
+    padding-top: 8px;
     border-top: 1px solid rgba(148, 163, 184, 0.12);
     margin-top: auto;
 }
 .deliverable-pill {
-    font-size: 12.5px;
+    font-size: 11.5px;
     color: #f1f5f9;
     background: rgba(148, 163, 184, 0.15);
-    padding: 4px 10px;
-    border-radius: 6px;
+    padding: 3px 8px;
+    border-radius: 5px;
 }
 .tech-tag {
-    font-size: 12px;
+    font-size: 11.5px;
     font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
     color: #94a3b8;
     letter-spacing: 0.5px;
@@ -1164,15 +1195,15 @@ ul li::before {
 .summary-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     background: rgba(15, 23, 42, 0.85);
     border: 1px solid rgba(148, 163, 184, 0.15);
     border-left: 4px solid #38bdf8;
-    border-radius: 12px;
-    padding: 14px 24px;
-    font-size: 15px;
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 14.5px;
     color: #e2e8f0;
-    line-height: 1.5;
+    line-height: 1.45;
     box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 .summary-bar strong {
