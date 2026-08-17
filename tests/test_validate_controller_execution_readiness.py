@@ -33,7 +33,7 @@ def test_execution_readiness_fails_without_pdf(tmp_path: Path):
     assert result["valid"] is False
 
 
-@pytest.mark.protocol_lock
+@pytest.mark.research_state
 def test_execution_readiness_requires_real_render_smoke(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

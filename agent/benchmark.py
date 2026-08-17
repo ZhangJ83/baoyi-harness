@@ -73,17 +73,19 @@ def main() -> int:
     from .harness import Harness
     from .redact import redact
 
-    log_candidate = workspace / args.log
-    if args.log == ".baoyi/run.jsonl" and not log_candidate.exists() and (workspace / ".xiaopu/run.jsonl").exists():
-        log_path = (workspace / ".xiaopu/run.jsonl").resolve()
-    else:
-        log_path = log_candidate.resolve()
+    log_path = (workspace / args.log).resolve()
     try:
         log_path.relative_to(workspace)
     except ValueError:
         print("log path escapes workspace", file=sys.stderr)
         return 2
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_log = workspace / ".xiaopu/run.jsonl"
+        if args.log == ".baoyi/run.jsonl" and not log_path.exists() and legacy_log.is_file():
+            shutil.copy2(legacy_log, log_path)
+    except Exception:
+        pass
     started = time.time()
 
     def record(kind: str, payload: dict) -> None:

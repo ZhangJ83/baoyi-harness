@@ -8,7 +8,7 @@
   "null_hypothesis": "CEGAR-H has no paired success or verification-cost advantage over direct, always-verify, or evidence-only.",
   "task_source": {
     "path": "benchmarks/pptbench_model_eval_v2.json",
-    "sha256": "2d9b63e47f1ea1322bf626522057f49599e17189ca2b233562a1b51f54529e3c"
+    "sha256": "8f96b5c4d3df5a8c0afe770861953d1adc60937e271653a756d794f87e08441a"
   },
   "paired_task_set": true,
   "n_tasks": 12,

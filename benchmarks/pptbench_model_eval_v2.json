@@ -291,7 +291,7 @@
         "controlled"
       ],
       "input": {
-        "path": "workspace/results/ppt_harness_demo/ppt-harness-demo.pptx",
+        "path": "benchmarks/fixtures/pptbench_model_eval_v2/inputs/ppt-harness-demo.pptx",
         "sha256": "f932794aa768d3779849107896e2617def4a8f7b9fb41b146ebf7416acb8dfd0"
       }
     },
@@ -315,7 +315,7 @@
         "time"
       ],
       "input": {
-        "path": "workspace/results/one_hour_ppt_fixtures/ppt-create-001.pptx",
+        "path": "benchmarks/fixtures/pptbench_model_eval_v2/inputs/ppt-create-001.pptx",
         "sha256": "36503b025297ca94a9164a617e86b3901b521ad380a883e9ec06b18bb0f4ed1e"
       }
     },
@@ -338,7 +338,7 @@
         "launch"
       ],
       "input": {
-        "path": "workspace/results/one_hour_ppt_fixtures/ppt-layout-001.pptx",
+        "path": "benchmarks/fixtures/pptbench_model_eval_v2/inputs/ppt-layout-001.pptx",
         "sha256": "ecae10d893ed7b3e5c3047481af5452cc8c51e12b6b920bb02f4024a64ba1827"
       }
     },
@@ -363,7 +363,7 @@
         "18-task"
       ],
       "input": {
-        "path": "workspace/results/one_hour_ppt_fixtures/ppt-dense-001.pptx",
+        "path": "benchmarks/fixtures/pptbench_model_eval_v2/inputs/ppt-dense-001.pptx",
         "sha256": "3c5eb3c1a0ecd070ceba7f2437c0c36e23fbd6e667de6a5fbb94870b37ee7b7b"
       }
     },
@@ -390,7 +390,7 @@
         "限制"
       ],
       "input": {
-        "path": "workspace/results/one_hour_ppt_fixtures/ppt-bilingual-001.pptx",
+        "path": "benchmarks/fixtures/pptbench_model_eval_v2/inputs/ppt-bilingual-001.pptx",
         "sha256": "aaee8c407264467c4dc78a157cea5e1754c3a7245895bc44e5b11af6531335a8"
       }
     },
@@ -413,7 +413,7 @@
         "90% verified outputs"
       ],
       "input": {
-        "path": "workspace/results/one_hour_ppt_fixtures/ppt-edit-001.pptx",
+        "path": "benchmarks/fixtures/pptbench_model_eval_v2/inputs/ppt-edit-001.pptx",
         "sha256": "10fe8679e29f674680b7609adf9acb25c38b4ee746ff53ad3117a2d1655308fc"
       }
     }

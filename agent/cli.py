@@ -200,10 +200,11 @@ class BaoyiCLI:
         ws_root = Path(config.sandbox_root())
         history_path = ws_root / ".baoyi" / "cli_history.txt"
         legacy_history = ws_root / ".xiaopu" / "cli_history.txt"
-        if not history_path.exists() and legacy_history.exists():
-            history_path = legacy_history
         try:
             history_path.parent.mkdir(parents=True, exist_ok=True)
+            if not history_path.exists() and legacy_history.is_file():
+                import shutil
+                shutil.copy2(legacy_history, history_path)
         except Exception:
             pass
 
