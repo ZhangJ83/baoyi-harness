@@ -1,0 +1,36 @@
+{
+  "schema": "xiaopu-session-snapshot-v1",
+  "id": "c28d08d2a92b4f8f9814adcdac977de8",
+  "created_at": "2026-08-15T08:30:55+00:00",
+  "model": "deepseek-v4-flash",
+  "workspace": "E:\\project\\agent\\xiaopu\\.tmp\\tmpatl7_m1v",
+  "messages": [
+    {
+      "role": "system",
+      "content": "SYS"
+    },
+    {
+      "role": "user",
+      "content": "做一个 PPT"
+    },
+    {
+      "role": "assistant",
+      "content": "好的"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "t1",
+      "content": "result"
+    }
+  ],
+  "facts": {
+    "task_root": "tasks/demo"
+  },
+  "content_brief": "{\"schema\":\"test\"}",
+  "mutation_epoch": 1,
+  "phase": "intake",
+  "task_spec": null,
+  "active_goal": null,
+  "final_summary": null,
+  "title": "演示任务"
+}

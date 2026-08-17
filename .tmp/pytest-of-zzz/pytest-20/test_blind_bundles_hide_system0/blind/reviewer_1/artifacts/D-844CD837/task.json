@@ -1,0 +1,15 @@
+{
+  "anonymous_id": "D-844CD837",
+  "task_id": "t2",
+  "audience": "staff",
+  "deck_job": "learn",
+  "prompt": "make a training deck",
+  "facts": [
+    "B"
+  ],
+  "required_text": [
+    "B"
+  ],
+  "min_slides": 1,
+  "max_slides": 1
+}

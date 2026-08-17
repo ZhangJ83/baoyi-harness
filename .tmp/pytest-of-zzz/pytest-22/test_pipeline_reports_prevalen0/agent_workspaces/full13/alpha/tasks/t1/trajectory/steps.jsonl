@@ -1,0 +1,3 @@
+{"step": 1, "action": "read"}
+{"step": 2, "action": "render"}
+{"step": 3, "action": "stop"}

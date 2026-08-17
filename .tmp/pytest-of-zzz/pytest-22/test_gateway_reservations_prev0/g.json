@@ -1,0 +1,23 @@
+{
+  "schema": "generation-budget-gateway-v1",
+  "max_cumulative_output_tokens": 100,
+  "committed_output_tokens": 0,
+  "reservations": {
+    "c15594be-d351-4687-a735-92596c6a37da": {
+      "provider": "openai_chat",
+      "requested_output_tokens": null,
+      "reserved_output_tokens": 100
+    }
+  },
+  "completed": [],
+  "violations": [],
+  "aborted": [
+    {
+      "reservation_id": "0091ecc6-8a45-4f08-80e7-607a293fe01d",
+      "reason": "upstream error",
+      "provider": "openai_chat",
+      "requested_output_tokens": null,
+      "reserved_output_tokens": 100
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+create-training-workshop always_verify trace

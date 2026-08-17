@@ -1,0 +1,15 @@
+{
+  "schema": "generation-budget-gateway-v1",
+  "max_cumulative_output_tokens": 25,
+  "committed_output_tokens": 25,
+  "reservations": {},
+  "completed": [],
+  "violations": [
+    {
+      "reservation_id": "408373ea-7a78-4e0f-8010-faa2d098044a",
+      "kind": "missing_authoritative_output_usage",
+      "reason": "successful response omitted output usage",
+      "charged_output_tokens": 25
+    }
+  ]
+}

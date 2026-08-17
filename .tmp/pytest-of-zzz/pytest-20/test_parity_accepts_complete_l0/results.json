@@ -1,0 +1,1 @@
+{"results": [{"task_id": "a", "trial_name": "a.1", "is_resolved": true, "total_input_tokens": 1, "total_output_tokens": 2, "agent_started_at": "2026-01-01T00:00:00+00:00", "agent_ended_at": "2026-01-01T00:00:03+00:00"}]}

@@ -8,8 +8,19 @@ version = "0.2.0"
 description = "报一 (Baoyi) - Provider-neutral coding and PowerPoint agent harness."
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
 authors = [
     { name = "zhangjianning" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 
 dependencies = [
@@ -24,29 +35,46 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8.0.0"]
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [project.scripts]
 baoyi = "agent.main:main"
-xiaopu = "agent.main:main"
-agent-gui = "agent.gui:main"
 baoyi-bench = "agent.benchmark:main"
-xiaopu-bench = "agent.benchmark:main"
 baoyi-doctor = "agent.doctor:main"
-xiaopu-doctor = "agent.doctor:main"
 baoyi-validate-run = "benchmarks.validate_run_bundle:main"
+# Legacy aliases
+xiaopu = "agent.main:main"
+xiaopu-bench = "agent.benchmark:main"
+xiaopu-doctor = "agent.doctor:main"
 xiaopu-validate-run = "benchmarks.validate_run_bundle:main"
+agent-gui = "agent.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["agent*", "benchmarks*"]
+include = [
+    "agent*",
+    "core*",
+    "domains*",
+    "adapters*",
+    "runner*",
+]
+exclude = [
+    "benchmarks*",
+    "tests*",
+]
 
 [tool.setuptools]
-include-package-data = false
+include-package-data = true
 
 [tool.setuptools.package-data]
-agent = ["builtin_skills/*/SKILL.md"]
-
+agent = [
+    "builtin_skills/**/*",
+    "web/**/*",
+    "assets/*",
+]

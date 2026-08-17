@@ -1,0 +1,1 @@
+{"input_tokens": 1, "output_tokens": 2, "tool_calls": 1, "steps": 1, "max_total_tokens": 10, "max_tool_calls": 2, "max_steps": 1, "within_budget": true}

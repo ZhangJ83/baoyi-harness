@@ -1,0 +1,11 @@
+{
+  "schema": "tool-budget-hook-v1",
+  "allowed": [
+    {
+      "tool_use_id": "same",
+      "tool_name": "Bash"
+    }
+  ],
+  "denied": [],
+  "max_tool_calls": 1
+}

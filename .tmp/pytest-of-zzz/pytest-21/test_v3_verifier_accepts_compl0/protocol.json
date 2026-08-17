@@ -1,0 +1,1 @@
+{"shared_model": "deepseek-v4-flash", "benchmark": {"commit": "d28711d"}, "hard_envelope": {"max_cumulative_output_tokens": 10, "max_covered_local_tool_calls": 2, "max_agent_wall_seconds": 5}}

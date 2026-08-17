@@ -1,27 +1,65 @@
-# secrets / local environment
+# Secrets & environment
 .env
 !.env.example
 
-# python
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
 .venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# generated / test / runtime artifacts
-workspace/
-benchmarks/code_tasks/one_shot_runs/
-.tmp/
+# Testing & Coverage
 .pytest_cache/
 .pytest*/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Generated runtime / benchmark artifacts
+workspace/
+logs/
+*.log
+*.zip
+*.tar.gz
+*.tgz
 .smoke/
 .test_runs/
-*.log
-logs/
-build/
-*.egg-info/
+.test_tmp*/
+.acceptance/
+.pdf-review/
+extract-safely/
+benchmarks/**/runs/
+benchmarks/**/one_shot_runs/
+benchmarks/iteration_state.json
+benchmarks/iteration_last_summary.json
 .xiaopu/
+.baoyi/
 
-# editors / OS
+# IDE & OS
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db

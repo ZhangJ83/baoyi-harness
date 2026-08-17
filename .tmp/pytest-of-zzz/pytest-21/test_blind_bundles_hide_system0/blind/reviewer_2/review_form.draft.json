@@ -1,0 +1,43 @@
+{
+  "schema": "pptbench-v2-blind-review-form-draft",
+  "reviewer_id": "",
+  "independent_from_generation": false,
+  "reviewer_non_author": false,
+  "conflicts_declared": false,
+  "review_completed_at": "",
+  "locked_before_adjudication": false,
+  "scores": [
+    {
+      "anonymous_id": "D-74ECDA11",
+      "dimensions": {
+        "content_fidelity": null,
+        "layout": null
+      },
+      "blocking_comment": ""
+    },
+    {
+      "anonymous_id": "D-BA764EC1",
+      "dimensions": {
+        "content_fidelity": null,
+        "layout": null
+      },
+      "blocking_comment": ""
+    },
+    {
+      "anonymous_id": "D-CFB2CA91",
+      "dimensions": {
+        "content_fidelity": null,
+        "layout": null
+      },
+      "blocking_comment": ""
+    },
+    {
+      "anonymous_id": "D-C5412B2E",
+      "dimensions": {
+        "content_fidelity": null,
+        "layout": null
+      },
+      "blocking_comment": ""
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+repair-executive-summary always_verify slide_pngs

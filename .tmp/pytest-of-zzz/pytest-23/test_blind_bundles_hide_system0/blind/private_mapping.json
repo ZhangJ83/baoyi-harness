@@ -1,0 +1,30 @@
+{
+  "schema": "pptbench-v2-private-anonymous-mapping",
+  "artifacts": [
+    {
+      "anonymous_id": "D-33B5F1F7",
+      "system": "sys_a",
+      "task_id": "t1",
+      "deck_sha256": "98f939b4877c758d574ff9123e0c3e59a17a59bd7cdeacc47183aea43ef67edb"
+    },
+    {
+      "anonymous_id": "D-C5CE1A73",
+      "system": "sys_a",
+      "task_id": "t2",
+      "deck_sha256": "f7562fb8fe4c5e193b8c86ab662077e3b25f4dd9aa75bcf8fa05c7684fbf6410"
+    },
+    {
+      "anonymous_id": "D-953E4C02",
+      "system": "sys_b",
+      "task_id": "t1",
+      "deck_sha256": "98f939b4877c758d574ff9123e0c3e59a17a59bd7cdeacc47183aea43ef67edb"
+    },
+    {
+      "anonymous_id": "D-9B9EBA9C",
+      "system": "sys_b",
+      "task_id": "t2",
+      "deck_sha256": "f7562fb8fe4c5e193b8c86ab662077e3b25f4dd9aa75bcf8fa05c7684fbf6410"
+    }
+  ],
+  "never_distribute_with_reviewer_bundle": true
+}
