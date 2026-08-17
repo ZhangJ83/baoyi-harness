@@ -1,4 +1,4 @@
-"""Modern interactive CLI for Xiaopu.
+"""Modern interactive CLI for Baoyi.
 
 Design choices (based on current agent-CLI practice):
 - Rich renders structured status, tools, plans and Markdown replies;
@@ -197,7 +197,11 @@ class BaoyiCLI:
                 self.h.request_cancel()
             event.app.renderer.clear()
 
-        history_path = Path(config.sandbox_root()) / ".xiaopu" / "cli_history.txt"
+        ws_root = Path(config.sandbox_root())
+        history_path = ws_root / ".baoyi" / "cli_history.txt"
+        legacy_history = ws_root / ".xiaopu" / "cli_history.txt"
+        if not history_path.exists() and legacy_history.exists():
+            history_path = legacy_history
         try:
             history_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception:

@@ -43,8 +43,9 @@ baoyi /demo
 Launch the native desktop interface:
 
 ```powershell
-agent-gui --workspace .\workspace
+baoyi-gui --workspace .\workspace
 ```
+*(Legacy alias `agent-gui` is also supported.)*
 
 Or launch the Web GUI:
 
@@ -76,17 +77,24 @@ The validator checks input, output, trajectory/events, tool calls, evaluation, a
 
 ## 🧪 Tests
 
-Run the full test suite using `pytest`:
+Install development and test dependencies:
 
 ```powershell
-pytest -q
+python -m pip install -e ".[test]"
 ```
 
-Or run specific subsystem suites:
+Run the default hermetic regression suite (offline and CI safe):
 
 ```powershell
-pytest tests/test_harness.py tests/test_web_gui.py tests/test_layer_boundaries.py -q
+pytest -q -m "not swebench and not research_state and not protocol_lock and not gui and not live_provider"
 ```
+
+To run specialized test suites:
+- **Research Protocol Locks**: `pytest -q -m "protocol_lock"`
+- **GUI Component Tests**: `pytest -q -m "gui"`
+- **SWE-bench Evaluation**: `pytest -q -m "swebench"`
+- **Live Provider Tests**: `pytest -q -m "live_provider"`
+- **Research State & Audit Tests**: `pytest -q -m "research_state"`
 
 ---
 

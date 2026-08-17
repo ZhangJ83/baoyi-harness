@@ -34,6 +34,7 @@ jobs:
       - name: Verify CLI entry points & installation contract
         run: |
           baoyi --help
+          baoyi-bench --help
           baoyi-doctor --help
           baoyi-doctor --check-install
           baoyi-validate-run --help
@@ -124,6 +125,10 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install -e .[test]
 
-      - name: Run Complete Test Suite
+      - name: Run Hermetic Regression Suite
         run: |
-          pytest -q
+          pytest -q -m "not swebench and not research_state and not protocol_lock and not gui and not live_provider"
+
+      - name: Run Research Protocol Lock Suite
+        run: |
+          pytest -q -m "protocol_lock"

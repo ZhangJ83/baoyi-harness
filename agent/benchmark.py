@@ -22,7 +22,7 @@ def is_provider_unavailable(error_text: str) -> bool:
 
 
 def _arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run Xiaopu in a benchmark workspace")
+    parser = argparse.ArgumentParser(description="Run Baoyi in a benchmark workspace")
     parser.add_argument("task", nargs="*", help="task text; stdin is used when omitted")
     parser.add_argument("--workspace", required=True, help="isolated task workspace")
     parser.add_argument("--model")
@@ -31,7 +31,7 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--max-total-tokens", type=int, default=180000)
     parser.add_argument("--max-generated-output-tokens", type=int, default=4500)
     parser.add_argument("--controller-policy", choices=("direct", "always_verify", "evidence_only", "cegar_h"), default="cegar_h")
-    parser.add_argument("--log", default=".xiaopu/run.jsonl")
+    parser.add_argument("--log", default=".baoyi/run.jsonl")
     parser.add_argument(
         "--bundle",
         help="optional directory to materialize a benchmark-ready run bundle",
@@ -73,7 +73,11 @@ def main() -> int:
     from .harness import Harness
     from .redact import redact
 
-    log_path = (workspace / args.log).resolve()
+    log_candidate = workspace / args.log
+    if args.log == ".baoyi/run.jsonl" and not log_candidate.exists() and (workspace / ".xiaopu/run.jsonl").exists():
+        log_path = (workspace / ".xiaopu/run.jsonl").resolve()
+    else:
+        log_path = log_candidate.resolve()
     try:
         log_path.relative_to(workspace)
     except ValueError:
@@ -163,7 +167,7 @@ def main() -> int:
         )
         manifest = dict(getattr(recorder, "manifest", {}) or {})
         manifest.update({
-            "schema": "xiaopu-benchmark-run-bundle-v1",
+            "schema": "baoyi-benchmark-run-bundle-v1",
             "bundle_root": str(bundle),
             "instruction": "input/instruction.md",
             "trace": "steps.jsonl" if (bundle / "steps.jsonl").is_file() else "events.jsonl",

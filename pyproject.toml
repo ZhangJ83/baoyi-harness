@@ -58,6 +58,7 @@ markers = [
 baoyi = "agent.main:main"
 baoyi-bench = "agent.benchmark:main"
 baoyi-doctor = "agent.doctor:main"
+baoyi-gui = "agent.gui:main"
 baoyi-validate-run = "agent.run_bundle_validator:main"
 # Legacy aliases
 xiaopu = "agent.main:main"
@@ -65,6 +66,7 @@ xiaopu-bench = "agent.benchmark:main"
 xiaopu-doctor = "agent.doctor:main"
 xiaopu-validate-run = "agent.run_bundle_validator:main"
 agent-gui = "agent.gui:main"
+xiaopu-gui = "agent.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
