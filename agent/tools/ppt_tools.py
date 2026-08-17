@@ -995,56 +995,62 @@ body {
     height: 1080px;
     overflow: hidden;
     font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    background: linear-gradient(135deg, #0b1120 0%, #0f172a 50%, #1e293b 100%);
     color: #f8fafc;
-    padding: 56px 64px;
+    padding: 48px 64px;
 }
 .slide {
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
+    justify-content: space-between;
     background: transparent !important;
 }
+.header-area {
+    margin-bottom: 24px;
+}
 h1 {
-    font-size: 44px;
+    font-size: 46px;
     font-weight: 700;
     color: #f1f5f9;
     letter-spacing: -0.5px;
     margin-bottom: 8px;
 }
 .subtitle {
-    font-size: 18px;
+    font-size: 19px;
     color: #94a3b8;
     font-weight: 400;
-    margin-bottom: 40px;
     letter-spacing: 0.2px;
 }
 .grid-3 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 28px;
+    gap: 32px;
     flex: 1;
-    align-content: start;
+    margin-bottom: 24px;
 }
 .card {
-    background: rgba(30, 41, 59, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 18px;
-    padding: 28px 26px 24px;
+    background: rgba(30, 41, 59, 0.78);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 20px;
+    padding: 32px 28px 26px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
     transition: transform 0.2s;
 }
+.card:nth-child(1) { border-top: 3px solid #10b981; }
+.card:nth-child(2) { border-top: 3px solid #f59e0b; }
+.card:nth-child(3) { border-top: 3px solid #3b82f6; }
 .badge {
     display: inline-block;
     align-self: flex-start;
-    padding: 4px 14px;
+    padding: 5px 16px;
     border-radius: 20px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 1.5px;
     text-transform: uppercase;
@@ -1064,56 +1070,96 @@ h1 {
     border-color: rgba(96, 165, 250, 0.25);
 }
 h3 {
-    font-size: 22px;
+    font-size: 25px;
     font-weight: 600;
     color: #e2e8f0;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
     letter-spacing: -0.2px;
 }
 .metric-bar {
-    font-size: 13.5px;
+    font-size: 15px;
     font-weight: 600;
     color: #38bdf8;
-    padding: 8px 14px;
+    padding: 10px 16px;
     background: rgba(14, 165, 233, 0.08);
     border-left: 3px solid #0ea5e9;
-    border-radius: 6px;
-    margin-bottom: 18px;
+    border-radius: 8px;
+    margin-bottom: 20px;
     font-variant-numeric: tabular-nums;
 }
 ul {
     list-style: none;
     padding: 0;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    gap: 14px;
+    margin: 8px 0 16px;
 }
 ul li {
     position: relative;
-    padding-left: 18px;
-    font-size: 15px;
+    padding-left: 22px;
+    font-size: 16.5px;
     line-height: 1.65;
     color: #cbd5e1;
-    margin-bottom: 10px;
 }
 ul li::before {
     content: '';
     position: absolute;
     left: 0;
     top: 10px;
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    background: #475569;
+    background: #64748b;
 }
+.card:nth-child(1) ul li::before { background: #34d399; }
+.card:nth-child(2) ul li::before { background: #fbbf24; }
+.card:nth-child(3) ul li::before { background: #60a5fa; }
 .tech {
     display: block;
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid rgba(148, 163, 184, 0.1);
-    font-size: 12.5px;
+    margin-top: auto;
+    padding: 10px 14px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 8px;
+    font-size: 13px;
     font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
-    color: #64748b;
+    color: #94a3b8;
     letter-spacing: 0.5px;
 }
+.bottom-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 14px;
+    padding: 16px 32px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.footer-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    color: #94a3b8;
+}
+.footer-item strong {
+    color: #f1f5f9;
+    font-weight: 600;
+}
+.f-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.f-dot.green { background: #34d399; box-shadow: 0 0 8px #34d399; }
+.f-dot.blue { background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
+.f-dot.amber { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+.f-dot.purple { background: #a78bfa; box-shadow: 0 0 8px #a78bfa; }
 """
         full_html = f"""<!DOCTYPE html>
 <html>
