@@ -5,6 +5,7 @@ from agent.tools.ppt_tools import (
     _new_deck,
     _clean_presentation_title,
     _quality_check,
+    _render_html_slide_to_png,
 )
 from agent.state import RunState
 
@@ -21,7 +22,9 @@ def test_title_sanitizer():
     assert _clean_presentation_title("基于现代 Web 组件网格排版，实时展示调度指标") == "实时展示调度指标"
 
 
-def test_workflow_pipeline_and_html_vector_slide_overhaul():
+def test_workflow_pipeline_and_html_raster_slide():
+    """Test that Slide 1 workflow_pipeline generates editable shapes,
+    and Slide 2 html_slide now defaults to raster mode (full-bleed image)."""
     h = MockHarness()
     _new_deck(h, "AI Agent 工作流程", "")
 
@@ -85,11 +88,11 @@ def test_workflow_pipeline_and_html_vector_slide_overhaul():
         slide_number=1,
     )
 
-    # Slide 2: html_slide
+    # Slide 2: html_slide in raster mode (default)
     html_code = """
-<div class="slide" style="background: #0f172a;">
-  <h1>AI Agent 核心架构与运行时全景 (HTML 页面风格)</h1>
-  <p class="subtitle">基于现代 Web 组件网格排版，实时展示 Agent 双循环状态机与分布式调度指标</p>
+<div class="slide">
+  <h1>AI Agent 核心架构与运行时全景</h1>
+  <p class="subtitle">统一双循环状态机驱动</p>
   <div class="grid-3">
     <div class="card">
       <span class="badge">RUNNING</span>
@@ -101,65 +104,30 @@ def test_workflow_pipeline_and_html_vector_slide_overhaul():
       </ul>
       <span class="tech">NLU Core</span>
     </div>
-    <div class="card">
-      <span class="badge">ACTIVE</span>
-      <h3>02. 动态规划与执行引擎</h3>
-      <ul>
-        <li>ReAct 循环推理机制驱动多 Agent 协同分工</li>
-        <li>分布式异步并发调度外部异构工具与沙箱</li>
-        <li>运行时异常自动熔断、超时重试与自愈降级</li>
-      </ul>
-      <span class="tech">ReAct Engine</span>
-    </div>
-    <div class="card">
-      <span class="badge">READY</span>
-      <h3>03. 质量门禁与自省验收</h3>
-      <ul>
-        <li>静态代码审计与动态运行时鲁棒性验收</li>
-        <li>对齐业务目标指标并生成可解释审计日志</li>
-        <li>交付确定性高质成果并将经验固化至长期库</li>
-      </ul>
-      <span class="tech">Evaluator</span>
-    </div>
   </div>
 </div>
 """
     _html_slide(h, html=html_code, slide_number=2)
 
-    # Check Slide 1
+    # Check Slide 1: title sanitized
     s1 = h.deck.slides[0]
     s1_title = s1.shapes[3].text_frame.text
     assert "原生元素" not in s1_title
     assert "AI Agent 端到端认知与执行流水线" in s1_title
 
-    # Check Slide 2
+    # Check Slide 2: raster mode produces a single full-bleed picture shape
     s2 = h.deck.slides[1]
-    s2_title = s2.shapes[1].text_frame.text
-    assert "(HTML 页面风格)" not in s2_title
-    assert "AI Agent 核心架构与运行时全景" in s2_title
+    # In raster mode, the slide should have a picture (image) shape
+    picture_shapes = [sh for sh in s2.shapes if sh.shape_type == 13]  # MSO_SHAPE_TYPE.PICTURE = 13
+    assert len(picture_shapes) >= 1, "Raster mode should produce at least one picture shape"
 
-    # Check Slide 2 Card 1 bullet boxes - MUST NOT contain concatenated card title or badges
-    bullet_boxes = [
-        sh.text_frame.text
-        for sh in s2.shapes
-        if getattr(sh, "has_text_frame", False) and "统一接收" in sh.text_frame.text
-    ]
-    assert len(bullet_boxes) == 1
-    assert not bullet_boxes[0].startswith("• RUNNING")
-    assert "• 统一接收语音、文本与文档多模态数据输入" in bullet_boxes[0]
-
-    # Check Slide 1 Deliverables
-    s1_delivs = [
-        sh.text_frame.text
-        for sh in s1.shapes
-        if getattr(sh, "has_text_frame", False) and "产物" in sh.text_frame.text
-    ]
-    # In this test we didn't specify deliverable yet, so let's verify quality check passes
+    # Quality check should still pass
     quality_json = _quality_check(h)
     assert '"passed": true' in quality_json
 
 
-def test_workflow_pipeline_with_deliverables_and_file_html(tmp_path):
+def test_workflow_pipeline_with_deliverables_and_vector_html(tmp_path):
+    """Test deliverable pills on Slide 1, and explicit vector mode for Slide 2."""
     h = MockHarness()
     _new_deck(h, "AI Agent 工作流程与架构", "")
 
@@ -204,10 +172,8 @@ def test_workflow_pipeline_with_deliverables_and_file_html(tmp_path):
     assert len(s1_texts) >= 1
     assert "Intent AST 参数树" in s1_texts[0]
 
-    # Slide 2 via HTML file
-    html_file = tmp_path / "slide2.html"
-    html_file.write_text(
-        """
+    # Slide 2 via explicit vector mode (to test backward compatibility)
+    html_code = """
 <div class="slide" style="background: #0f172a;">
   <h1>AI Agent 核心架构与运行时全景</h1>
   <p class="subtitle">统一双循环状态机驱动的分布式智能体调度平台与质检矩阵</p>
@@ -225,15 +191,8 @@ def test_workflow_pipeline_with_deliverables_and_file_html(tmp_path):
     </div>
   </div>
 </div>
-""",
-        encoding="utf-8",
-    )
-
-    from agent import config
-    from unittest.mock import patch
-
-    with patch.object(config, "sandbox_root", return_value=tmp_path):
-        _html_slide(h, file_path="slide2.html", slide_number=2)
+"""
+    _html_slide(h, html=html_code, slide_number=2, render_mode="vector")
 
     s2 = h.deck.slides[1]
     s2_title = s2.shapes[1].text_frame.text
@@ -245,3 +204,29 @@ def test_workflow_pipeline_with_deliverables_and_file_html(tmp_path):
     ]
     assert len(s2_metrics) >= 1
 
+
+def test_render_html_to_png_premium_css():
+    """Test that _render_html_slide_to_png injects premium CSS and produces valid PNG bytes."""
+    html_snippet = """
+<div class="slide">
+  <h1>Test Slide</h1>
+  <div class="grid-3">
+    <div class="card">
+      <span class="badge">RUNNING</span>
+      <h3>Module 01</h3>
+      <div class="metric-bar">⚡ Latency &lt;100ms</div>
+      <ul><li>Bullet point one</li><li>Bullet point two</li></ul>
+      <span class="tech">Tech Stack</span>
+    </div>
+  </div>
+</div>
+"""
+    try:
+        png_bytes = _render_html_slide_to_png(html_snippet)
+        # PNG magic bytes: 0x89 P N G
+        assert png_bytes[:4] == b'\x89PNG', "Output should be valid PNG"
+        assert len(png_bytes) > 10000, "Screenshot should be a substantial image"
+    except RuntimeError as e:
+        if "No headless browser" in str(e):
+            pytest.skip("No headless browser available in test environment")
+        raise

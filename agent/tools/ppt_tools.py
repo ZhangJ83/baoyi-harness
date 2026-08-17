@@ -921,24 +921,140 @@ def _render_html_slide_to_png(html: str, css: str = "") -> bytes:
     # Wrap complete HTML document with 1920x1080 16:9 canvas styling if missing
     full_html = html
     if "<html" not in html.lower():
+        _premium_css = """
+* { box-sizing: border-box; margin: 0; padding: 0; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #f8fafc;
+    padding: 56px 64px;
+}
+.slide {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: transparent !important;
+}
+h1 {
+    font-size: 44px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+}
+.subtitle {
+    font-size: 18px;
+    color: #94a3b8;
+    font-weight: 400;
+    margin-bottom: 40px;
+    letter-spacing: 0.2px;
+}
+.grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 28px;
+    flex: 1;
+    align-content: start;
+}
+.card {
+    background: rgba(30, 41, 59, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 18px;
+    padding: 28px 26px 24px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+    transition: transform 0.2s;
+}
+.badge {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    background: linear-gradient(135deg, #065f46, #047857);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.25);
+}
+.card:nth-child(2) .badge {
+    background: linear-gradient(135deg, #7c2d12, #9a3412);
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.25);
+}
+.card:nth-child(3) .badge {
+    background: linear-gradient(135deg, #1e3a5f, #1e40af);
+    color: #60a5fa;
+    border-color: rgba(96, 165, 250, 0.25);
+}
+h3 {
+    font-size: 22px;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 12px;
+    letter-spacing: -0.2px;
+}
+.metric-bar {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #38bdf8;
+    padding: 8px 14px;
+    background: rgba(14, 165, 233, 0.08);
+    border-left: 3px solid #0ea5e9;
+    border-radius: 6px;
+    margin-bottom: 18px;
+    font-variant-numeric: tabular-nums;
+}
+ul {
+    list-style: none;
+    padding: 0;
+    flex: 1;
+}
+ul li {
+    position: relative;
+    padding-left: 18px;
+    font-size: 15px;
+    line-height: 1.65;
+    color: #cbd5e1;
+    margin-bottom: 10px;
+}
+ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #475569;
+}
+.tech {
+    display: block;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
+    font-size: 12.5px;
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    color: #64748b;
+    letter-spacing: 0.5px;
+}
+"""
         full_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{
-    width: 1920px;
-    height: 1080px;
-    overflow: hidden;
-    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    background: #0f172a;
-    color: #f8fafc;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}}
+{_premium_css}
 {css}
 </style>
 </head>
@@ -1274,9 +1390,9 @@ def _html_slide(
     slide_number: int | None = None,
     insert_after: int | None = None,
     title: str = "",
-    render_mode: str = "vector",
+    render_mode: str = "raster",
 ) -> str:
-    """Render HTML/CSS content into PPTX slides with native vector editable shapes."""
+    """Render HTML/CSS content into PPTX slides via headless browser screenshot (raster) or vector shapes."""
     from pathlib import Path
     from bs4 import BeautifulSoup
     from .. import config
