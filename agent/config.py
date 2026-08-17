@@ -1,16 +1,48 @@
 import os
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent
-ROOT = BASE.parent  # project root: .env, workspace/, memory/ live here
-ENV_FILE = ROOT / ".env"
-WORKSPACE = ROOT / "workspace"
+PACKAGE_DIR = Path(__file__).resolve().parent
+BASE = PACKAGE_DIR
+ROOT = PACKAGE_DIR.parent  # Development repo root fallback
+
+
+def env_file_path() -> Path:
+    """Resolve project configuration file path.
+
+    Checks explicit BAOYI_ENV_FILE / ENV_FILE first, then current working
+    directory .env, and finally development repo root .env if present.
+    """
+    explicit = os.getenv("BAOYI_ENV_FILE", os.getenv("ENV_FILE", ""))
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    cwd_env = Path.cwd().resolve() / ".env"
+    if cwd_env.exists():
+        return cwd_env
+    repo_env = PACKAGE_DIR.parent / ".env"
+    if repo_env.exists() and (PACKAGE_DIR.parent / "pyproject.toml").is_file():
+        return repo_env.resolve()
+    return cwd_env
+
+
+ENV_FILE = env_file_path()
+
+
+def workspace_default() -> Path:
+    """Default workspace root when none is explicitly configured."""
+    repo_workspace = PACKAGE_DIR.parent / "workspace"
+    if repo_workspace.is_dir() and (PACKAGE_DIR.parent / "pyproject.toml").is_file():
+        return repo_workspace.resolve()
+    return Path.cwd().resolve()
+
+
+WORKSPACE = workspace_default()
 
 
 def load_dotenv() -> None:
-    if not ENV_FILE.exists():
+    path = env_file_path()
+    if not path.exists():
         return
-    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -213,7 +245,8 @@ def record_mode() -> str:
 
 
 def sandbox_root() -> Path:
-    p = Path(os.getenv("BAOYI_WORKSPACE", os.getenv("WORKSPACE", str(WORKSPACE))))
+    explicit = os.getenv("BAOYI_WORKSPACE", os.getenv("WORKSPACE", ""))
+    p = Path(explicit).expanduser().resolve() if explicit else workspace_default()
     p.mkdir(parents=True, exist_ok=True)
     return p
 

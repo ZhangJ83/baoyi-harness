@@ -31,11 +31,32 @@ jobs:
         run: |
           pip install dist/*.whl
 
-      - name: Verify CLI entry points
+      - name: Verify CLI entry points & installation contract
         run: |
           baoyi --help
-          baoyi-doctor
+          baoyi-doctor --help
+          baoyi-doctor --check-install
           baoyi-validate-run --help
+
+          # Verify doctor returns 1 when credentials are missing (expected behavior)
+          set +e
+          baoyi-doctor
+          DOCTOR_EXIT=$?
+          set -e
+          if [ "$DOCTOR_EXIT" -ne 1 ]; then
+            echo "Expected baoyi-doctor to exit with 1 in unconfigured environment, got $DOCTOR_EXIT"
+            exit 1
+          fi
+
+          # Verify workspace default is current working directory, never site-packages
+          mkdir -p /tmp/custom_project_workspace
+          cd /tmp/custom_project_workspace
+          DOCTOR_JSON=$(baoyi-doctor --check-install)
+          echo "$DOCTOR_JSON"
+          if ! echo "$DOCTOR_JSON" | grep -q "/tmp/custom_project_workspace"; then
+            echo "Error: doctor did not resolve workspace to current working directory"
+            exit 1
+          fi
 
       - name: Verify Validator Semantic Contract
         run: |

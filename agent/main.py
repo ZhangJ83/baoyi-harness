@@ -1,10 +1,11 @@
-"""ppt_agent — coding + PowerPoint agent harness
+"""Baoyi — provider-neutral coding + PowerPoint agent harness
+
 Usage:
-  xiaopu                    interactive UI in the current directory
-  xiaopu --workspace PATH   use an explicit local project/task directory
-  xiaopu "task..."          single-shot task (requires provider credential)
-  xiaopu --json "task..."   single-shot task with machine-readable JSON output
-  agent --model M           override model id
+  baoyi                    interactive UI in the current directory
+  baoyi --workspace PATH   use an explicit local project/task directory
+  baoyi "task..."          single-shot task (requires provider credential)
+  baoyi --json "task..."   single-shot task with machine-readable JSON output
+  baoyi --model M          override model id
 """
 
 import json
@@ -45,7 +46,7 @@ def _missing_credential_error() -> str:
     return (
         "CONFIGURATION ERROR: no provider credential is configured. "
         f"Set {config.provider_credential_name()} for PROVIDER={config.provider()!r}, "
-        "then restart Xiaopu. Run `xiaopu-doctor` to validate the environment."
+        "then restart Baoyi. Run `baoyi-doctor` to validate the environment."
     )
 
 
@@ -64,7 +65,7 @@ def _print_incomplete_transaction_notice(workspace: Path) -> None:
     print(
         "RECOVERY NOTICE: found "
         f"{len(pending)} incomplete transaction(s): {preview}{extra}. "
-        "Xiaopu did not attempt generic automatic recovery; inspect the "
+        "Baoyi did not attempt generic automatic recovery; inspect the "
         f"domain checkpoint and journal under {pending[0].journal_path.parent}.",
         file=sys.stderr,
     )
@@ -156,7 +157,7 @@ def main() -> int:
         from .session_store import export_session
         parts = export_spec.split(maxsplit=1)
         session_id = parts[0]
-        target = Path(parts[1]) if len(parts) > 1 else Path.cwd() / f"xiaopu-session-{session_id}.md"
+        target = Path(parts[1]) if len(parts) > 1 else Path.cwd() / f"baoyi-session-{session_id}.md"
         try:
             print(export_session(session_id, target))
             return 0

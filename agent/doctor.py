@@ -43,9 +43,15 @@ def report() -> dict:
 
 
 def main() -> int:
+    import argparse
+    parser = argparse.ArgumentParser(description="Baoyi environment & installation doctor")
+    parser.add_argument("--check-install", action="store_true", help="Verify dependencies and installation without requiring configured API keys")
+    args = parser.parse_args()
     result = report()
     print(json.dumps(result, ensure_ascii=False, indent=2))
     required = result["dependencies"]
+    if args.check_install:
+        return 0 if all(required.values()) and result["workspace_writable"] else 1
     return 0 if all(required.values()) and result["api_key_configured"] else 1
 
 
