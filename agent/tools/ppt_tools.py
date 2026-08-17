@@ -997,7 +997,7 @@ body {
     font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
     background: linear-gradient(135deg, #0b1120 0%, #0f172a 50%, #1e293b 100%);
     color: #f8fafc;
-    padding: 48px 64px;
+    padding: 44px 56px;
 }
 .slide {
     width: 100%;
@@ -1008,17 +1008,17 @@ body {
     background: transparent !important;
 }
 .header-area {
-    margin-bottom: 24px;
+    margin-bottom: 18px;
 }
 h1 {
-    font-size: 46px;
+    font-size: 42px;
     font-weight: 700;
     color: #f1f5f9;
     letter-spacing: -0.5px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 .subtitle {
-    font-size: 19px;
+    font-size: 18px;
     color: #94a3b8;
     font-weight: 400;
     letter-spacing: 0.2px;
@@ -1026,35 +1026,37 @@ h1 {
 .grid-3 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
+    gap: 24px;
     flex: 1;
-    margin-bottom: 24px;
+    margin-bottom: 18px;
 }
 .card {
     background: rgba(30, 41, 59, 0.78);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(148, 163, 184, 0.15);
-    border-radius: 20px;
-    padding: 32px 28px 26px;
+    border-radius: 18px;
+    padding: 22px 22px 18px;
     display: flex;
     flex-direction: column;
+    gap: 12px;
     box-shadow: 0 16px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
-    transition: transform 0.2s;
 }
 .card:nth-child(1) { border-top: 3px solid #10b981; }
 .card:nth-child(2) { border-top: 3px solid #f59e0b; }
 .card:nth-child(3) { border-top: 3px solid #3b82f6; }
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
 .badge {
-    display: inline-block;
-    align-self: flex-start;
-    padding: 5px 16px;
-    border-radius: 20px;
-    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
-    margin-bottom: 14px;
     background: linear-gradient(135deg, #065f46, #047857);
     color: #34d399;
     border: 1px solid rgba(52, 211, 153, 0.25);
@@ -1070,96 +1072,112 @@ h1 {
     border-color: rgba(96, 165, 250, 0.25);
 }
 h3 {
-    font-size: 25px;
+    font-size: 22px;
     font-weight: 600;
     color: #e2e8f0;
-    margin-bottom: 14px;
     letter-spacing: -0.2px;
 }
-.metric-bar {
-    font-size: 15px;
+.card-desc {
+    font-size: 13.5px;
+    color: #94a3b8;
+    line-height: 1.45;
+    margin-bottom: 2px;
+}
+.feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+.feature-item {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+.feature-title {
+    font-size: 14.5px;
     font-weight: 600;
     color: #38bdf8;
-    padding: 10px 16px;
-    background: rgba(14, 165, 233, 0.08);
-    border-left: 3px solid #0ea5e9;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    font-variant-numeric: tabular-nums;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.card:nth-child(1) .feature-title { color: #34d399; }
+.card:nth-child(2) .feature-title { color: #fbbf24; }
+.card:nth-child(3) .feature-title { color: #60a5fa; }
+.feature-text {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: #cbd5e1;
 }
 ul {
     list-style: none;
     padding: 0;
-    flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: space-around;
-    gap: 14px;
-    margin: 8px 0 16px;
+    gap: 12px;
+    flex: 1;
 }
 ul li {
     position: relative;
-    padding-left: 22px;
-    font-size: 16.5px;
-    line-height: 1.65;
+    padding-left: 20px;
+    font-size: 14.5px;
+    line-height: 1.55;
     color: #cbd5e1;
 }
 ul li::before {
     content: '';
     position: absolute;
     left: 0;
-    top: 10px;
-    width: 7px;
-    height: 7px;
+    top: 9px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: #64748b;
 }
 .card:nth-child(1) ul li::before { background: #34d399; }
 .card:nth-child(2) ul li::before { background: #fbbf24; }
 .card:nth-child(3) ul li::before { background: #60a5fa; }
-.tech {
-    display: block;
+.card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
     margin-top: auto;
-    padding: 10px 14px;
-    background: rgba(15, 23, 42, 0.55);
-    border: 1px solid rgba(148, 163, 184, 0.08);
-    border-radius: 8px;
-    font-size: 13px;
+}
+.deliverable-pill {
+    font-size: 12.5px;
+    color: #f1f5f9;
+    background: rgba(148, 163, 184, 0.15);
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+.tech-tag {
+    font-size: 12px;
     font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
     color: #94a3b8;
     letter-spacing: 0.5px;
 }
-.bottom-bar {
+.summary-bar {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    background: rgba(15, 23, 42, 0.75);
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    border-radius: 14px;
-    padding: 16px 32px;
-    backdrop-filter: blur(12px);
+    gap: 12px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-left: 4px solid #38bdf8;
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-size: 15px;
+    color: #e2e8f0;
+    line-height: 1.5;
     box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
-.footer-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 15px;
-    color: #94a3b8;
+.summary-bar strong {
+    color: #38bdf8;
 }
-.footer-item strong {
-    color: #f1f5f9;
-    font-weight: 600;
-}
-.f-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-.f-dot.green { background: #34d399; box-shadow: 0 0 8px #34d399; }
-.f-dot.blue { background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
-.f-dot.amber { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
-.f-dot.purple { background: #a78bfa; box-shadow: 0 0 8px #a78bfa; }
 """
         full_html = f"""<!DOCTYPE html>
 <html>
