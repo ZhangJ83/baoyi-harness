@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "xiaopu"
+name = "baoyi"
 version = "0.2.0"
-description = "Provider-neutral coding and PowerPoint agent harness."
+description = "报一 (Baoyi) - Provider-neutral coding and PowerPoint agent harness."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -30,10 +30,14 @@ test = ["pytest>=8.0.0"]
 testpaths = ["tests"]
 
 [project.scripts]
+baoyi = "agent.main:main"
 xiaopu = "agent.main:main"
 agent-gui = "agent.gui:main"
+baoyi-bench = "agent.benchmark:main"
 xiaopu-bench = "agent.benchmark:main"
+baoyi-doctor = "agent.doctor:main"
 xiaopu-doctor = "agent.doctor:main"
+baoyi-validate-run = "benchmarks.validate_run_bundle:main"
 xiaopu-validate-run = "benchmarks.validate_run_bundle:main"
 
 [tool.setuptools.packages.find]

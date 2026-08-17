@@ -1,8 +1,8 @@
-# Xiaopu Harness
+# 报一 Harness (Baoyi)
 
 ## Evidence-aware PowerPoint workflow
 
-Xiaopu includes stateful PowerPoint tools for creation, existing-deck inspection,
+报一 (Baoyi) includes stateful PowerPoint tools for creation, existing-deck inspection,
 text and geometry edits, slide/shape deletion, reordering, structural verification,
 rendering, and deterministic rendered-pixel checks. Every mutation increments an
 evidence epoch, so a verifier result from before the latest deck edit cannot be
@@ -12,7 +12,7 @@ The competitive design study, final implementation report, and interview story
 are in `docs/competitive-harness-ppt.md`, `research/PPT_HARNESS_FINAL_REPORT.md`,
 and `docs/interview-story-v2.md`.
 
-Xiaopu is a provider-neutral coding and PowerPoint agent harness. It combines a
+报一 (Baoyi) is a provider-neutral coding and PowerPoint agent harness. It combines a
 tool loop, workspace confinement, command permissions, structured task state,
 bounded retries, context compaction, parallel read-only tools, and a PPT
 inspect/edit/verify workflow.
@@ -29,10 +29,10 @@ python -m pip install -e .
 $env:OPENAI_API_KEY = "..."
 $env:OPENAI_BASE_URL = "https://api.deepseek.com"
 $env:OPENAI_MODEL = "deepseek-v4-flash"
-xiaopu "inspect this repository, fix the failing tests, and verify the result"
+baoyi "inspect this repository, fix the failing tests, and verify the result"
 ```
 
-Run `xiaopu-doctor` before any paid API test. It reports provider, endpoint,
+Run `baoyi-doctor` before any paid API test. It reports provider, endpoint,
 dependency and renderer readiness without printing the key value.
 
 For the Anthropic-compatible endpoint, set `PROVIDER=anthropic`,
@@ -57,7 +57,7 @@ The offline demo creates a five-slide deck using cover, KPI, comparison, table,
 and process layouts:
 
 ```powershell
-xiaopu /demo
+baoyi /demo
 ```
 
 Reference output: `workspace/coffee_demo.pptx` and
@@ -71,7 +71,7 @@ Launch the native window without using the terminal UI:
 agent-gui --workspace E:\project\agent\xiaopu\workspace
 ```
 
-The desktop shortcut **小朴 Agent GUI** opens the same window. It reuses the
+The desktop shortcut **报一 Agent GUI** opens the same window. It reuses the
 complete Harness: long-horizon Goal, planning events, Skill routing, code/PPT
 tools, transactions, verification, trajectory recording and cancellation are
 all retained.
@@ -83,7 +83,7 @@ ordinary shell and package/network commands while still blocking destructive
 commands and external `git push`:
 
 ```powershell
-xiaopu-bench --workspace C:\task --json "fix the repository and run its tests"
+baoyi-bench --workspace C:\task --json "fix the repository and run its tests"
 ```
 
 The adapter writes a redacted JSONL trace under `.xiaopu/run.jsonl`. A completed
@@ -94,14 +94,14 @@ containers and graders; the adapter itself is not a benchmark score.
 Before scoring a collected run, validate its score-neutral handoff bundle:
 
 ```powershell
-xiaopu-validate-run C:\path\to\run
+baoyi-validate-run C:\path\to\run
 ```
 
 The validator checks input, output, trajectory/events, tool calls, evaluation,
 and manifest presence and readability without computing or changing scores.
 See [docs/BENCHMARK_RUN_BUNDLE.md](docs/BENCHMARK_RUN_BUNDLE.md).
 
-For a fresh isolated run, add `--bundle run` to `xiaopu-bench`. Xiaopu writes
+For a fresh isolated run, add `--bundle run` to `baoyi-bench`. 报一 writes
 the instruction, redacted events, tool calls, run result, and manifest; your
 evaluator supplies `output` and `evaluation.json`, then the validator checks
 the complete handoff without changing any score.

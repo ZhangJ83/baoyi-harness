@@ -1,4 +1,4 @@
-"""Render 小朴 as a LiSu wordmark in text-only terminals.
+"""Render 报一 as a LiSu wordmark in text-only terminals.
 
 Terminals cannot apply a different font to only a few characters.  This module
 therefore renders the two glyphs with the locally installed LiSu typeface and
@@ -23,29 +23,27 @@ def _font_path() -> Path | None:
 
 
 def wordmark() -> Text:
-    """Return an ANSI-safe, LiSu-rendered ``小朴`` wordmark.
+    """Return an ANSI-safe, LiSu-rendered ``报一`` wordmark.
 
     The fallback deliberately remains just the requested two characters if
     Pillow or an East-Asian font is unavailable.
     """
     path = _font_path()
     if path is None:
-        return Text("小朴", style="bold bright_yellow")
+        return Text("报一", style="bold bright_yellow")
     try:
         from PIL import Image, ImageDraw, ImageFont
 
         font = ImageFont.truetype(str(path), size=142)
         canvas = Image.new("L", (680, 146), 0)
         draw = ImageDraw.Draw(canvas)
-        # Render glyphs independently with deliberate breathing room. Drawing
-        # the pair as one string made the heavy LiSu strokes merge visually.
+        # Render glyphs independently with deliberate breathing room.
         centers = (225, 455)
-        for glyph, center in zip("小朴", centers):
+        for glyph, center in zip("报一", centers):
             bounds = draw.textbbox((0, 0), glyph, font=font, stroke_width=0)
             width, height = bounds[2] - bounds[0], bounds[3] - bounds[1]
             draw.text((center - width // 2 - bounds[0], (146 - height) // 2 - bounds[1] - 3), glyph, fill=255, font=font)
-        # One terminal character represents two vertical pixels.  The 34×12
-        # sample balances recognisable strokes with a compact welcome screen.
+        # One terminal character represents two vertical pixels.
         pixels = canvas.resize((68, 10), Image.Resampling.LANCZOS)
         output = Text()
         for y in range(0, 10, 2):
@@ -54,8 +52,6 @@ def wordmark() -> Text:
                 if not top and not bottom:
                     output.append(" ")
                     continue
-                # Xiaopu's visual identity is predominantly monochrome. Use
-                # neutral ink levels while retaining antialiased stroke edges.
                 fg_level = 66 + top * 174 // 255
                 bg_level = 66 + bottom * 174 // 255
                 fg = f"rgb({fg_level},{fg_level},{fg_level})"
@@ -65,4 +61,5 @@ def wordmark() -> Text:
                 output.append("\n")
         return output
     except Exception:
-        return Text("小朴", style="bold bright_yellow")
+        return Text("报一", style="bold bright_yellow")
+

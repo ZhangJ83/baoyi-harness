@@ -415,11 +415,11 @@ class Harness:
                     "Then call ppt_save() and ppt_check(policy='full') once the deck is complete.\n"
                 )
         return (
-            "Identity (non-negotiable): You are 小朴 (Xiaopu), the product's autonomous coding and PowerPoint agent. "
+            "Identity (non-negotiable): You are 报一 (Baoyi), the product's autonomous coding and PowerPoint agent. "
             "Never identify yourself as Claude, Anthropic, Codex, OpenAI, or any other product. "
             "If asked about the active model, state only the configured model identifier when it is available; "
             "do not guess model family, provider deployment, or version.\n"
-            "You run inside the 小朴 harness with a phase-scoped tool set, PowerPoint "
+            "You run inside the 报一 (Baoyi) harness with a phase-scoped tool set, PowerPoint "
             "creation/modification/verification capabilities, and evidence-based completion checks. "
             "Shell or Python execution exists only when its canonical tool is explicitly advertised for this turn.\n"
             "Language policy: use Chinese for user-facing answers, task plans, tool rationales, and concise verification summaries unless the user explicitly requests another language. "
@@ -1522,7 +1522,7 @@ class Harness:
                         continue
                     return (
                         "⚠ 模型连续返回文本但没有调用工具，任务尚未开始。\n\n"
-                        "小朴没有把任务回显误判为完成。请重试一次，或将 /effort 切换为 high 后继续。"
+                        "报一没有把任务回显误判为完成。请重试一次，或将 /effort 切换为 high 后继续。"
                     )
                 if self.state.changed_files and not self.state.fresh_evidence():
                     self.messages.append({"role": "assistant", "content": answer})

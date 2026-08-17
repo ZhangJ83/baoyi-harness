@@ -21,9 +21,9 @@ def _score(workspace: Path, task: Path) -> int:
     if tasks_parent == workspace / "tasks":
         score += 100
     folded = str(agent_root).casefold()
-    if "xiaopu" in folded or "小朴" in folded:
+    if any(k in folded for k in ("baoyi", "报一", "xiaopu", "小朴")):
         score += 40
-    if agent_root.name.casefold() == "xiaopuharness":
+    if any(k in agent_root.name.casefold() for k in ("baoyiharness", "baoyi-harness", "xiaopuharness")):
         score += 15
     if "副本" in agent_root.name or "copy" in agent_root.name.casefold():
         score -= 10
