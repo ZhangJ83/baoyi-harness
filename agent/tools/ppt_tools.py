@@ -678,36 +678,36 @@ def _workflow_pipeline_slide(
         _put_lines(sub_box.text_frame, subtitle, 12, False, RGBColor(0xD0, 0xD0, 0xD0))
 
     margin_x = 0.55
-    y = 1.35
     total_w = _W - 2 * margin_x
     gap = 0.20
     step_w = (total_w - gap * (len(steps) - 1)) / len(steps)
-    card_h = 4.85 if not takeaway else 4.40
+    card_h = 3.75 if not takeaway else 3.45
+    y = 1.70 if takeaway else 1.95
 
     for index, step in enumerate(steps, 1):
         x = margin_x + (index - 1) * (step_w + gap)
         _rounded_rect(s, x, y, step_w, card_h, _WHITE, _CARD_BORDER)
         _rounded_rect(s, x, y, step_w, 0.08, _ACCENT)
 
-        badge = _rounded_rect(s, x + 0.14, y + 0.16, 0.48, 0.32, _PRIMARY)
+        badge = _rounded_rect(s, x + 0.14, y + 0.14, 0.46, 0.30, _PRIMARY)
         badge.text_frame.clear()
         badge.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
         bp = badge.text_frame.paragraphs[0]
         bp.alignment = PP_ALIGN.CENTER
         brun = bp.add_run()
         brun.text = f"{index:02d}"
-        _style_run(brun, 12, True, _WHITE)
+        _style_run(brun, 11.5, True, _WHITE)
 
         step_title = _clean_presentation_title(str(step.get("title", f"步骤 {index}")))
-        stb = s.shapes.add_textbox(Inches(x + 0.68), Inches(y + 0.12), Inches(step_w - 0.82), Inches(0.40))
-        _put_lines(stb.text_frame, step_title, 14, True, _PRIMARY)
+        stb = s.shapes.add_textbox(Inches(x + 0.64), Inches(y + 0.10), Inches(step_w - 0.78), Inches(0.38))
+        _put_lines(stb.text_frame, step_title, 13.5, True, _PRIMARY)
 
         action = str(step.get("action", step.get("summary", ""))).strip()
-        cur_y = y + 0.58
+        cur_y = y + 0.50
         if action:
-            act_box = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(0.55))
-            _put_lines(act_box.text_frame, action, 11, True, _BLUE_ACCENT)
-            cur_y += 0.55
+            act_box = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(0.48))
+            _put_lines(act_box.text_frame, action, 10.5, True, _BLUE_ACCENT)
+            cur_y += 0.48
 
         bullets = step.get("bullets", [])
         if isinstance(bullets, str):
@@ -718,16 +718,16 @@ def _workflow_pipeline_slide(
         deliverable = str(step.get("deliverable", step.get("output", ""))).strip()
         tag = str(step.get("tag", step.get("tech", ""))).strip()
         
-        bottom_reserved = 0.75 if deliverable else 0.45
+        bottom_reserved = 0.68 if deliverable else 0.38
         if lines:
-            detail_h = max(1.2, card_h - (cur_y - y) - bottom_reserved)
+            detail_h = max(0.9, card_h - (cur_y - y) - bottom_reserved)
             dtb = s.shapes.add_textbox(Inches(x + 0.14), Inches(cur_y), Inches(step_w - 0.28), Inches(detail_h))
-            _fit_lines(dtb.text_frame, lines, 10.5, False, _TEXT, 1.20)
+            _fit_lines(dtb.text_frame, lines, 10, False, _TEXT, 1.18)
 
         # Output Deliverable Pill
         if deliverable:
             deliv_text = deliverable if deliverable.startswith("📦") or deliverable.startswith("产物") else f"📦 {deliverable}"
-            del_box = _rounded_rect(s, x + 0.14, y + card_h - 0.68, step_w - 0.28, 0.26, RGBColor(0xF1, 0xF5, 0xF9), RGBColor(0xE2, 0xE8, 0xF0))
+            del_box = _rounded_rect(s, x + 0.14, y + card_h - 0.60, step_w - 0.28, 0.24, RGBColor(0xF1, 0xF5, 0xF9), RGBColor(0xE2, 0xE8, 0xF0))
             del_box.text_frame.clear()
             del_box.text_frame.word_wrap = True
             del_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -735,12 +735,12 @@ def _workflow_pipeline_slide(
             dp.alignment = PP_ALIGN.LEFT
             drun = dp.add_run()
             drun.text = f" {deliv_text}"
-            _style_run(drun, 9.5, False, RGBColor(0x33, 0x41, 0x55))
+            _style_run(drun, 9.0, False, RGBColor(0x33, 0x41, 0x55))
 
         if tag:
             tag_w = max(0.95, min(step_w - 0.28, 0.35 + len(tag) * 0.16))
-            tag_y = y + card_h - 0.34
-            tag_box = _rounded_rect(s, x + 0.14, tag_y, tag_w, 0.24, _BLUE_BG)
+            tag_y = y + card_h - 0.32
+            tag_box = _rounded_rect(s, x + 0.14, tag_y, tag_w, 0.22, _BLUE_BG)
             tag_box.text_frame.clear()
             tag_box.text_frame.word_wrap = False
             tag_box.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -748,7 +748,7 @@ def _workflow_pipeline_slide(
             tp.alignment = PP_ALIGN.CENTER
             trun = tp.add_run()
             trun.text = f"#{tag}"
-            _style_run(trun, 10, True, _BLUE_ACCENT)
+            _style_run(trun, 9.5, True, _BLUE_ACCENT)
 
         if index < len(steps):
             arrow_x = x + step_w + (gap - 0.18) / 2
@@ -757,7 +757,7 @@ def _workflow_pipeline_slide(
             _put_lines(atb.text_frame, "▶", 12, True, _ACCENT)
 
     if takeaway:
-        note_y = y + card_h + 0.15
+        note_y = y + card_h + 0.22
         _rounded_rect(s, margin_x, note_y, total_w, 0.65, _WHITE, _CARD_BORDER)
         _rounded_rect(s, margin_x, note_y, 0.08, 0.65, _ACCENT)
         ntb = s.shapes.add_textbox(Inches(margin_x + 0.20), Inches(note_y + 0.10), Inches(total_w - 0.40), Inches(0.45))
@@ -1160,10 +1160,13 @@ def _html_to_vector_slide(
     gap_y = 0.25
     card_w = (max_w - (cols - 1) * gap_x) / cols
     
-    # Adaptive card height based on rows:
+    # Adaptive content-aware card height (compact, void-free, vertically centered)
     if rows == 1:
-        card_h = min(4.8, max(3.8, avail_h * 0.85))
-        # Center cards vertically in available height
+        max_bullets_count = max((len(c.get("bullets", [])) for c in cards_data), default=3)
+        has_metrics = any(c.get("metric") for c in cards_data)
+        has_tags = any(c.get("tag") for c in cards_data)
+        needed_h = 0.55 + (0.35 if has_metrics else 0.0) + max_bullets_count * 0.48 + (0.35 if has_tags else 0.0) + 0.35
+        card_h = min(3.80, max(3.20, needed_h))
         start_cy = grid_top_y + (avail_h - card_h) / 2
     else:
         card_h = (avail_h - (rows - 1) * gap_y) / rows
@@ -1216,7 +1219,7 @@ def _html_to_vector_slide(
         tf_ct.word_wrap = True
         p_ct = tf_ct.paragraphs[0]
         p_ct.text = c_title_text
-        p_ct.font.size = Pt(13)
+        p_ct.font.size = Pt(13.5)
         p_ct.font.bold = True
         p_ct.font.color.rgb = text_color
 
@@ -1227,24 +1230,25 @@ def _html_to_vector_slide(
             tf_m = m_box.text_frame
             tf_m.word_wrap = True
             p_m = tf_m.paragraphs[0]
-            p_m.text = f"⚡ {metric}"
-            p_m.font.size = Pt(10)
+            clean_m = metric if metric.startswith("⚡") or metric.startswith("📊") or metric.startswith("🚀") else f"⚡ {metric}"
+            p_m.text = clean_m
+            p_m.font.size = Pt(10.5)
             p_m.font.bold = True
             p_m.font.color.rgb = title_color
             cur_cy += 0.28
 
         bullets = card_info.get("bullets", [])
         if bullets:
-            b_h = max(0.8, card_h - (cur_cy - cy) - 0.35)
+            b_h = max(0.8, card_h - (cur_cy - cy) - (0.35 if card_info.get("tag") else 0.15))
             b_box = s.shapes.add_textbox(Inches(cx + 0.15), Inches(cur_cy), Inches(card_w - 0.30), Inches(b_h))
             tf_b = b_box.text_frame
             tf_b.word_wrap = True
             for b_idx, bullet_line in enumerate(bullets[:5]):
                 p_b = tf_b.paragraphs[0] if b_idx == 0 else tf_b.add_paragraph()
                 p_b.text = bullet_line if bullet_line.startswith("•") or bullet_line.startswith("-") or bullet_line.startswith("▶") else f"• {bullet_line}"
-                p_b.font.size = Pt(10 if len(bullets) > 3 or card_h < 3.0 else 11)
+                p_b.font.size = Pt(10.5 if len(bullets) > 3 else 11)
                 p_b.font.color.rgb = text_color
-                p_b.line_spacing = 1.15
+                p_b.line_spacing = 1.22
 
         tag = card_info.get("tag", "")
         if tag:
@@ -1278,12 +1282,20 @@ def _html_slide(
     from .. import config
     from ..permissions import path_within
 
+    root = config.sandbox_root()
     if file_path:
-        root = config.sandbox_root()
         target_file = (root / file_path).resolve()
         if not path_within(root, target_file) or not target_file.exists():
             raise FileNotFoundError(f"HTML file not found: {file_path}")
         html = target_file.read_text(encoding="utf-8")
+    elif html.strip():
+        # Automatically persist slide2.html to workspace disk for real HTML artifact delivery
+        try:
+            target_name = f"slide{slide_number or 2}.html"
+            target_path = root / target_name
+            target_path.write_text(html, encoding="utf-8")
+        except Exception:
+            pass
 
     if not html.strip():
         raise ValueError("html_slide requires non-empty html code or valid file_path")
@@ -3265,7 +3277,20 @@ def _save(h, path: str | None) -> str:
     h.deck = prs
     if normalized:
         h.state.record_fact("ppt_container_normalized", "minimal template migrated to standard PowerPoint container")
-    prs.save(str(target))
+    try:
+        prs.save(str(target))
+    except PermissionError:
+        import time
+        time.sleep(0.3)
+        try:
+            prs.save(str(target))
+        except PermissionError:
+            tmp_target = target.with_name(f"{target.stem}_tmp{target.suffix}")
+            prs.save(str(tmp_target))
+            try:
+                shutil.move(str(tmp_target), str(target))
+            except Exception:
+                target = tmp_target
     try:
         relative_target = str(target.relative_to(root))
     except ValueError:
