@@ -171,7 +171,7 @@ class AgentGUI:
 
     # ------------------------------------------------------------------ Layout
     def _build(self) -> None:
-        self.root.title("小朴 Agent · Xiaopu")
+        self.root.title("报一 Agent · Baoyi")
         self.root.geometry("1420x900")
         self.root.minsize(1040, 680)
         ctk.set_appearance_mode(self.theme_name)
@@ -232,11 +232,11 @@ class AgentGUI:
             logo_box = ctk.CTkFrame(header, width=28, height=28, corner_radius=6, fg_color=self.colors["accent_blue"])
             logo_box.grid(row=0, column=0, padx=(0, 8), sticky="w")
             logo_box.pack_propagate(False)
-            ctk.CTkLabel(logo_box, text="朴", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold"),
+            ctk.CTkLabel(logo_box, text="报", font=ctk.CTkFont("Microsoft YaHei UI", 13, "bold"),
                          text_color="#ffffff").place(relx=0.5, rely=0.5, anchor="center")
 
         ctk.CTkLabel(
-            header, text="小朴 Xiaopu", font=ctk.CTkFont("Microsoft YaHei UI", 16, "bold"),
+            header, text="报一 Baoyi", font=ctk.CTkFont("Microsoft YaHei UI", 16, "bold"),
             text_color=self.colors["text_primary"],
         ).grid(row=0, column=1, sticky="w")
 
@@ -342,7 +342,7 @@ class AgentGUI:
         self._build_composer(self.main_panel)
         self._build_statusbar(self.main_panel)
 
-        self._append_chat("system", "小朴已就绪。输入任务描述开始执行，支持代码编写、文档生成与 PPT 自动化。")
+        self._append_chat("system", "报一已就绪。输入任务描述开始执行，支持代码编写、文档生成与 PPT 自动化。")
 
     def _build_topbar(self, main: ctk.CTkFrame) -> None:
         bar = ctk.CTkFrame(main, fg_color=self.colors["bg_root"], height=48)
@@ -482,7 +482,7 @@ class AgentGUI:
         ).pack(side="left", padx=22)
 
         ctk.CTkLabel(
-            bar, text="小朴 Agent · Ctrl+Enter 发送 · Esc 中断",
+            bar, text="报一 Agent · Ctrl+Enter 发送 · Esc 中断",
             text_color=self.colors["text_muted"], font=ctk.CTkFont("Microsoft YaHei UI", 10),
         ).pack(side="right", padx=22)
 
@@ -684,7 +684,7 @@ class AgentGUI:
         is_system = role in {"system", "系统", "撤销", "验证", "保存", "导出", "Goal", "错误"}
         bubble_bg = self.colors["user_bg"] if is_user else (self.colors["system_bg"] if is_system else self.colors["assistant_bg"])
         bubble_fg = self.colors["user_text"] if is_user else (self.colors["text_primary"] if not is_system else "#93c5fd")
-        label = "你" if is_user else ("小朴" if role in {"小朴", "assistant"} else role)
+        label = "你" if is_user else ("报一" if role in {"报一", "小朴", "assistant"} else role)
 
         row = ctk.CTkFrame(self.chat, fg_color="transparent")
         row._xiaopu_bubble = True
@@ -880,7 +880,7 @@ class AgentGUI:
             if self._reasoning_text.strip():
                 self._append_thought_block(self._reasoning_text)
             self._streaming_started = True
-            self._append_chat("小朴", "")
+            self._append_chat("报一", "")
             self._stream_bubble_label = self._last_chat_label
         if self._stream_bubble_label is not None:
             self._stream_bubble_label.configure(text=self._stream_buffer)
@@ -899,7 +899,7 @@ class AgentGUI:
         if reply:
             if self._reasoning_text.strip():
                 self._append_thought_block(self._reasoning_text)
-            self._append_chat("小朴", reply)
+            self._append_chat("报一", reply)
 
     def _show_event(self, event) -> None:
         p = getattr(event, "payload", {})
@@ -1232,10 +1232,10 @@ class AgentGUI:
                 pairs.append(("you", content))
             elif role == "assistant":
                 if content:
-                    pairs.append(("小朴", content))
+                    pairs.append(("报一", content))
                 elif message.get("tool_calls"):
                     calls_summary = "调用了工具: " + ", ".join(tc.get("function", {}).get("name", "tool") for tc in message["tool_calls"])
-                    pairs.append(("小朴", calls_summary))
+                    pairs.append(("报一", calls_summary))
         return pairs
 
     def _render_history(self, payload: dict) -> None:
@@ -1251,10 +1251,10 @@ class AgentGUI:
                 if reasoning and reasoning.strip():
                     self._append_thought_block(reasoning)
                 if content:
-                    self._append_chat("小朴", content)
+                    self._append_chat("报一", content)
                 elif message.get("tool_calls"):
                     calls_summary = "调用了工具: " + ", ".join(tc.get("function", {}).get("name", "tool") for tc in message["tool_calls"])
-                    self._append_chat("小朴", calls_summary)
+                    self._append_chat("报一", calls_summary)
             elif role in {"system", "系统"} and content and not content.startswith("Identity (non-negotiable):"):
                 self._append_chat("system", content)
 

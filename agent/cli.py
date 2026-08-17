@@ -212,14 +212,14 @@ class XiaopuCLI:
             prompt_continuation=lambda width, line_number, is_soft_wrap: Text("  · ", style="dim"),
         )
         session.message = lambda: [
-            ("class:prompt", " 小朴 › "),
+            ("class:prompt", " 报一 › "),
         ]
         return session
 
     def print_banner(self) -> None:
         console.print()
         left = Text()
-        left.append("Xiaopu / 小朴\n", style="bold cyan")
+        left.append("Baoyi / 报一\n", style="bold cyan")
         left.append("Provider-neutral coding & PowerPoint agent\n", style="dim")
         left.append_text(wordmark())
 
@@ -239,7 +239,7 @@ class XiaopuCLI:
         grid.add_column(ratio=3)
         grid.add_column(ratio=2)
         grid.add_row(left, right)
-        console.print(Panel(grid, title="[bold]小朴 · Xiaopu v0.2.0[/]", subtitle="[dim]/help 查看命令 · Esc / Ctrl+C 中止 · Ctrl+L 清屏[/]", border_style="cyan"))
+        console.print(Panel(grid, title="[bold]报一 · Baoyi v0.2.0[/]", subtitle="[dim]/help 查看命令 · Esc / Ctrl+C 中止 · Ctrl+L 清屏[/]", border_style="cyan"))
         console.print()
 
     def _on_token(self, piece: str) -> None:
