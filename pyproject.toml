@@ -29,6 +29,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
     "python-pptx>=1.0.0",
+    "beautifulsoup4>=4.12.0",
     "rich>=13.0.0",
     "prompt_toolkit>=3.0.0",
     "customtkinter>=5.2.0",
@@ -47,12 +48,12 @@ testpaths = ["tests"]
 baoyi = "agent.main:main"
 baoyi-bench = "agent.benchmark:main"
 baoyi-doctor = "agent.doctor:main"
-baoyi-validate-run = "benchmarks.validate_run_bundle:main"
+baoyi-validate-run = "agent.run_bundle_validator:main"
 # Legacy aliases
 xiaopu = "agent.main:main"
 xiaopu-bench = "agent.benchmark:main"
 xiaopu-doctor = "agent.doctor:main"
-xiaopu-validate-run = "benchmarks.validate_run_bundle:main"
+xiaopu-validate-run = "agent.run_bundle_validator:main"
 agent-gui = "agent.gui:main"
 
 [tool.setuptools.packages.find]

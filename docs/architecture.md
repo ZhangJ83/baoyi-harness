@@ -1,12 +1,12 @@
 # 报一 (Baoyi) Architecture Guide
 
-**报一 (Baoyi)** is a provider-neutral, contract-driven agent execution harness designed for complex code and presentation automation tasks.
+**报一 (Baoyi)** is a provider-neutral, contract-driven agent execution harness designed for complex code and presentation automation workflows.
 
 ---
 
-## 1. High-Level Architecture Overview
+## 1. Architectural Philosophy & Structure
 
-Baoyi is organized into a clean **portable layered architecture**:
+Baoyi separates portable foundational primitives from runtime interactive services:
 
 ```text
                       ┌───────────────────────────┐
@@ -45,15 +45,15 @@ Baoyi is organized into a clean **portable layered architecture**:
 
 ---
 
-## 2. Core Package Responsibilities
+## 2. Package Roles & Layering
 
 ### `core/` (Domain-Neutral Foundations)
-Contains pure, domain-agnostic abstractions and protocols:
-- **`core/compiler.py`**: Compiles raw user tasks into structured `TaskContract` obligations.
-- **`core/contract.py`**: Defines runtime execution contracts, bounds, repair limits, and verifier requirements.
-- **`core/transaction.py`**: Action transaction lifecycle (`begin`, `mutate`, `commit`, `rollback`, `undo`).
-- **`core/verification.py`**: Structural and semantic verification rules generating verifiable certificates.
-- *Constraint*: `core` strictly contains **zero** domain vocabulary (no PPT, no vendor concepts).
+Domain-agnostic protocols, data structures, and compilation primitives:
+- **`core/compiler.py`**: Compiles raw user tasks into structured `TaskContract` obligations and capability requirements.
+- **`core/contract.py`**: Defines runtime execution contracts, budget bounds, repair limits, and verifier requirements.
+- **`core/transaction.py`**: Base `Transaction` protocol defining atomic lifecycle (`begin()`, `commit()`, `rollback()`).
+- **`core/verification.py`**: Structural and semantic verification rules generating audit-verifiable certificates.
+- *Boundary rule*: `core/` contains strictly **zero** domain-specific vocabulary (no PPT, no file format specifics, no vendor concepts).
 
 ### `domains/` (Domain Specialization Packs)
 Encapsulates domain-specific semantics, IR, and operations:
@@ -61,9 +61,9 @@ Encapsulates domain-specific semantics, IR, and operations:
   - Presentation object models (shapes, cards, pipelines, tables, typography).
   - Domain-specific transaction mutations (`set_shape_text`, `set_table`, `batch_updates`, `ppt_compose`).
   - Domain verifiers (shape bindings, provenance anchors, layout metrics).
-- *Constraint*: `domains` is completely independent of vendor adapters and legacy runtime.
+- *Boundary rule*: `domains/` is independent of vendor adapters.
 
-### `adapters/` (Vendor & Environment Adapters)
+### `adapters/` (Vendor & Ecosystem Adapters)
 Translates tool specifications and execution protocols for different agent ecosystems:
 - `adapters/claude_code.py`
 - `adapters/codex.py`
@@ -74,17 +74,19 @@ Translates tool specifications and execution protocols for different agent ecosy
 - **`runner.assemble()`**: The central composition root that binds `core + domain pack + vendor adapter` into an executable, isolated Harness instance.
 
 ### `agent/` (Interactive Runtime & Session Management)
-- **`agent/harness.py`**: Interactive model turn loop, CEGAR-H progression monitor, tool dispatch, and streaming.
+- **`agent/harness.py`**: Interactive turn loop, CEGAR-H progression monitor, tool dispatch, and streaming.
 - **`agent/web_server.py` & `agent/web/`**: Web GUI server, real-time SSE stream, right-sidebar PPT preview, and session manager.
 - **`agent/session_store.py`**: Durable, multi-session state serialization and replay.
 
 ---
 
-## 3. The Execution Lifecycle (CEGAR-H)
+## 3. Architecture Evolution & Roadmap
 
-Baoyi implements **CEGAR-H (Counterexample-Guided Abstraction Refinement with Harness Gates)**:
+### Current State
+- The portable architecture (`core`, `domains`, `adapters`, `runner`) is fully defined, tested, and validated by architectural boundary tests (`tests/test_layer_boundaries.py`).
+- Interactive execution is orchestrated via `agent.harness`, with domain logic in `agent/tools/` and `domains/ppt/`.
 
-1. **Intake & Understand**: Bounded observation to extract necessary context and shape metadata without infinite exploration loops.
-2. **Produce (Mutation)**: Atomic edits performed within `ActionTransaction`. Unsaved mutations advance the artifact epoch.
-3. **Verify (Structural Evidence)**: Automatic structural and contract checks. Failures generate concrete counterexamples (blockers) for targeted repair.
-4. **Deliver (Finish Gate)**: Verified certificates are required before `finish` can succeed.
+### Target Convergence
+1. **Subsystem Modularization**: Deconstruct `agent/tools/ppt_tools.py` into dedicated modules under `domains/ppt/runtime/` (`inspect`, `text`, `style`, `compose`, `render`, `verify`).
+2. **Transaction Unification**: Route all PPT mutations directly through `ActionTransaction` and domain action adapters.
+3. **Finish Gate Unification**: Fully standardize all exit paths through certificate-driven verification in `core/verification.py`.

@@ -208,19 +208,20 @@ def record_mode() -> str:
     and ``research`` retains the largest redacted payloads for trajectory
     studies.  Invalid values fail closed to the compact production default.
     """
-    value = os.getenv("XIAOPU_RECORD_MODE", "audit").strip().lower()
+    value = os.getenv("BAOYI_RECORD_MODE", os.getenv("XIAOPU_RECORD_MODE", "audit")).strip().lower()
     return value if value in {"minimal", "audit", "research"} else "audit"
 
 
 def sandbox_root() -> Path:
-    p = Path(os.getenv("WORKSPACE", str(WORKSPACE)))
+    p = Path(os.getenv("BAOYI_WORKSPACE", os.getenv("WORKSPACE", str(WORKSPACE))))
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def state_home() -> Path:
     """Durable per-user state: sessions, prompt history, exports."""
-    p = Path(os.getenv("XIAOPU_HOME", str(Path.home() / ".xiaopu")))
+    default_home = str(Path.home() / ".baoyi")
+    p = Path(os.getenv("BAOYI_HOME", os.getenv("XIAOPU_HOME", default_home)))
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -236,11 +237,12 @@ def set_plan_mode(enabled: bool) -> None:
 def known_models() -> list[str]:
     """OpenAI-compatible model choices exposed to /model and CLI.
 
-    Falls back to the active model plus any XIAOPU_MODELS comma list, so a
-    product build can publish a curated picker without editing code.
+    Falls back to the active model plus any BAOYI_MODELS / XIAOPU_MODELS comma list,
+    so a product build can publish a curated picker without editing code.
     """
     active = model() if provider() != "anthropic" else anthropic_model()
-    extras = [m.strip() for m in os.getenv("XIAOPU_MODELS", "").split(",") if m.strip()]
+    raw_models = os.getenv("BAOYI_MODELS", os.getenv("XIAOPU_MODELS", ""))
+    extras = [m.strip() for m in raw_models.split(",") if m.strip()]
     seen: list[str] = []
     for candidate in [active, *extras]:
         if candidate and candidate not in seen:
@@ -252,20 +254,22 @@ THEMES = ("dark", "light", "dracula")
 
 
 def theme() -> str:
-    value = os.getenv("XIAOPU_THEME", "dark").strip().lower()
+    value = os.getenv("BAOYI_THEME", os.getenv("XIAOPU_THEME", "dark")).strip().lower()
     return value if value in THEMES else "dark"
 
 
 def set_theme(value: str) -> None:
     if value in THEMES:
+        os.environ["BAOYI_THEME"] = value
         os.environ["XIAOPU_THEME"] = value
 
 
 def keymap() -> str:
-    value = os.getenv("XIAOPU_KEYMAP", "default").strip().lower()
+    value = os.getenv("BAOYI_KEYMAP", os.getenv("XIAOPU_KEYMAP", "default")).strip().lower()
     return value if value in {"default", "minimal"} else "default"
 
 
 def set_keymap(value: str) -> None:
     if value in {"default", "minimal"}:
+        os.environ["BAOYI_KEYMAP"] = value
         os.environ["XIAOPU_KEYMAP"] = value
