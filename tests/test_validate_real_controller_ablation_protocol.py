@@ -16,8 +16,9 @@ def _create_hermetic_controller_protocol(tmp_path: Path) -> tuple[dict, Path]:
     source_file = tmp_path / "benchmarks/source_protocol.json"
     runtime_file = tmp_path / "agent/controller_policies.py"
     harness_file = tmp_path / "agent/harness.py"
+    agent_runtime_file = tmp_path / "agent/runtime.py"
 
-    for f in (source_file, runtime_file, harness_file):
+    for f in (source_file, runtime_file, harness_file, agent_runtime_file):
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(f"dummy content for {f.name}", encoding="utf-8")
 
@@ -49,6 +50,8 @@ def _create_hermetic_controller_protocol(tmp_path: Path) -> tuple[dict, Path]:
             "sha256": digest(runtime_file),
             "harness_path": str(harness_file.relative_to(tmp_path)).replace("\\", "/"),
             "harness_sha256": digest(harness_file),
+            "agent_runtime_path": str(agent_runtime_file.relative_to(tmp_path)).replace("\\", "/"),
+            "agent_runtime_sha256": digest(agent_runtime_file),
             "harness_argument": "controller_policy",
         },
         "budget": {

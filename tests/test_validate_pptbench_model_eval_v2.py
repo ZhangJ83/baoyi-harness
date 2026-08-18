@@ -19,7 +19,9 @@ def _create_hermetic_fixture(tmp_path: Path) -> tuple[dict, Path]:
     runner = tmp_path / "benchmarks/run_pptbench_model_eval_v2.py"
     val = tmp_path / "benchmarks/validate_model_generated_ppt_eval.py"
     tools = tmp_path / "agent/tools/ppt_tools.py"
-    for f in (runner, val, tools):
+    harness = tmp_path / "agent/harness.py"
+    runtime = tmp_path / "agent/runtime.py"
+    for f in (runner, val, tools, harness, runtime):
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(f"dummy {f.name}", encoding="utf-8")
 
@@ -72,6 +74,8 @@ def _create_hermetic_fixture(tmp_path: Path) -> tuple[dict, Path]:
             "runner": {"path": str(runner.relative_to(tmp_path)).replace("\\", "/"), "sha256": _sha256(runner)},
             "result_validator": {"path": str(val.relative_to(tmp_path)).replace("\\", "/"), "sha256": _sha256(val)},
             "xiaopu_ppt_tools": {"path": str(tools.relative_to(tmp_path)).replace("\\", "/"), "sha256": _sha256(tools)},
+            "harness": {"path": str(harness.relative_to(tmp_path)).replace("\\", "/"), "sha256": _sha256(harness)},
+            "runtime": {"path": str(runtime.relative_to(tmp_path)).replace("\\", "/"), "sha256": _sha256(runtime)},
             "cli_versions": {
                 "xiaopu": "repository-runtime",
                 "claude_code": "2.1.228 (Claude Code)",

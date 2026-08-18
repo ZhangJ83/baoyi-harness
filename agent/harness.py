@@ -1576,10 +1576,22 @@ class Harness:
                             ),
                         })
                         continue
-                    return (
-                        "⚠ 模型连续返回文本但没有调用工具，任务尚未开始。\n\n"
-                        "报一没有把任务回显误判为完成。请重试一次，或将 /effort 切换为 high 后继续。"
-                    )
+                    if strict_budget:
+                        return (
+                            "⚠ 模型连续返回文本但没有调用工具，任务尚未开始。\n\n"
+                            "报一没有把任务回显误判为完成。请重试一次，或将 /effort 切换为 high 后继续。"
+                        )
+                    no_tool_streak = 0
+                    self.messages.append({"role": "assistant", "content": answer})
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            "Controller directive: Model deliberation returned plain text without emitting a tool call. "
+                            "Do not respond with plain text. Emit a concrete tool call immediately (e.g. ppt_compose, ppt_edit_text, or read_file)."
+                        ),
+                    })
+                    self._maybe_compact(force=True)
+                    continue
                 if self.state.changed_files and not self.state.fresh_evidence():
                     self.messages.append({"role": "assistant", "content": answer})
                     self.messages.append({"role": "user", "content": "You changed files but provided no verification evidence. Run the relevant checks, inspect their output, then finish."})

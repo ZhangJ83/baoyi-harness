@@ -354,9 +354,26 @@ class HarnessTests(unittest.TestCase):
     def test_action_task_repeated_no_tool_response_is_not_completion(self):
         replies = [LLMReply.from_message(AssistantMessage(content="任务：修改并保存 PPT")) for _ in range(3)]
         harness = self.make_harness(replies)
-        result = harness.run("修改并保存 PPT")
+        with patch.dict(os.environ, {"STRICT_RUN_BUDGET": "1"}):
+            result = harness.run("修改并保存 PPT")
         self.assertIn("没有调用工具", result)
         self.assertIsNone(harness.state.final_summary)
+
+    def test_action_task_repeated_plain_text_redirects_and_completes_in_normal_mode(self):
+        echo1 = LLMReply.from_message(AssistantMessage(content="我正在思考如何修改代码"), total_tokens=10)
+        echo2 = LLMReply.from_message(AssistantMessage(content="继续思考"), total_tokens=10)
+        echo3 = LLMReply.from_message(AssistantMessage(content="依然思考"), total_tokens=10)
+        read = LLMReply.from_message(AssistantMessage(tool_calls=[ToolCall("0", ToolFn("read_file", json.dumps({"path": "x.py"})))]), total_tokens=10)
+        write = LLMReply.from_message(AssistantMessage(tool_calls=[ToolCall("1", ToolFn("write_file", json.dumps({"path": "x.py", "content": "x = 2"})))]), total_tokens=10)
+        verify = LLMReply.from_message(AssistantMessage(tool_calls=[ToolCall("2", ToolFn("verify_files", json.dumps({"paths": ["x.py"]})))]), total_tokens=10)
+        finish = LLMReply.from_message(AssistantMessage(tool_calls=[ToolCall("3", ToolFn("finish", json.dumps({"summary": "finally done"})))]), total_tokens=10)
+        harness = self.make_harness([echo1, echo2, echo3, read, write, verify, finish])
+        harness.max_steps = 15
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp, "STRICT_RUN_BUDGET": "0"}):
+            Path(tmp, "x.py").write_text("x = 1", encoding="utf-8")
+            result = harness.run("modify the repository x.py")
+        self.assertIn("finally done", result)
+        self.assertTrue(any("Model deliberation returned plain text" in str(message.get("content")) for message in harness.messages))
 
     def test_ppt_action_cannot_end_after_inspection_only(self):
         inspect = ToolCall("1", ToolFn("shape_inventory", json.dumps({"slide_number": 2})))
@@ -367,7 +384,8 @@ class HarnessTests(unittest.TestCase):
             LLMReply.from_message(AssistantMessage(content="done")),
         ])
         harness.deck = type("Deck", (), {"slides": [object(), object()]})()
-        result = harness.run("修改 PPTX 第2页并保存")
+        with patch.dict(os.environ, {"STRICT_RUN_BUDGET": "1"}):
+            result = harness.run("修改 PPTX 第2页并保存")
         self.assertIn("任务尚未开始", result)
         self.assertIsNone(harness.state.final_summary)
 

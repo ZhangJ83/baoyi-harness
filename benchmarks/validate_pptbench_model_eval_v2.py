@@ -94,6 +94,8 @@ def validate(protocol: dict, root: Path, *, credential_present: bool) -> dict:
         "runner": "benchmarks/run_pptbench_model_eval_v2.py",
         "result_validator": "benchmarks/validate_model_generated_ppt_eval.py",
         "xiaopu_ppt_tools": "agent/tools/ppt_tools.py",
+        "harness": "agent/harness.py",
+        "runtime": "agent/runtime.py",
     }
     for name, expected_path in required_runtime.items():
         row = execution.get(name, {})

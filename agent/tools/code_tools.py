@@ -80,10 +80,15 @@ def _finish(h, summary: str):
                 "cannot finish PPT task: this run has no saved final-pptx artifact; "
                 "call save_deck for the required output path, then verify and finish"
             )
-        # Open-ended decks have no task-local contract/evaluator. Enforce the
-        # generic completeness contract before finish so sparse pages cannot
-        # be delivered as finished work.
-        if not h.state.facts.get("verification_contract_terms") and h.state.facts.get("official_evaluator_present") != "true":
+        # Enforce canvas completeness & density gate on all generative / reflow / compose tasks
+        # (and open-ended builds), exempting only atomic edit/style on existing decks.
+        is_new_deck = not getattr(getattr(h, "state", None), "ppt_existing_deck", False)
+        skill = str(getattr(h.state, "facts", {}).get("selected_skill", "") or getattr(h.state, "task_intent", "") or "")
+        enforce_canvas = is_new_deck or skill in {
+            "ppt.template_build", "ppt.source_grounded_build", "ppt.layout_reflow",
+            "ppt.diagram_composition", "ppt.element_creation", "ppt.compose_from_slides",
+        } or (not h.state.facts.get("verification_contract_terms") and h.state.facts.get("official_evaluator_present") != "true")
+        if enforce_canvas:
             from .ppt_tools import _deck_completeness_gate
             gap = _deck_completeness_gate(h)
             if gap:

@@ -47,8 +47,10 @@ def validate(protocol: dict, root: Path) -> dict:
     runtime = protocol.get("policy_runtime", {})
     runtime_path = root / str(runtime.get("path", ""))
     harness_path = root / str(runtime.get("harness_path", ""))
+    agent_runtime_path = root / str(runtime.get("agent_runtime_path", "agent/runtime.py"))
     if (not runtime_path.is_file() or digest(runtime_path) != runtime.get("sha256")
             or not harness_path.is_file() or digest(harness_path) != runtime.get("harness_sha256")
+            or not agent_runtime_path.is_file() or digest(agent_runtime_path) != runtime.get("agent_runtime_sha256")
             or runtime.get("harness_argument") != "controller_policy"
             or set(protocol.get("policies", {})) != set(RUNTIME_POLICIES)):
         errors.append("policy_runtime_missing_or_drifted")

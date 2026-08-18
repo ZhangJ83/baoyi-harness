@@ -3888,7 +3888,13 @@ def _deck_completeness_gate(h) -> str:
                         top = 0.0
                     boxes.append((top, text))
         total_chars = sum(len(text) for _top, text in boxes)
-        is_cover = (slide_number == 1 and total_slides > 1 and total_chars < 100)
+        has_cards = any(
+            (sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(1.5) < sh.width < Inches(_W * 0.98) and Inches(0.8) < sh.height < Inches(_H * 0.98))
+            or (sh.shape_type == MSO_SHAPE_TYPE.PICTURE)
+            or getattr(sh, "has_table", False)
+            for sh in slide.shapes
+        )
+        is_cover = (slide_number == 1 and total_slides > 1 and not has_cards and total_chars < 120)
         titleish = [text for top, text in boxes if top < 1.5]
         bodyish = [text for top, text in boxes if top >= 1.5]
         if not titleish and not is_cover:
@@ -3898,7 +3904,7 @@ def _deck_completeness_gate(h) -> str:
         if total_chars < 15:
             return f"slide {slide_number} is too thin ({total_chars} visible characters; minimum 15)"
 
-        if enforce_density and total_slides > 1 and slide_number > 1 and not is_cover:
+        if enforce_density and not is_cover:
             has_cards = any(
                 (sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(1.5) < sh.width < Inches(_W * 0.98) and Inches(0.8) < sh.height < Inches(_H * 0.98))
                 or (sh.shape_type == MSO_SHAPE_TYPE.PICTURE)

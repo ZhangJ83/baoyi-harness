@@ -301,3 +301,34 @@ def test_geometric_canvas_coverage_and_distribution_gate():
     h_atomic.deck = prs_sparse
     gap_atomic = _deck_completeness_gate(h_atomic)
     assert gap_atomic == "", f"Atomic edit on existing deck should not fail density gate, got: {gap_atomic}"
+
+    # 5. Slide E (Single-slide sparse presentation fails density gate)
+    h_single_sparse = MockHarness()
+    h_single_sparse.state.record_fact("selected_skill", "ppt.template_build")
+    prs_single_sparse = Presentation()
+    prs_single_sparse.slide_width = Inches(13.333)
+    prs_single_sparse.slide_height = Inches(7.5)
+    s_single = prs_single_sparse.slides.add_slide(blank_layout)
+    title_single = s_single.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(10.0), Inches(0.8))
+    title_single.text_frame.text = "Executive Summary"
+    body_single = s_single.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(2.5), Inches(1.2))
+    body_single.text_frame.text = "Sparse single-slide executive summary without container cards or multi-column layout."
+    h_single_sparse.deck = prs_single_sparse
+    gap_single_sparse = _deck_completeness_gate(h_single_sparse)
+    assert "layout density FAILED" in gap_single_sparse or "layout distribution FAILED" in gap_single_sparse
+
+    # 6. Slide F (Single-slide balanced executive summary passes)
+    h_single_balanced = MockHarness()
+    h_single_balanced.state.record_fact("selected_skill", "ppt.template_build")
+    prs_single_balanced = Presentation()
+    prs_single_balanced.slide_width = Inches(13.333)
+    prs_single_balanced.slide_height = Inches(7.5)
+    s_sb = prs_single_balanced.slides.add_slide(blank_layout)
+    title_sb = s_sb.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(10.0), Inches(0.8))
+    title_sb.text_frame.text = "Executive Summary"
+    for idx, (l, t, w, h) in enumerate(positions, 1):
+        card = s_sb.shapes.add_shape(MSO_SHAPE.RECTANGLE, l, t, w, h)
+        card.text_frame.text = f"Key Metric {idx}: Structured technical highlights."
+    h_single_balanced.deck = prs_single_balanced
+    gap_single_balanced = _deck_completeness_gate(h_single_balanced)
+    assert gap_single_balanced == "", f"Expected balanced single-slide deck to pass, got: {gap_single_balanced}"
