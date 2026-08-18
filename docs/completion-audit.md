@@ -1,7 +1,6 @@
-# Completion audit
-
-> Historical audit snapshot. For the repaired Docker/provider path and current
-> score-gated status, use `workspace/results/completion_audit_current.json`.
+> **Historical audit snapshot (2026-08-09)**.
+> This document records early-stage project milestone status. For current project verification,
+> architecture, and benchmark contracts, see `docs/architecture.md`, `tests/`, and `benchmarks/`.
 
 审计日期：2026-08-09。
 

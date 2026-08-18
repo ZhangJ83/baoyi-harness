@@ -1,12 +1,12 @@
 # 报一 (Baoyi) Architecture Guide
 
-**报一 (Baoyi)** is a contract-driven, verifiable agent execution harness designed for complex code and presentation automation workflows.
+**报一 (Baoyi)** is a contract-driven, verifiable agent execution harness specializing in autonomous presentation authoring and general software tasks.
 
 ---
 
 ## 1. Native Execution Loop & Architecture
 
-Every real Baoyi agent turn flows deterministically from the user request through the native composition root down to verification and the finish gate:
+For PowerPoint domain tasks, every production agent turn flows deterministically from the user request through the native composition root (`runner.runtime.compile_runtime_task`) down to verification and the finish gate:
 
 ```text
                        User Request
@@ -103,11 +103,12 @@ Domain-agnostic protocols, data structures, and compilation primitives:
 
 ### `domains/` (Domain Specialization Packs)
 Encapsulates domain-specific semantics, ontology, IR, and operations:
-- **`domains/ppt/`**:
+- **`domains/ppt/`**: Fully realized DomainPack implementation featuring:
   - Task ontology: 8 canonical portable task types (`domains/ppt/task_types.py`).
   - Presentation object models (shapes, cards, pipelines, tables, typography).
   - Domain-specific transaction mutations (`set_shape_text`, `set_table`, `batch_updates`, `ppt_compose`).
   - Domain verifiers (shape bindings, provenance anchors, layout metrics).
+- *Scope Note*: The contract-driven DomainPack architecture is fully implemented for the PowerPoint domain; generic code workflows execute via a compatibility projection in `runner/runtime.py` (future work will migrate code workflows into a dedicated `domains/code/` pack).
 - *Boundary rule*: `domains/` is independent of vendor adapters.
 
 ### `runner/` (Composition Roots)
