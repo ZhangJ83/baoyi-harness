@@ -16,9 +16,10 @@ allowed_tools: ppt_open, ppt_inspect, ppt_edit_text, ppt_style, ppt_compose, ppt
    - **Keynote / Core Highlight**: Use `ppt_compose(kind="hero_split", title="...", hero_title="...", hero_metric="...", hero_text="...", cards=[...])` for left 1/3 key takeaway + right 2/3 breakdown cards.
    - **Multi-Metric Dashboard**: Use `ppt_compose(kind="quadrant", title="...", quadrants=[...])` for 2x2 executive dashboards.
    - **Comparison / Pros & Cons**: Use `ppt_compose(kind="comparison", title="...", left_title="...", left_bullets=[...], right_title="...", right_bullets=[...])`.
-4. High Design Quality & Information Density Standards:
-   - **No Bare Bullet Lists**: Every content slide must use visual container cards, badges, or structured grids. Plain single-column bullet lists on blank backgrounds are strictly forbidden and fail quality checks.
-   - **Substantive Technical Depth**: Target 150-400 substantive characters per slide. Each card must include an index/badge, main action title, and 2-4 detailed, multi-level technical bullet points.
+4. High Design Quality & Canvas Coverage Standards:
+   - **No Bare Bullet Lists & Balanced Space Utilization**: Every content slide must use visual container cards, badges, or structured grids. Plain single-column bullet lists on blank backgrounds or clustered in one corner leaving large unused space fail quality & density gates.
+   - **Geometric Coverage & Span Standards**: Content slides should achieve meaningful canvas coverage (body coverage >= 50%, horizontal span >= 72%, vertical span >= 60%). Redistribute content across grids, 2-column, quadrant, or hero_split layouts rather than leaving large whitespace voids.
+   - **Substantive Content over Filler**: Content slides should convey rich, structured technical information. Never invent repetitive filler text merely to occupy space—achieve layout density through proper typography, card expansion, visual containers, and multi-column structure.
    - Use slide-numbered compose (`slide_number=1`) to transform fresh deck cover scaffolds into real content pages when multi-page custom builds are requested.
 5. Call `ppt_save`, then `ppt_check`, then `finish`. Finish owns task-native evaluation, final rendering, visual audit, provenance, and trajectory completion.
 6. Repair only concrete defects on specific slides/shapes, remain within the repair budget, and rerun the failed check after every repair.

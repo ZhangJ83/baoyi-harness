@@ -110,6 +110,20 @@ def bounded_tool_result(text: str, limit: int = 5000) -> str:
     return f"{head}\n[tool result replaced: {omitted} chars omitted, sha256={digest}]\n{tail}"
 
 
+def finish_eligible(state: RunState) -> bool:
+    if state.unresolved_checks:
+        return False
+    contract = getattr(state, "execution_contract", None)
+    if contract is not None:
+        from .execution_contract import Domain
+        if getattr(contract, "domain", None) is Domain.CODE and not state.changed_files:
+            return True
+        from .certificate import missing_requirements
+        if missing_requirements(contract, state.fresh_evidence()):
+            return False
+    return True
+
+
 class RuntimeController:
     """Own phase transitions and online CEGAR-H recommendations."""
 
@@ -253,6 +267,8 @@ class RuntimeController:
                 facade.discard("ppt_inspect")
             if ppt_task and state.phase == RuntimePhase.VERIFY and state.facts.get("official_evaluator_present") == "true":
                 facade.add("run_task_evaluator")
+            if not finish_eligible(state) and state.phase not in {RuntimePhase.VERIFY, RuntimePhase.DELIVER}:
+                facade.discard("finish")
             return facade
         if not ppt_task:
             return visible_generic_tools(state)

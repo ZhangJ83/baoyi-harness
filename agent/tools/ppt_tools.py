@@ -3761,11 +3761,99 @@ def _detect_requested_slide_count(h) -> int | None:
     return None
 
 
+def _calculate_slide_canvas_metrics(slide, slide_w, slide_h) -> dict:
+    """Calculate geometric content coverage and bounding span over the body canvas."""
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+    line_types = {MSO_SHAPE_TYPE.LINE}
+    connector_type = getattr(MSO_SHAPE_TYPE, "CONNECTOR", None)
+    if connector_type is not None:
+        line_types.add(connector_type)
+
+    body_left = int(0.04 * slide_w)
+    body_right = int(0.96 * slide_w)
+    body_top = int(0.16 * slide_h)
+    body_bottom = int(0.94 * slide_h)
+    body_width = max(1, body_right - body_left)
+    body_height = max(1, body_bottom - body_top)
+
+    n_cols, n_rows = 48, 27
+    occupied_cells: set[tuple[int, int]] = set()
+    content_min_x, content_max_x = body_right, body_left
+    content_min_y, content_max_y = body_bottom, body_top
+    has_meaningful_content = False
+
+    for shape, _path in _walk_shapes(slide.shapes):
+        w = getattr(shape, "width", 0) or 0
+        h = getattr(shape, "height", 0) or 0
+        left = getattr(shape, "left", 0) or 0
+        top = getattr(shape, "top", 0) or 0
+        if w <= 0 or h <= 0:
+            continue
+        if w >= 0.92 * slide_w and h >= 0.92 * slide_h:
+            continue
+        if shape.shape_type in line_types and (w < 0.05 * slide_w or h < 0.05 * slide_h):
+            continue
+
+        has_text = False
+        if getattr(shape, "has_text_frame", False) and shape.text_frame is not None:
+            text = (shape.text_frame.text or "").strip()
+            if text:
+                has_text = True
+        is_container = (
+            shape.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE
+            and w >= 0.08 * slide_w
+            and h >= 0.08 * slide_h
+        )
+        is_visual = (
+            shape.shape_type == MSO_SHAPE_TYPE.PICTURE
+            or getattr(shape, "has_table", False)
+            or shape.shape_type == MSO_SHAPE_TYPE.GROUP
+        )
+        if not (has_text or is_container or is_visual):
+            continue
+
+        s_left = max(body_left, left)
+        s_right = min(body_right, left + w)
+        s_top = max(body_top, top)
+        s_bottom = min(body_bottom, top + h)
+        if s_right > s_left and s_bottom > s_top:
+            has_meaningful_content = True
+            content_min_x = min(content_min_x, s_left)
+            content_max_x = max(content_max_x, s_right)
+            content_min_y = min(content_min_y, s_top)
+            content_max_y = max(content_max_y, s_bottom)
+
+            c_start_x = max(0, int((s_left - body_left) / body_width * n_cols))
+            c_end_x = min(n_cols, int((s_right - body_left) / body_width * n_cols) + 1)
+            c_start_y = max(0, int((s_top - body_top) / body_height * n_rows))
+            c_end_y = min(n_rows, int((s_bottom - body_top) / body_height * n_rows) + 1)
+
+            for cx in range(c_start_x, c_end_x):
+                for cy in range(c_start_y, c_end_y):
+                    occupied_cells.add((cx, cy))
+
+    coverage = len(occupied_cells) / float(n_cols * n_rows)
+    if has_meaningful_content and content_max_x > content_min_x and content_max_y > content_min_y:
+        horizontal_span = (content_max_x - content_min_x) / float(body_width)
+        vertical_span = (content_max_y - content_min_y) / float(body_height)
+    else:
+        horizontal_span = 0.0
+        vertical_span = 0.0
+
+    return {
+        "coverage": coverage,
+        "horizontal_span": horizontal_span,
+        "vertical_span": vertical_span,
+        "has_content": has_meaningful_content,
+    }
+
+
 def _deck_completeness_gate(h) -> str:
     """Return a human-readable gap for open-ended decks, or "" when complete.
 
     Generic density contract: every slide needs a title-like text object, at
-    least two body text objects, and a minimum visible character budget.
+    least two body text objects, a minimum visible character budget, and
+    balanced canvas geometric coverage (≥50% coverage, ≥72% horizontal span).
     """
     from pptx.enum.shapes import MSO_SHAPE_TYPE
     if getattr(h, "deck", None) is None:
@@ -3774,6 +3862,14 @@ def _deck_completeness_gate(h) -> str:
     if req_count is not None and len(h.deck.slides) < req_count:
         return f"deck only has {len(h.deck.slides)} slide(s); user task explicitly requested at least {req_count} slides"
     is_new_deck = not getattr(getattr(h, "state", None), "ppt_existing_deck", False)
+    state = getattr(h, "state", None)
+    skill = str(getattr(state, "facts", {}).get("selected_skill", "") or getattr(state, "task_intent", "") or "")
+    enforce_density = is_new_deck or skill in {
+        "ppt.template_build", "ppt.source_grounded_build", "ppt.layout_reflow",
+        "ppt.diagram_composition", "ppt.element_creation", "ppt.compose_from_slides",
+    }
+    total_slides = len(h.deck.slides)
+
     for slide_number, slide in enumerate(h.deck.slides, 1):
         has_full_raster = any(
             sh.shape_type == MSO_SHAPE_TYPE.PICTURE and sh.width >= Inches(_W * 0.85) and sh.height >= Inches(_H * 0.85)
@@ -3792,13 +3888,17 @@ def _deck_completeness_gate(h) -> str:
                         top = 0.0
                     boxes.append((top, text))
         total_chars = sum(len(text) for _top, text in boxes)
+        is_cover = (slide_number == 1 and total_slides > 1 and total_chars < 100)
         titleish = [text for top, text in boxes if top < 1.5]
         bodyish = [text for top, text in boxes if top >= 1.5]
-        if not titleish:
+        if not titleish and not is_cover:
             return f"slide {slide_number} has no visible title text"
-        if len(bodyish) < 1:
+        if len(bodyish) < 1 and not is_cover:
             return f"slide {slide_number} has no visible body text objects; at least 1 is required"
-        if is_new_deck and len(h.deck.slides) > 1 and slide_number > 1:
+        if total_chars < 15:
+            return f"slide {slide_number} is too thin ({total_chars} visible characters; minimum 15)"
+
+        if enforce_density and total_slides > 1 and slide_number > 1 and not is_cover:
             has_cards = any(
                 (sh.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and Inches(1.5) < sh.width < Inches(_W * 0.98) and Inches(0.8) < sh.height < Inches(_H * 0.98))
                 or (sh.shape_type == MSO_SHAPE_TYPE.PICTURE)
@@ -3806,9 +3906,27 @@ def _deck_completeness_gate(h) -> str:
                 for sh in slide.shapes
             )
             if total_chars < 100 and not has_cards:
-                return f"slide {slide_number} content density too sparse ({total_chars} visible chars); presentation slides require rich technical details (120-400 chars) with structured cards/steps/badges"
-        if total_chars < 15:
-            return f"slide {slide_number} is too thin ({total_chars} visible characters; minimum 15)"
+                return (
+                    f"slide {slide_number} content density too sparse ({total_chars} visible chars); "
+                    "presentation slides require substantive technical details with structured cards/steps/badges"
+                )
+            slide_w = h.deck.slide_width
+            slide_h = h.deck.slide_height
+            metrics = _calculate_slide_canvas_metrics(slide, slide_w, slide_h)
+            if metrics["coverage"] < 0.50:
+                return (
+                    f"slide {slide_number} layout density FAILED: body coverage is {metrics['coverage']:.0%} (minimum 50%). "
+                    f"Horizontal span is {metrics['horizontal_span']:.0%}. "
+                    "Repair by expanding cards, switching to 2-column / quadrant / hero_split, or enlarging diagram/chart components. "
+                    "Do not invent filler text merely to satisfy density."
+                )
+            if metrics["horizontal_span"] < 0.72 or metrics["vertical_span"] < 0.60:
+                return (
+                    f"slide {slide_number} layout distribution FAILED: horizontal span is {metrics['horizontal_span']:.0%} (min 72%), "
+                    f"vertical span is {metrics['vertical_span']:.0%} (min 60%). Content is clustered leaving large unused whitespace. "
+                    "Repair by redistributing content across the slide (e.g. 2-column/grid/quadrant) or enlarging visual components. "
+                    "Do not invent filler text."
+                )
 
     # Enforce HTML slide requirement if task explicitly requested HTML
     task_goal = str(getattr(getattr(h, "state", None), "initial_goal", "") or getattr(getattr(h, "state", None), "task_prompt", "") or "").casefold()
@@ -4217,6 +4335,12 @@ def _quality_check(h) -> str:
             warnings.append(f"slide {index}: high shape density ({len(visible_shapes)} visible shapes)")
 
         is_cover = index == 1 and total_slides > 1 and total_chars < 100
+        metrics = _calculate_slide_canvas_metrics(slide, slide_w, slide_h)
+        if not is_cover and metrics["has_content"]:
+            if metrics["coverage"] < 0.50:
+                warnings.append(f"slide {index}: canvas coverage is low ({metrics['coverage']:.0%}; target >=50% with structured multi-column/card layout)")
+            if metrics["horizontal_span"] < 0.72 or metrics["vertical_span"] < 0.60:
+                recommendations.append(f"slide {index}: content distribution is unbalanced (horizontal span {metrics['horizontal_span']:.0%}, vertical span {metrics['vertical_span']:.0%}); distribute elements across the slide canvas")
         if not is_cover and not container_shapes and len(text_shapes) >= 3:
             recommendations.append(
                 f"slide {index}: layout consists of bare flat text only; consider upgrading to "
@@ -4252,7 +4376,7 @@ def _quality_check(h) -> str:
                         font_sizes.append(run.font.size.pt)
         if font_sizes and min(font_sizes) < 9:
             warnings.append(f"slide {index}: very small text ({min(font_sizes):.1f}pt)")
-        slide_rows.append(f"slide {index}: text={len(text_shapes)}, containers={len(container_shapes)}, chars={total_chars}")
+        slide_rows.append(f"slide {index}: text={len(text_shapes)}, containers={len(container_shapes)}, chars={total_chars}, coverage={metrics['coverage']:.0%}")
 
     score = 100 - len(errors) * 25 - len(warnings) * 5 - len(recommendations) * 5
     quality_score = max(0, min(100, score))

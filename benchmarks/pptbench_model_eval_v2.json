@@ -2,8 +2,8 @@
   "schema": "pptbench-model-eval-protocol-v2",
   "status": "prospective_not_run",
   "registered_at": "2026-08-11T05:35:00+08:00",
-  "amended_at": "2026-08-18T04:40:00+08:00",
-  "amendment_boundary": "before any model deck generation or reviewer score existed, canonical input decks were relocated to tracked fixtures and the production harness converged to the native composition root with TaskContract as single semantic truth. Runtime hashes were refreshed prospectively; tasks, budgets, outcomes, and statistics are unchanged.",
+  "amended_at": "2026-08-18T12:30:00+08:00",
+  "amendment_boundary": "before any model deck generation or reviewer score existed, canonical input decks were relocated to tracked fixtures, geometric canvas coverage and termination invariants were hardened in the production harness, and TaskContract became single semantic truth. Runtime hashes were refreshed prospectively; tasks, budgets, outcomes, and statistics are unchanged.",
   "anti_harking_boundary": "The five deterministic v1 fixtures and controlled four-slide demo are excluded from model-evaluation statistics.",
   "systems": [
     "xiaopu",
@@ -31,7 +31,7 @@
     },
     "xiaopu_ppt_tools": {
       "path": "agent/tools/ppt_tools.py",
-      "sha256": "f2d9565d0496cac788eda14f7e753ff8ecd79ca4159db7a731414ee00b69f152"
+      "sha256": "5698bf4c3a8a1711e0dfe8d98172a2b5f099a522e06675a6e5be4a32b178b7fd"
     },
     "cli_versions": {
       "xiaopu": "repository-runtime",

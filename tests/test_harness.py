@@ -136,7 +136,7 @@ class HarnessTests(unittest.TestCase):
             LLMReply.from_message(AssistantMessage(tool_calls=[call])),
             LLMReply.from_message(AssistantMessage(tool_calls=[again])),
         ])
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp}, clear=False):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp, "STRICT_RUN_BUDGET": "1"}, clear=False):
             result = harness.run("完成 tasks/missing 的 PPT")
         self.assertIn("未开放的工具", result)
         self.assertEqual(harness.state.tool_calls, 0)
@@ -149,7 +149,7 @@ class HarnessTests(unittest.TestCase):
         final = LLMReply.from_message(AssistantMessage(content="verified now"))
         harness = self.make_harness([LLMReply.from_message(AssistantMessage(tool_calls=[inspect])), LLMReply.from_message(AssistantMessage(tool_calls=[finish])), LLMReply.from_message(AssistantMessage(tool_calls=[verify])), final])
         harness.state.record_change("x.py")
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp}):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp, "STRICT_RUN_BUDGET": "0"}):
             Path(tmp, "x.py").write_text("x = 1", encoding="utf-8")
             self.assertEqual(harness.run("fix"), "verified now")
             self.assertEqual(harness.state.final_summary, "verified now")
@@ -226,10 +226,42 @@ class HarnessTests(unittest.TestCase):
                 total_tokens=5,
             )
         harness = self.make_harness([repeat("1"), repeat("2"), repeat("3"), repeat("4")])
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp}):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp, "STRICT_RUN_BUDGET": "1"}):
             result = harness.run("find the missing symbol")
         self.assertIn("连续三次执行相同操作", result)
         self.assertEqual(harness.state.total_tokens, 15)
+
+    def test_repeated_action_redirects_and_recovers_without_early_pause_in_standard_mode(self):
+        call1 = LLMReply.from_message(
+            AssistantMessage(tool_calls=[ToolCall("1", ToolFn("search_text", json.dumps({"query": "missing"})))]),
+            total_tokens=5,
+        )
+        call2 = LLMReply.from_message(
+            AssistantMessage(tool_calls=[ToolCall("2", ToolFn("search_text", json.dumps({"query": "missing"})))]),
+            total_tokens=5,
+        )
+        call3 = LLMReply.from_message(
+            AssistantMessage(tool_calls=[ToolCall("3", ToolFn("search_text", json.dumps({"query": "missing"})))]),
+            total_tokens=5,
+        )
+        call4 = LLMReply.from_message(
+            AssistantMessage(tool_calls=[ToolCall("4", ToolFn("write_file", json.dumps({"path": "out.txt", "content": "resolved"})))]),
+            total_tokens=5,
+        )
+        call5 = LLMReply.from_message(
+            AssistantMessage(tool_calls=[ToolCall("5", ToolFn("verify_files", json.dumps({"paths": ["out.txt"]})))]),
+            total_tokens=5,
+        )
+        call6 = LLMReply.from_message(
+            AssistantMessage(tool_calls=[ToolCall("6", ToolFn("finish", json.dumps({"summary": "recovered and completed"})))]),
+            total_tokens=5,
+        )
+        harness = self.make_harness([call1, call2, call3, call4, call5, call6])
+        harness.max_steps = 15
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"WORKSPACE": tmp, "STRICT_RUN_BUDGET": "0"}):
+            result = harness.run("modify the repository and write the missing symbol")
+        self.assertIn("recovered and completed", result)
+        self.assertTrue(any("identical arguments 3 times" in str(message.get("content")) for message in harness.messages))
 
     def test_output_cap_uses_remaining_budget_and_restores_environment(self):
         harness = self.make_harness([LLMReply.from_message(AssistantMessage(content="done"), total_tokens=100)])
@@ -317,7 +349,7 @@ class HarnessTests(unittest.TestCase):
         self.assertIn("运行错误", result)
         self.assertEqual(harness.state.total_tokens, 20)
         self.assertTrue(any("not complete" in str(message.get("content")) for message in harness.messages))
-        self.assertTrue(any("cannot finish" in str(message.get("content")) for message in harness.messages))
+        self.assertTrue(any("cannot finish" in str(message.get("content")) or "not available in this phase" in str(message.get("content")) for message in harness.messages))
 
     def test_action_task_repeated_no_tool_response_is_not_completion(self):
         replies = [LLMReply.from_message(AssistantMessage(content="任务：修改并保存 PPT")) for _ in range(3)]

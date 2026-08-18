@@ -230,3 +230,74 @@ def test_render_html_to_png_premium_css():
         if "No headless browser" in str(e):
             pytest.skip("No headless browser available in test environment")
         raise
+
+
+def test_geometric_canvas_coverage_and_distribution_gate():
+    from pptx import Presentation
+    from pptx.util import Inches
+    from pptx.enum.shapes import MSO_SHAPE
+    from agent.tools.ppt_tools import _deck_completeness_gate
+
+    # 1. Slide A (Sparse): Title + small text box top-left on Slide 2 of a 2-slide deck
+    h_sparse = MockHarness()
+    h_sparse.state.record_fact("selected_skill", "ppt.template_build")
+    prs_sparse = Presentation()
+    prs_sparse.slide_width = Inches(13.333)
+    prs_sparse.slide_height = Inches(7.5)
+    blank_layout = prs_sparse.slide_layouts[6]
+
+    # Slide 1 (Cover)
+    s1 = prs_sparse.slides.add_slide(blank_layout)
+    tb1 = s1.shapes.add_textbox(Inches(1.0), Inches(0.8), Inches(11.0), Inches(2.0))
+    tb1.text_frame.text = "Presentation Cover Title"
+
+    # Slide 2 (Sparse content: 200 chars in a tiny 2.5x1.2 inch box)
+    s2 = prs_sparse.slides.add_slide(blank_layout)
+    title2 = s2.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(10.0), Inches(0.8))
+    title2.text_frame.text = "Executive Summary"
+    body2 = s2.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(2.5), Inches(1.2))
+    body2.text_frame.text = "This is a descriptive paragraph of text that contains rich technical details about system architecture, metrics, and workflows, but it is confined entirely to a tiny corner box without visual cards."
+    h_sparse.deck = prs_sparse
+
+    gap_sparse = _deck_completeness_gate(h_sparse)
+    assert "layout density FAILED" in gap_sparse or "layout distribution FAILED" in gap_sparse
+    assert "Do not invent filler text" in gap_sparse
+
+    # 2. Slide B (Balanced): Same information distributed into structured 2x2 cards
+    h_balanced = MockHarness()
+    h_balanced.state.record_fact("selected_skill", "ppt.template_build")
+    prs_balanced = Presentation()
+    prs_balanced.slide_width = Inches(13.333)
+    prs_balanced.slide_height = Inches(7.5)
+    s1_b = prs_balanced.slides.add_slide(blank_layout)
+    tb1_b = s1_b.shapes.add_textbox(Inches(1.0), Inches(0.8), Inches(11.0), Inches(2.0))
+    tb1_b.text_frame.text = "Presentation Cover Title"
+
+    s2_b = prs_balanced.slides.add_slide(blank_layout)
+    title2_b = s2_b.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(10.0), Inches(0.8))
+    title2_b.text_frame.text = "Executive Summary"
+
+    positions = [
+        (Inches(0.8), Inches(1.5), Inches(5.5), Inches(2.4)),
+        (Inches(7.0), Inches(1.5), Inches(5.5), Inches(2.4)),
+        (Inches(0.8), Inches(4.3), Inches(5.5), Inches(2.4)),
+        (Inches(7.0), Inches(4.3), Inches(5.5), Inches(2.4)),
+    ]
+    for idx, (l, t, w, h) in enumerate(positions, 1):
+        card = s2_b.shapes.add_shape(MSO_SHAPE.RECTANGLE, l, t, w, h)
+        card.text_frame.text = f"Module {idx}: Detailed technical breakdown and implementation architecture."
+
+    h_balanced.deck = prs_balanced
+    gap_balanced = _deck_completeness_gate(h_balanced)
+    assert gap_balanced == "", f"Expected balanced deck to pass completeness gate, got: {gap_balanced}"
+
+    # 3. Slide C (Cover slide passes): Verified as slide 1 above.
+
+    # 4. Slide D (Atomic edit on existing sparse deck passes without global relayout failure)
+    h_atomic = MockHarness()
+    h_atomic.state.ppt_existing_deck = True
+    h_atomic.state.record_fact("selected_skill", "ppt.atomic_edit")
+    h_atomic.state.task_intent = "atomic_edit"
+    h_atomic.deck = prs_sparse
+    gap_atomic = _deck_completeness_gate(h_atomic)
+    assert gap_atomic == "", f"Atomic edit on existing deck should not fail density gate, got: {gap_atomic}"

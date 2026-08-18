@@ -2,13 +2,13 @@
   "schema": "real-controller-ablation-protocol-v1",
   "status": "prospective_not_run",
   "registered_at": "2026-08-11T05:59:00+08:00",
-  "amended_at": "2026-08-18T04:40:00+08:00",
-  "amendment_boundary": "before any live controller cell was run, canonical input decks were relocated to tracked fixtures and the production harness converged to the native composition root with TaskContract as single semantic truth. Runtime hashes were refreshed prospectively; paired tasks, policies, caps, outcomes, and statistics are unchanged.",
+  "amended_at": "2026-08-18T12:30:00+08:00",
+  "amendment_boundary": "before any live controller cell was run, canonical input decks were relocated to tracked fixtures, geometric canvas coverage and termination invariants were hardened in the production harness, and TaskContract became single semantic truth. Runtime hashes were refreshed prospectively; paired tasks, policies, caps, outcomes, and statistics are unchanged.",
   "research_question": "At a fixed model and budget, does CEGAR-H improve real PPT artifact success or reduce verification cost at matched success?",
   "null_hypothesis": "CEGAR-H has no paired success or verification-cost advantage over direct, always-verify, or evidence-only.",
   "task_source": {
     "path": "benchmarks/pptbench_model_eval_v2.json",
-    "sha256": "ae8b667e9e2210e476718451287975ab7503b3bad11d5bc69bc20c3548b6aa63"
+    "sha256": "9cb10fed284cdad290e8acdef8d6b6df27b43a4c5a3b32b8c36dc90dcb9de6a3"
   },
   "paired_task_set": true,
   "n_tasks": 12,
@@ -80,7 +80,7 @@
     "path": "agent/controller_policies.py",
     "sha256": "02a007ee907e2e38b134f113e3f41af305eb62d2aaa26683f48a2b90c0ad7eff",
     "harness_path": "agent/harness.py",
-    "harness_sha256": "2d4909eede0caa0eebf5f6ef925fce517da49d90d36140a135a266cbcc28935b",
+    "harness_sha256": "bb9a6469dd27749deb02c55e638ce10ff3020b6bc78abf15d38b4ed84b3fa116",
     "harness_argument": "controller_policy"
   },
   "model": {

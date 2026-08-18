@@ -1528,6 +1528,20 @@ class Harness:
                         " Rendering and pixel audit are automatic finish-owned lifecycle steps; do not "
                         "call render tools from this phase."
                     )
+                if self.state.no_progress_streak >= 2:
+                    if not strict_budget:
+                        self.state.no_progress_streak = 0
+                        self.messages.append({
+                            "role": "user",
+                            "content": (
+                                "Controller intervention: invalid phase tool request suppressed. "
+                                f"Switch to advertised phase tools immediately: {', '.join(sorted(advertised_names))}."
+                            ),
+                        })
+                        continue
+                    saved = self._save_draft_before_pause()
+                    saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
+                    return f"已安全暂停：模型连续请求本阶段未开放的工具，控制器已阻止执行。{saved_note}"
                 self.messages.append({
                     "role": "user",
                     "content": (
@@ -1535,13 +1549,6 @@ class Harness:
                         f"Use exactly one of: {', '.join(sorted(advertised_names))}.{argument_hint}"
                     ),
                 })
-                if self.state.no_progress_streak >= 2:
-                    if getattr(self, "interactive", False):
-                        self.state.no_progress_streak = 0
-                        continue
-                    saved = self._save_draft_before_pause()
-                    saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
-                    return f"已安全暂停：模型连续请求本阶段未开放的工具，控制器已阻止执行。{saved_note}"
                 continue
             if not getattr(msg, "tool_calls", None):
                 answer = msg.content or ""
@@ -1767,7 +1774,7 @@ class Harness:
                     self.messages.append({"role": "user", "content": message})
                     self._maybe_compact(force=True)
                     continue
-                if getattr(self, "interactive", False):
+                if not strict_budget:
                     saved = self._save_draft_before_pause()
                     self.state.no_progress_streak = 0
                     self.state.controller_redirects = 0
@@ -1783,7 +1790,7 @@ class Harness:
                 saved_note = f"\n\n暂停前已保存当前草稿：{saved}。" if saved else ""
                 return f"已安全暂停：连续三次执行相同操作或等价观察但没有获得新信息，控制器已阻止继续空转。{saved_note}"
             if same_signature_streak >= 3:
-                if getattr(self, "interactive", False):
+                if not strict_budget:
                     same_signature_streak = 0
                     self.state.no_progress_streak = 0
                     self.messages.append({
