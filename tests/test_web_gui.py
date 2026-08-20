@@ -3,6 +3,7 @@ import json
 import os
 import threading
 import time
+import urllib.error
 import urllib.request
 import urllib.parse
 import pytest
@@ -60,6 +61,8 @@ def test_web_static_css_and_js(web_test_server):
     assert "prompt: prompt," in content_js
     assert "payload.text || directText" in content_js
     assert "function appendAssistantMessage" in content_js
+    assert 'fetch("/api/ppt/apply_content"' in content_js
+    assert "pptLoadGeneration" in content_js
 
 
 def test_web_api_config(web_test_server):
@@ -354,8 +357,13 @@ def test_web_api_ppt_content_and_preview(web_test_server):
     slide1 = prs.slides.add_slide(prs.slide_layouts[6])
     tb1 = slide1.shapes.add_textbox(Inches(1), Inches(1), Inches(10), Inches(2))
     p1 = tb1.text_frame.paragraphs[0]
-    p1.text = "AI Agent 端到端流水线"
-    p1.font.size = Pt(24)
+    title_prefix = p1.add_run()
+    title_prefix.text = "AI Agent "
+    title_prefix.font.size = Pt(24)
+    title_emphasis = p1.add_run()
+    title_emphasis.text = "端到端流水线"
+    title_emphasis.font.size = Pt(24)
+    title_emphasis.font.bold = True
 
     slide2 = prs.slides.add_slide(prs.slide_layouts[6])
     tb2 = slide2.shapes.add_textbox(Inches(1), Inches(1), Inches(10), Inches(2))
@@ -367,31 +375,78 @@ def test_web_api_ppt_content_and_preview(web_test_server):
     prs.save(str(deck_file))
 
     # Test GET /api/ppt/content
-    req_content = urllib.request.urlopen(f"{web_test_server}/api/ppt/content")
+    req_content = urllib.request.urlopen(f"{web_test_server}/api/ppt/content", timeout=30)
     assert req_content.status == 200
     content_data = json.loads(req_content.read().decode("utf-8"))
     assert content_data["success"] is True
     assert content_data["total_slides"] == 2
     assert "AI Agent 端到端流水线" in content_data["text_content"]
     assert "AI Agent 运行时架构" in content_data["text_content"]
+    assert "[S1.SH" in content_data["text_content"]
 
     # Test GET /api/ppt/preview
-    req_preview = urllib.request.urlopen(f"{web_test_server}/api/ppt/preview?slide=1")
+    req_preview = urllib.request.urlopen(f"{web_test_server}/api/ppt/preview?slide=1", timeout=30)
     assert req_preview.status == 200
     assert req_preview.headers.get("Content-Type", "") == "image/png"
     img_bytes = req_preview.read()
     assert len(img_bytes) > 50
 
-    # Test POST /api/ppt/apply_content
+    # Test POST /api/ppt/apply_content performs a deterministic edit on the
+    # selected file instead of merely returning a prompt for the model.
+    edited_text = content_data["text_content"].replace(
+        "端到端流水线", "已同步的新标题", 1
+    )
     post_apply = urllib.request.Request(
         f"{web_test_server}/api/ppt/apply_content",
-        data=json.dumps({"text_content": "=== 第 1 页: 新标题 ===\n• 新要点 1"}).encode("utf-8"),
+        data=json.dumps({
+            "text_content": edited_text,
+            "deck_path": str(deck_file),
+        }).encode("utf-8"),
         headers={"Content-Type": "application/json"}
     )
     with urllib.request.urlopen(post_apply) as resp:
         assert resp.status == 200
         apply_data = json.loads(resp.read().decode("utf-8"))
         assert apply_data["status"] == "ok"
-        assert "新标题" in apply_data["instruction"]
+        assert apply_data["changed_count"] == 1
+        assert apply_data["changed_slides"] == [1]
+
+    reopened = Presentation(str(deck_file))
+    assert "AI Agent 已同步的新标题" in reopened.slides[0].shapes[0].text
+    assert reopened.slides[0].shapes[0].text_frame.paragraphs[0].runs[-1].font.bold is True
+    assert "AI Agent 运行时架构" in reopened.slides[1].shapes[0].text
+
+    # A second content fetch must immediately observe the edit, even when the
+    # write happened in the same wall-clock second.
+    req_content_2 = urllib.request.urlopen(
+        f"{web_test_server}/api/ppt/content?file={urllib.parse.quote(str(deck_file))}",
+        timeout=30,
+    )
+    refreshed = json.loads(req_content_2.read().decode("utf-8"))
+    assert "AI Agent 已同步的新标题" in refreshed["text_content"]
+
+    req_preview_2 = urllib.request.urlopen(
+        f"{web_test_server}/api/ppt/preview?slide=1&file={urllib.parse.quote(str(deck_file))}",
+        timeout=30,
+    )
+    assert req_preview_2.read() != img_bytes
 
 
+def test_web_api_ppt_apply_rejects_stale_markers(web_test_server):
+    from agent.config import sandbox_root
+
+    deck_file = sandbox_root() / "deck.pptx"
+    post_apply = urllib.request.Request(
+        f"{web_test_server}/api/ppt/apply_content",
+        data=json.dumps({
+            "text_content": "[S99.SH999.P1] 不应写入",
+            "deck_path": str(deck_file),
+        }).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as exc_info:
+        urllib.request.urlopen(post_apply)
+    assert exc_info.value.code == 409
+    payload = json.loads(exc_info.value.read().decode("utf-8"))
+    assert payload["status"] == "error"
+    assert "失效" in payload["error"]

@@ -6,8 +6,11 @@ REST + SSE (Server-Sent Events) APIs for real-time streaming, tool calls, and wo
 from __future__ import annotations
 
 import json
+import difflib
 import os
 import queue
+import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -265,33 +268,42 @@ def _find_active_deck(
             from .session_store import load_session
             snap = load_session(session_id)
             if snap:
+                session_root = Path(snap.get("workspace") or ws_path or config.sandbox_root())
                 # Check deck_working_path or deck_source_path or required_output_pptx
-                for key in ("deck_working_path", "deck_source_path", "required_output_pptx"):
-                    val = snap.get(key)
+                deck_values = [snap.get("deck_working_path"), snap.get("deck_source_path")]
+                facts = snap.get("facts") or {}
+                deck_values.extend((facts.get("required_output_pptx"), facts.get("output_path")))
+                for val in deck_values:
                     if val:
                         p = Path(val)
-                        if not p.is_absolute() and ws_path:
-                            p = ws_path / p
+                        if not p.is_absolute():
+                            p = session_root / p
                         if p.exists() and p.is_file() and p.suffix.lower() in (".pptx", ".ppt") and p.stat().st_size > 0:
                             return p
                 # Check messages for saved pptx paths
                 for msg in reversed(snap.get("messages", [])):
                     content = str(msg.get("content", ""))
-                    import re
-                    matches = re.findall(r'[\'"]?([a-zA-Z0-9_\\/\-.:]+\.pptx)[\'"]?', content, re.IGNORECASE)
+                    matches = re.findall(r"(?:^|[\s'\"])([^\r\n'\"]+?\.pptx)(?=$|[\s'\"，。；;])", content, re.IGNORECASE)
                     for match in matches:
                         mp = Path(match.strip("\'\""))
-                        if not mp.is_absolute() and ws_path:
-                            mp = ws_path / mp
+                        if not mp.is_absolute():
+                            mp = session_root / mp
                         if mp.exists() and mp.is_file() and mp.stat().st_size > 0:
                             return mp
         except Exception:
             pass
 
     # 3. If harness has an active deck or changed pptx files in current task
-    if harness is not None:
-        deck_path = getattr(harness, "deck_path", None)
-        if deck_path:
+    harness_session_id = str(getattr(getattr(harness, "session", None), "id", "") or "") if harness is not None else ""
+    harness_matches_session = not session_id or not harness_session_id or harness_session_id == session_id
+    if harness is not None and harness_matches_session:
+        for deck_path in (
+            getattr(harness, "deck_working_path", None),
+            getattr(harness, "deck_path", None),
+            getattr(harness, "deck_source_path", None),
+        ):
+            if not deck_path:
+                continue
             dp = Path(deck_path)
             if dp.exists() and dp.is_file() and dp.stat().st_size > 0:
                 return dp
@@ -305,23 +317,54 @@ def _find_active_deck(
                 pptx_changed.sort(key=lambda p: p.stat().st_mtime, reverse=True)
                 return pptx_changed[0]
 
+    # A historical session without an associated deck must not silently display
+    # an unrelated, newer deck from the same workspace.
+    if session_id:
+        return None
+
     # 4. Search in ws_path (or config.sandbox_root())
     root = ws_path or config.sandbox_root()
     if not root.is_dir():
         return None
 
-    # Collect all valid .pptx files recursively, excluding temp & cache files
+    # Fast path: normal GUI decks live at the workspace root. Avoid walking a
+    # large repository just to discover the conventional deck.pptx.
+    conventional = root / "deck.pptx"
+    if conventional.is_file() and conventional.stat().st_size > 0:
+        return conventional
+    direct_candidates = [
+        p for p in root.glob("*.pptx")
+        if not p.name.startswith("~$") and p.is_file() and p.stat().st_size > 0
+    ]
+    if direct_candidates:
+        direct_candidates.sort(key=lambda p: p.stat().st_mtime_ns, reverse=True)
+        return direct_candidates[0]
+
+    # Bounded fallback for nested task outputs. Dependency trees, caches and
+    # prior backups are both expensive and incorrect sources for an active deck.
     candidates: list[Path] = []
     try:
-        for p in root.rglob("*.pptx"):
-            if not p.name.startswith("~$") and not any(part.startswith(".") for part in p.parts) and p.is_file() and p.stat().st_size > 0:
-                candidates.append(p)
+        root_depth = len(root.parts)
+        ignored = {"node_modules", ".git", ".venv", "venv", "__pycache__", "preview_cache", "ppt_text_backups"}
+        for current_dir, dir_names, file_names in os.walk(root):
+            current = Path(current_dir)
+            depth = len(current.parts) - root_depth
+            dir_names[:] = [
+                name for name in dir_names
+                if name not in ignored and not name.startswith(".") and depth < 6
+            ]
+            for name in file_names:
+                if name.startswith("~$") or not name.lower().endswith(".pptx"):
+                    continue
+                p = current / name
+                if p.is_file() and p.stat().st_size > 0:
+                    candidates.append(p)
     except Exception:
         pass
 
     if candidates:
         # Sort strictly by mtime descending (most recently modified/created first)
-        candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        candidates.sort(key=lambda p: p.stat().st_mtime_ns, reverse=True)
         return candidates[0]
 
     return None
@@ -335,32 +378,23 @@ def _get_deck_content_data(pptx_path: Path) -> dict[str, Any]:
         return {"success": False, "error": str(exc), "total_slides": 0, "slides": [], "text_content": ""}
 
     slides_info = []
-    text_sections = []
+    text_sections = [
+        "编辑说明：只修改每个 [Sx.SHx.Px] 标记后面的文字；请保留方括号内的定位标记。",
+        "符号 ↵ 表示文本框内的手动换行。",
+        "",
+    ]
     for idx, slide in enumerate(prs.slides, 1):
         slide_title = ""
         items = []
-        for sh in slide.shapes:
-            if getattr(sh, "has_text_frame", False) and sh.text_frame:
-                txt = (sh.text_frame.text or "").strip()
-                if not txt:
-                    continue
-                top = 0.0
-                try:
-                    top = sh.top.inches if sh.top is not None else 0.0
-                except Exception:
-                    pass
-                if not slide_title and top < 1.5:
-                    slide_title = txt
-                else:
-                    for p in sh.text_frame.paragraphs:
-                        ptxt = (p.text or "").strip()
-                        if ptxt and ptxt != slide_title and ptxt not in items:
-                            items.append(ptxt)
-            elif getattr(sh, "has_table", False):
-                for row in sh.table.rows:
-                    row_txt = " | ".join((c.text or "").strip() for c in row.cells if (c.text or "").strip())
-                    if row_txt and row_txt not in items:
-                        items.append(f"表格: {row_txt}")
+        records = list(_iter_editable_text_records(slide, idx))
+        for record in records:
+            ptxt = record["paragraph"].text.strip()
+            if not ptxt:
+                continue
+            if not slide_title and record["top_inches"] < 1.5 and record["kind"] == "shape":
+                slide_title = ptxt
+            elif ptxt not in items:
+                items.append(ptxt)
 
         title_display = slide_title or f"第 {idx} 页"
         slides_info.append({
@@ -368,10 +402,11 @@ def _get_deck_content_data(pptx_path: Path) -> dict[str, Any]:
             "title": title_display,
             "items": items,
         })
-        text_sections.append(f"=== 第 {idx} 页: {title_display} ===")
-        for it in items:
-            prefix = "" if any(it.startswith(k) for k in ("•", "-", "▶", "*", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")) else "• "
-            text_sections.append(f"{prefix}{it}")
+        text_sections.append(f"=== 第 {idx} 页 ===")
+        for record in records:
+            value = record["paragraph"].text.replace("\v", "↵").replace("\n", "↵")
+            if value.strip():
+                text_sections.append(f"[{record['ref']}] {value}")
         text_sections.append("")
 
     html_files = []
@@ -397,6 +432,153 @@ def _get_deck_content_data(pptx_path: Path) -> dict[str, Any]:
     }
 
 
+_EDITABLE_REF_RE = re.compile(r"^\[(S\d+\.(?:SH\d+(?:\.G\d+)*|T\d+\.R\d+\.C\d+)\.P\d+)\]\s?(.*)$", re.IGNORECASE)
+
+
+def _iter_editable_text_records(slide: Any, slide_number: int):
+    """Yield addressable text paragraphs, including grouped shapes and tables."""
+    def walk(shapes: Any, group_suffix: str = "", inherited_top: float = 0.0):
+        for shape in shapes:
+            try:
+                shape_id = int(shape.shape_id)
+            except Exception:
+                continue
+            try:
+                top_inches = float(shape.top.inches)
+            except Exception:
+                top_inches = inherited_top
+            shape_ref = f"S{slide_number}.SH{shape_id}{group_suffix}"
+
+            if getattr(shape, "has_text_frame", False) and getattr(shape, "text_frame", None) is not None:
+                for paragraph_index, paragraph in enumerate(shape.text_frame.paragraphs, 1):
+                    yield {
+                        "ref": f"{shape_ref}.P{paragraph_index}",
+                        "paragraph": paragraph,
+                        "kind": "shape",
+                        "top_inches": top_inches,
+                    }
+
+            if getattr(shape, "has_table", False):
+                for row_index, row in enumerate(shape.table.rows, 1):
+                    for column_index, cell in enumerate(row.cells, 1):
+                        if getattr(cell, "is_spanned", False):
+                            continue
+                        for paragraph_index, paragraph in enumerate(cell.text_frame.paragraphs, 1):
+                            yield {
+                                "ref": f"S{slide_number}.T{shape_id}.R{row_index}.C{column_index}.P{paragraph_index}",
+                                "paragraph": paragraph,
+                                "kind": "table",
+                                "top_inches": top_inches,
+                            }
+
+            child_shapes = getattr(shape, "shapes", None)
+            if child_shapes is not None:
+                yield from walk(child_shapes, f"{group_suffix}.G{shape_id}", top_inches)
+
+    yield from walk(slide.shapes)
+
+
+def _parse_editable_text(text_content: str) -> dict[str, str]:
+    updates: dict[str, str] = {}
+    for line in text_content.splitlines():
+        match = _EDITABLE_REF_RE.match(line.strip("\r"))
+        if not match:
+            continue
+        ref = match.group(1).upper()
+        if ref in updates:
+            raise ValueError(f"重复的文本定位标记: {ref}")
+        updates[ref] = match.group(2).replace("↵", "\v")
+    return updates
+
+
+def _replace_paragraph_text(paragraph: Any, new_text: str) -> None:
+    """Replace paragraph text while retaining unchanged run-level styling."""
+    if paragraph.text == new_text:
+        return
+    runs = list(paragraph.runs)
+    if not runs:
+        paragraph.text = new_text
+        return
+    original = "".join(run.text for run in runs)
+    if original != paragraph.text:
+        runs[0].text = new_text
+        for run in runs[1:]:
+            run.text = ""
+        return
+
+    character_runs = [index for index, run in enumerate(runs) for _ in run.text]
+    pieces: list[list[str]] = [[] for _ in runs]
+    matcher = difflib.SequenceMatcher(a=original, b=new_text, autojunk=False)
+    for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
+        if tag == "equal":
+            for offset, character in enumerate(new_text[new_start:new_end]):
+                pieces[character_runs[old_start + offset]].append(character)
+        elif tag in {"insert", "replace"} and new_start < new_end:
+            if old_start < len(character_runs):
+                target_run = character_runs[old_start]
+            elif character_runs:
+                target_run = character_runs[-1]
+            else:
+                target_run = 0
+            pieces[target_run].append(new_text[new_start:new_end])
+
+    for run, text_pieces in zip(runs, pieces):
+        run.text = "".join(text_pieces)
+
+
+def _apply_deck_text_content(pptx_path: Path, text_content: str) -> dict[str, Any]:
+    """Apply marker-addressed text edits atomically to the selected deck."""
+    from pptx import Presentation
+
+    updates = _parse_editable_text(text_content)
+    if not updates:
+        raise ValueError("未找到可识别的 [Sx.SHx.Px] 文本定位标记；请先刷新右侧 PPT 文本")
+
+    prs = Presentation(str(pptx_path))
+    records: dict[str, dict[str, Any]] = {}
+    for slide_number, slide in enumerate(prs.slides, 1):
+        for record in _iter_editable_text_records(slide, slide_number):
+            records[record["ref"].upper()] = record
+
+    unknown = sorted(set(updates) - set(records))
+    if unknown:
+        sample = ", ".join(unknown[:5])
+        raise ValueError(f"PPT 已变化，存在失效的文本定位标记: {sample}；请刷新后重试")
+
+    changed_refs: list[str] = []
+    changed_slides: set[int] = set()
+    for ref, new_text in updates.items():
+        paragraph = records[ref]["paragraph"]
+        if paragraph.text != new_text:
+            _replace_paragraph_text(paragraph, new_text)
+            changed_refs.append(ref)
+            changed_slides.add(int(ref.split(".", 1)[0][1:]))
+
+    if not changed_refs:
+        return {"changed_count": 0, "changed_refs": [], "changed_slides": []}
+
+    backup_dir = pptx_path.parent / ".baoyi" / "ppt_text_backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / f"{pptx_path.stem}-{time.time_ns()}.pptx"
+    shutil.copy2(pptx_path, backup_path)
+
+    temp_path = pptx_path.with_name(f".{pptx_path.stem}.{time.time_ns()}.tmp.pptx")
+    try:
+        prs.save(str(temp_path))
+        Presentation(str(temp_path))
+        os.replace(temp_path, pptx_path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+    return {
+        "changed_count": len(changed_refs),
+        "changed_refs": changed_refs,
+        "changed_slides": sorted(changed_slides),
+        "backup_path": str(backup_path),
+    }
+
+
 _COM_RENDER_LOCK = threading.Lock()
 
 
@@ -408,7 +590,8 @@ def _render_deck_slide_preview(pptx_path: Path, slide_number: int = 1) -> bytes 
         cache_dir = config.sandbox_root() / ".baoyi" / "preview_cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         path_hash = hashlib.md5(str(pptx_path.resolve()).encode("utf-8", errors="replace")).hexdigest()[:12]
-        out_png = cache_dir / f"slide_{path_hash}_{slide_number}_{int(pptx_path.stat().st_mtime)}.png"
+        stat = pptx_path.stat()
+        out_png = cache_dir / f"slide_{path_hash}_{slide_number}_{stat.st_mtime_ns}_{stat.st_size}.png"
         if out_png.exists() and out_png.stat().st_size > 0:
             return out_png.read_bytes()
 
@@ -416,36 +599,41 @@ def _render_deck_slide_preview(pptx_path: Path, slide_number: int = 1) -> bytes 
             if out_png.exists() and out_png.stat().st_size > 0:
                 return out_png.read_bytes()
             try:
-                import win32com.client
-                import pythoncom
-                pythoncom.CoInitialize()
-                ppt_app = None
-                prs = None
-                try:
-                    ppt_app = win32com.client.DispatchEx("PowerPoint.Application")
-                    prs = ppt_app.Presentations.Open(str(pptx_path.resolve()), ReadOnly=True, Untitled=False, WithWindow=False)
-                    if 1 <= slide_number <= prs.Slides.Count:
-                        prs.Slides(slide_number).Export(str(out_png), "PNG", 1920, 1080)
-                        if out_png.exists():
-                            return out_png.read_bytes()
-                finally:
-                    if prs is not None:
-                        try:
-                            prs.Close()
-                        except Exception:
-                            pass
-                        prs = None
-                    if ppt_app is not None:
-                        try:
-                            ppt_app.Quit()
-                        except Exception:
-                            pass
-                        ppt_app = None
-                    try:
-                        pythoncom.CoUninitialize()
-                    except Exception:
-                        pass
-            except Exception:
+                # PowerPoint automation occasionally blocks forever on startup
+                # dialogs or add-ins. Isolate it so the HTTP request has a hard
+                # deadline and can fall back to the lightweight renderer.
+                render_script = """
+import sys
+import pythoncom
+import win32com.client
+pythoncom.CoInitialize()
+app = None
+deck = None
+try:
+    app = win32com.client.DispatchEx('PowerPoint.Application')
+    deck = app.Presentations.Open(sys.argv[1], ReadOnly=True, Untitled=False, WithWindow=False)
+    slide = int(sys.argv[3])
+    if 1 <= slide <= deck.Slides.Count:
+        deck.Slides(slide).Export(sys.argv[2], 'PNG', 1920, 1080)
+finally:
+    if deck is not None:
+        deck.Close()
+    if app is not None:
+        app.Quit()
+    pythoncom.CoUninitialize()
+"""
+                subprocess.run(
+                    [sys.executable, "-c", render_script, str(pptx_path.resolve()), str(out_png), str(slide_number)],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=12,
+                    check=False,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                if out_png.exists() and out_png.stat().st_size > 0:
+                    return out_png.read_bytes()
+            except (subprocess.SubprocessError, OSError):
                 pass
 
     # 2. Fallback: PIL rasterizer
@@ -748,11 +936,19 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
                     # Recursive discovery: task outputs live under tasks/<id>/output,
                     # so a root-only scan hides the artifacts the agent just made.
                     candidates = []
-                    for f in ws_root.rglob("*"):
-                        if f.is_file() and f.suffix.lower() in candidate_exts:
-                            candidates.append(f)
-                            if len(candidates) >= 300:
-                                break
+                    root_depth = len(ws_root.parts)
+                    ignored = {"node_modules", ".git", ".venv", "venv", "__pycache__", ".baoyi", ".xiaopu"}
+                    for current_dir, dir_names, file_names in os.walk(ws_root):
+                        current = Path(current_dir)
+                        depth = len(current.parts) - root_depth
+                        dir_names[:] = [
+                            name for name in dir_names
+                            if name not in ignored and not name.startswith(".") and depth < 6
+                        ]
+                        for name in file_names:
+                            f = current / name
+                            if f.suffix.lower() in candidate_exts:
+                                candidates.append(f)
                     candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
                     for f in candidates[:200]:
                         stat = f.stat()
@@ -988,16 +1184,34 @@ class XiaopuWebHandler(BaseHTTPRequestHandler):
         if path == "/api/ppt/apply_content":
             text_content = (body.get("text_content") or "").strip()
             if not text_content:
-                self.send_error(400, "Missing text_content")
+                self._send_json({"status": "error", "error": "文本内容为空"}, status=400)
                 return
-            instruction = (
-                "请保持当前演示文稿的精美排版、布局结构与视觉设计风格，按照以下修改后的文本内容更新 PPT 对应的页面标题、卡片内容与要点细节，更新后自动保存并校验：\n\n"
-                + text_content
-            )
-            self._send_json({
-                "status": "ok",
-                "instruction": instruction,
-            })
+            ws_param = body.get("workspace")
+            session_param = body.get("session_id") or body.get("session")
+            file_param = body.get("deck_path") or body.get("file") or body.get("path")
+            ws_root = Path(ws_param) if ws_param else config.sandbox_root()
+            deck_path = _find_active_deck(ws_root, session_id=session_param, specific_file=file_param, harness=self.harness)
+            if not deck_path or not deck_path.exists():
+                self._send_json({"status": "error", "error": "当前会话没有可更新的 PPT 文件"}, status=404)
+                return
+            try:
+                result = _apply_deck_text_content(deck_path, text_content)
+                live_paths = {
+                    str(Path(value).resolve())
+                    for value in (
+                        getattr(self.harness, "deck_working_path", None),
+                        getattr(self.harness, "deck_path", None),
+                    )
+                    if value
+                }
+                if str(deck_path.resolve()) in live_paths:
+                    from pptx import Presentation
+                    self.harness.deck = Presentation(str(deck_path))
+                self._send_json({"status": "ok", "deck_path": str(deck_path.resolve()), **result})
+            except ValueError as exc:
+                self._send_json({"status": "error", "error": str(exc)}, status=409)
+            except Exception as exc:
+                self._send_json({"status": "error", "error": f"更新 PPT 失败: {exc}"}, status=500)
             return
 
         if path == "/api/session/export":

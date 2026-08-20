@@ -975,6 +975,21 @@ class Harness:
         if not continuing_goal and not is_scope_continuation(task):
             if not (prior_ppt_context and not self._looks_like_code_request(task)) or new_deck_request:
                 self._clear_task_facts()
+        if (
+            is_scope_continuation(task)
+            and self.state.phase == RuntimePhase.STOPPED
+        ):
+            self.state.repair_attempts = 0
+            self.state.controller_redirects = 0
+            self.state.no_progress_streak = 0
+            if self.state.unresolved_checks:
+                self.state.last_verification_failed = True
+                self.state.transition(RuntimePhase.VERIFY)
+            else:
+                self.state.transition(RuntimePhase.PRODUCE)
+            self.state.facts.pop("stop_reason", None)
+            self.state.facts.pop("stop_blockers", None)
+            self.state.final_summary = None
         if manifest_task_id:
             self.state.record_fact("manifest_task_id", manifest_task_id)
             self.state.record_fact("manifest_batch_goal", original_task)
@@ -1349,7 +1364,7 @@ class Harness:
                     chat_kwargs["on_token"] = getattr(self, "stream_callback", None)
                 if "on_reasoning" in chat_params:
                     chat_kwargs["on_reasoning"] = getattr(self, "reasoning_callback", None)
-                reply = self.llm.chat(self.messages, advertised_tools, **chat_kwargs)
+                reply = self.llm.chat(self._sanitize_messages(self.messages), advertised_tools, **chat_kwargs)
             except Exception:
                 if self.cancel_requested():
                     return self._interrupt_stop()
@@ -1655,8 +1670,46 @@ class Harness:
             )
 
             results = self._execute_calls(msg.tool_calls)
+            for tc in msg.tool_calls:
+                text = results.get(tc.id, "")
+                self.on_tool(tc.function.name, tc.function.arguments, text)
+                # Verifier counterexamples and finish rejections are repair
+                # evidence; they get a larger model-visible budget than ordinary
+                # tool output so the complete blocker manifest can be planned
+                # against, not just its first fragment.
+                if tc.function.name == "run_task_evaluator":
+                    visible_limit = 22000
+                elif tc.function.name == "finish":
+                    visible_limit = 12000
+                elif tc.function.name == "ppt_inspect":
+                    visible_limit = 14000
+                elif tc.function.name == "ppt_check":
+                    # A failed contract gate is a full per-slide repair manifest;
+                    # truncating it hides the slides the model has not fixed yet.
+                    visible_limit = 20000 if "FAILED" in text else 8000
+                else:
+                    visible_limit = 14000 if tc.function.name == "read_many" else 5000
+                self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": bounded_tool_result(text, visible_limit)})
+
             if self.cancel_requested():
                 return self._interrupt_stop()
+            if self.state.phase == RuntimePhase.STOPPED:
+                saved = self._save_draft_before_pause()
+                blockers = sorted(self.state.unresolved_checks)
+                blocker_text = "、".join(blockers) if blockers else "存在未解决验证项"
+                for item in getattr(self.state, "operational_plan", []):
+                    if isinstance(item, dict) and item.get("status") in {"pending", "in_progress"}:
+                        item["status"] = "blocked"
+                summary = (
+                    "当前任务已阶段性结束：修复预算已用尽，"
+                    "未将当前结果标记为最终成功。"
+                    f"\n当前最佳产物：{saved or self.state.active_artifact or '已保留在当前会话'}"
+                    f"\n未解决项：{blocker_text}"
+                    f"\n修复次数：{self.state.repair_attempts}/{self.state.max_repairs}"
+                    "\n可输入“继续”从当前状态恢复执行。"
+                )
+                self.state.final_summary = summary
+                return summary
             # Obligation-based progress: fresh evidence with unchanged
             # unresolved obligations is not progress and must not reset the
             # stall counter. A changed obligation *set* (e.g. the official
@@ -1693,26 +1746,6 @@ class Harness:
             else:
                 last_signature = signature
                 same_signature_streak = 1
-            for tc in msg.tool_calls:
-                text = results[tc.id]
-                self.on_tool(tc.function.name, tc.function.arguments, text)
-                # Verifier counterexamples and finish rejections are repair
-                # evidence; they get a larger model-visible budget than ordinary
-                # tool output so the complete blocker manifest can be planned
-                # against, not just its first fragment.
-                if tc.function.name == "run_task_evaluator":
-                    visible_limit = 22000
-                elif tc.function.name == "finish":
-                    visible_limit = 12000
-                elif tc.function.name == "ppt_inspect":
-                    visible_limit = 14000
-                elif tc.function.name == "ppt_check":
-                    # A failed contract gate is a full per-slide repair manifest;
-                    # truncating it hides the slides the model has not fixed yet.
-                    visible_limit = 20000 if "FAILED" in text else 8000
-                else:
-                    visible_limit = 14000 if tc.function.name == "read_many" else 5000
-                self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": bounded_tool_result(text, visible_limit)})
             # Observation closure is a transition, not a dead end. If the model
             # answered the closure error with MORE observation calls, replace
             # the next planning pass with an explicit action directive so it
@@ -1978,8 +2011,43 @@ class Harness:
             "中止后返回的模型工具请求没有执行；已有文件、验证证据和执行轨迹均已保留。"
         )
 
+    def _sanitize_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Ensure all assistant tool_calls have corresponding tool response messages."""
+        if not messages:
+            return messages
+        sanitized: list[dict[str, Any]] = []
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
+            sanitized.append(msg)
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                raw_calls = msg["tool_calls"]
+                required_ids = [
+                    tc.id if hasattr(tc, "id") else tc.get("id")
+                    for tc in raw_calls
+                    if (hasattr(tc, "id") or isinstance(tc, dict))
+                ]
+                required_ids = [rid for rid in required_ids if rid]
+                j = i + 1
+                found_ids = set()
+                while j < len(messages) and messages[j].get("role") == "tool":
+                    tid = messages[j].get("tool_call_id")
+                    if tid:
+                        found_ids.add(tid)
+                    j += 1
+                missing_ids = [rid for rid in required_ids if rid not in found_ids]
+                for mid in missing_ids:
+                    sanitized.append({
+                        "role": "tool",
+                        "tool_call_id": mid,
+                        "content": "tool execution was interrupted or stopped by the controller",
+                    })
+            i += 1
+        return sanitized
+
     def _execute_calls(self, calls) -> dict[str, str]:
         self.state.tool_calls += len(calls)
+        strict_budget = config.strict_run_budget() and not getattr(self, "interactive", False)
 
         def execute(tc) -> str:
             from .controller_policies import MUTATION_TOOLS as _MUTATION_TOOLS

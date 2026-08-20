@@ -264,7 +264,21 @@ def dispatch(name: str, arguments_json: str, harness) -> str:
             # mutations of the same cycle are free until a verifier fails again.
             if getattr(harness.state, "last_verification_failed", False):
                 if harness.state.repair_attempts >= harness.state.max_repairs:
-                    raise RuntimeError(f"repair budget exhausted ({harness.state.max_repairs}); stop and report unresolved defects")
+                    from ..state import RuntimePhase
+
+                    harness.state.transition(RuntimePhase.STOPPED)
+                    harness.state.record_fact(
+                        "stop_reason",
+                        "repair_budget_exhausted",
+                    )
+                    harness.state.record_fact(
+                        "stop_blockers",
+                        ", ".join(sorted(harness.state.unresolved_checks)),
+                    )
+                    raise RuntimeError(
+                        f"repair budget exhausted ({harness.state.max_repairs}); "
+                        "execution stopped with unresolved defects"
+                    )
                 harness.state.repair_attempts += 1
                 harness.state.last_verification_failed = False
                 if getattr(harness, "recorder", None):

@@ -653,3 +653,94 @@ def test_verify_repair_reopens_full_production_facade():
     contract = compile_execution_contract(TaskSpec(skill="ppt.atomic_edit"), ppt_task=True)
     tools = contract.tools_for(RuntimePhase.VERIFY, repairing=True)
     assert {"ppt_inspect", "ppt_edit_text", "ppt_save", "ppt_check", "finish"} <= tools
+
+
+def test_repair_budget_exhaustion_stops_loop(tmp_path, monkeypatch):
+    from pptx import Presentation
+    from agent.harness import Harness
+    from agent.state import RuntimePhase
+    from agent.tools.registry import dispatch
+
+    monkeypatch.setattr("agent.config.sandbox_root", lambda: tmp_path)
+    h = Harness(interactive=True)
+    deck = Presentation()
+    deck.slides.add_slide(deck.slide_layouts[6])
+    h.deck = deck
+    h.state.max_repairs = 3
+    h.state.repair_attempts = 3
+    h.state.last_verification_failed = True
+    h.state.unresolved_checks = {"support_queue_not_closed_claim"}
+
+    with pytest.raises(RuntimeError, match="repair budget exhausted"):
+        dispatch("ppt_edit_text", json.dumps({"operation": "replace", "old": "foo", "new": "bar"}), h)
+
+    assert h.state.phase == RuntimePhase.STOPPED
+    assert h.state.facts.get("stop_reason") == "repair_budget_exhausted"
+    assert "support_queue_not_closed_claim" in h.state.facts.get("stop_blockers", "")
+
+
+def test_blocked_stop_preserves_best_artifact(tmp_path, monkeypatch):
+    from pptx import Presentation
+    from agent.harness import Harness
+    from agent.llm import AssistantMessage, LLMReply, ToolCall, ToolFn
+    from agent.state import RuntimePhase
+
+    monkeypatch.setattr("agent.config.sandbox_root", lambda: tmp_path)
+    monkeypatch.delenv("STRICT_RUN_BUDGET", raising=False)
+    h = Harness(interactive=True)
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    tb = slide.shapes.add_textbox(0, 0, 100, 100)
+    tb.text_frame.text = "draft content"
+    h.deck = deck
+    h.state.max_repairs = 2
+    h.state.repair_attempts = 2
+    h.state.last_verification_failed = True
+    h.state.unresolved_checks = {"support_queue_not_closed_claim"}
+    h.state.facts["required_output_pptx"] = str(tmp_path / "final.pptx")
+
+    # LLM attempts another edit, which triggers repair budget exhaustion and transitions to STOPPED
+    call = ToolCall("c1", ToolFn("ppt_edit_text", json.dumps({"operation": "replace", "old": "draft", "new": "final"})))
+    rep = LLMReply.from_message(AssistantMessage(tool_calls=[call]))
+    h.llm = type("FakeLLM", (), {"model": "test", "chat": lambda *a, **k: rep})()
+
+    res = h.run("修复 PPT 第 1 页")
+    assert h.state.phase == RuntimePhase.STOPPED
+    assert "当前任务已阶段性结束：修复预算已用尽" in res
+    assert "未解决项：support_queue_not_closed_claim" in res
+    assert "可输入“继续”从当前状态恢复执行" in res
+    assert h.state.final_summary == res
+
+
+def test_continue_rearms_stopped_repair_cycle(tmp_path, monkeypatch):
+    from pptx import Presentation
+    from agent.harness import Harness
+    from agent.llm import AssistantMessage, LLMReply, ToolCall, ToolFn
+    from agent.state import RuntimePhase
+
+    monkeypatch.setattr("agent.config.sandbox_root", lambda: tmp_path)
+    monkeypatch.delenv("STRICT_RUN_BUDGET", raising=False)
+    h = Harness(interactive=True)
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    h.deck = deck
+    h.state.transition(RuntimePhase.STOPPED)
+    h.state.max_repairs = 3
+    h.state.repair_attempts = 3
+    h.state.unresolved_checks = {"support_queue_not_closed_claim"}
+    h.state.facts["stop_reason"] = "repair_budget_exhausted"
+    h.state.facts["stop_blockers"] = "support_queue_not_closed_claim"
+    h.state.facts["required_output_pptx"] = str(tmp_path / "output.pptx")
+
+    # When user sends "继续", it re-arms repair_attempts=0 and transitions to VERIFY
+    inspect_call = ToolCall("c1", ToolFn("ppt_inspect", json.dumps({"slide_number": 1})))
+    rep = LLMReply.from_message(AssistantMessage(tool_calls=[inspect_call]))
+    h.llm = type("FakeLLM", (), {"model": "test", "chat": lambda *a, **k: rep})()
+
+    # Step one turn with "继续"
+    res = h.run("继续")
+    assert h.state.repair_attempts == 0
+    assert "stop_reason" not in h.state.facts
+    assert "stop_blockers" not in h.state.facts
+    assert h.deck is deck
+

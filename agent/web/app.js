@@ -57,6 +57,7 @@
   let currentPptData = null;
   let currentDeckPath = "";
   let currentSlideIndex = 1;
+  let pptLoadGeneration = 0;
 
   // Topbar Actions
   const btnArtifactsHub = document.getElementById("btn-artifacts-hub");
@@ -276,7 +277,7 @@
         artifactsWsInfo.innerText = `当前工作区：${data.workspace || activeWorkspacePath || "-"}`;
       }
       renderArtifactsList(cachedArtifacts);
-      loadPptPreview(currentSlideIndex, false, null, activeSessionId);
+      loadPptPreview(currentSlideIndex, false, currentDeckPath || null, activeSessionId);
     } catch (e) {
       console.error("Fetch artifacts error:", e);
     }
@@ -462,11 +463,12 @@
     appendAssistantContainer().innerHTML = formatMarkdown(`### ↩ 撤销结果\n\n${data.result}`);
     await fetchArtifacts();
     if (artifactsModal) artifactsModal.style.display = "none";
-    await loadPptPreview(currentSlideIndex, true);
+    await loadPptPreview(currentSlideIndex, true, currentDeckPath || null, activeSessionId);
   }
 
   // ------------------------------------------------------------------ PPT Preview & Content Sync
   async function loadPptPreview(slideNum = 1, forceTextUpdate = false, specificFile = null, sessionId = null) {
+    const loadGeneration = ++pptLoadGeneration;
     try {
       const targetSessionId = sessionId !== null && sessionId !== undefined ? sessionId : activeSessionId;
       const params = new URLSearchParams();
@@ -478,6 +480,7 @@
       const res = await fetch(`/api/ppt/content${queryString}`);
       if (!res.ok) return;
       const data = await res.json();
+      if (loadGeneration !== pptLoadGeneration) return;
       currentPptData = data;
 
       if (!data.success || data.total_slides <= 0) {
@@ -560,19 +563,44 @@
   }
 
   async function applyPptContent() {
-    const text = pptContentTxt ? pptContentTxt.value.trim() : "";
-    if (!text) {
+    const text = pptContentTxt ? pptContentTxt.value : "";
+    if (!text.trim()) {
       showToast("文本内容为空，请先编写或修改幻灯片要点");
       return;
     }
-    const instruction = "请保持当前演示文稿的精美排版、布局结构与视觉设计风格，按照以下修改后的文本内容更新 PPT 对应的页面标题、卡片内容与要点细节，更新后自动保存并校验：\n\n" + text;
-    if (promptInput) {
-      promptInput.value = instruction;
-      promptInput.style.height = "auto";
-      promptInput.style.height = Math.min(promptInput.scrollHeight, 180) + "px";
+    if (!currentPptData || !currentPptData.deck_path) {
+      showToast("没有选中的 PPT，请先刷新或从产物列表选择文件");
+      return;
     }
-    showToast("已组装修改指令，正在让报一更新 PPT...");
-    await sendMessage();
+    if (btnApplyPptText) btnApplyPptText.disabled = true;
+    showToast("正在把文字更新到当前 PPT...");
+    try {
+      const res = await fetch("/api/ppt/apply_content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text_content: text,
+          deck_path: currentPptData.deck_path,
+          workspace: activeWorkspacePath,
+          session_id: activeSessionId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== "ok") {
+        throw new Error(data.error || "更新失败");
+      }
+      const selectedDeck = data.deck_path || currentPptData.deck_path;
+      await loadPptPreview(currentSlideIndex, true, selectedDeck, activeSessionId);
+      showToast(data.changed_count > 0
+        ? `已更新 ${data.changed_count} 处文字，PPT 预览已同步`
+        : "文字没有变化，PPT 已保持原样");
+      await fetchArtifacts();
+    } catch (e) {
+      console.error("Apply PPT content failed:", e);
+      showToast(e.message || "更新 PPT 失败");
+    } finally {
+      if (btnApplyPptText) btnApplyPptText.disabled = false;
+    }
   }
 
   // ------------------------------------------------------------------ Tree Management
@@ -1211,6 +1239,7 @@
     activeSessionId = null;
     currentPptData = null;
     currentDeckPath = "";
+    pptLoadGeneration += 1;
     if (sidebarView !== "active") {
       sidebarView = "active";
       sidebarViewTabs.forEach(t => t.classList.toggle("active", (t.getAttribute("data-view") || "active") === "active"));
@@ -2078,7 +2107,7 @@
         if (tabPptPanel) tabPptPanel.style.display = "flex";
         tabTimelinePanel.style.display = "none";
         tabCotPanel.style.display = "none";
-        loadPptPreview(currentSlideIndex, false, null, activeSessionId);
+        loadPptPreview(currentSlideIndex, false, currentDeckPath || null, activeSessionId);
       });
     }
 
@@ -2102,7 +2131,7 @@
 
     if (btnRefreshPpt) {
       btnRefreshPpt.addEventListener("click", async () => {
-        await loadPptPreview(currentSlideIndex, true, null, activeSessionId);
+        await loadPptPreview(currentSlideIndex, true, currentDeckPath || null, activeSessionId);
         showToast("PPT 预览与文本已刷新");
       });
     }
